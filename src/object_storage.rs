@@ -64,6 +64,15 @@ impl ObjectStorageClient {
         self.upload_empty_atomic_create(&descriptor_path).await
     }
 
+    pub async fn write_membership_descriptor_payload<T: Serialize>(
+        &self,
+        descriptor: ReplicaDescriptor,
+        payload: &T,
+    ) -> Result<bool, ObjectStorageError> {
+        let descriptor_path = descriptor.object_path(&self.membership_directory_path);
+        self.upload_data_atomic_create(&descriptor_path, payload).await
+    }
+
     pub async fn delete_membership_descriptor(
         &self,
         descriptor: ReplicaDescriptor,
@@ -157,6 +166,26 @@ impl ObjectStorageClient {
     ) -> Result<bool, ObjectStorageError> {
         let path = Path::from(file_path);
         let payload = PutPayload::from(Vec::new());
+        let result = self
+            .bucket
+            .put_opts(&path, payload, PutMode::Create.into())
+            .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(Error::AlreadyExists { .. }) => Ok(false),
+            Err(Error::Precondition { .. }) => Ok(false),
+            Err(error) => Err(ObjectStorageError::S3Error(error)),
+        }
+    }
+
+    async fn upload_data_atomic_create<T: Serialize>(
+        &self,
+        file_path: &str,
+        data: &T,
+    ) -> Result<bool, ObjectStorageError> {
+        let path = Path::from(file_path);
+        let serialized_data = serde_json::to_string(data)?;
+        let payload = PutPayload::from(serialized_data);
         let result = self
             .bucket
             .put_opts(&path, payload, PutMode::Create.into())

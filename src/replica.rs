@@ -11,7 +11,7 @@ use crate::{
 };
 use csv::WriterBuilder;
 use rand::Rng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -235,7 +235,17 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
+        let shutdown_pids = members
+            .iter()
+            .filter(|descriptor| descriptor.is_shutdown())
+            .map(|descriptor| descriptor.pid)
+            .collect::<HashSet<_>>();
+
         for descriptor in members {
+            if descriptor.is_shutdown() || shutdown_pids.contains(&descriptor.pid) {
+                continue;
+            }
+
             self.network_member_sender
                 .send(NetworkMember {
                     pid: descriptor.pid,
@@ -276,6 +286,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             pid: self.pid,
             address: self.address.internal(),
             gc_counter: self.last_gc_marker.counter,
+            final_counter: None,
         }
     }
 
@@ -448,6 +459,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             pid: self.pid,
             address: self.address.internal(),
             gc_counter,
+            final_counter: None,
         };
         let descriptor_created = self
             .object_storage_client
@@ -540,9 +552,36 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.gc_interval = Self::gc_interval(Duration::from_nanos(interval_nanos));
     }
 
+    async fn write_shutdown_descriptor(&self) {
+        let local_state = self.crdt.read().await.clone();
+        let final_counter = local_state
+            .get_version_vector()
+            .counter(&self.pid)
+            .unwrap_or(-1);
+        let descriptor = ReplicaDescriptor {
+            pid: self.pid,
+            address: self.address.internal(),
+            gc_counter: self.last_gc_marker.counter,
+            final_counter: Some(final_counter),
+        };
+
+        let descriptor_created = self
+            .object_storage_client
+            .write_membership_descriptor_payload(descriptor, &local_state)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("Failed to write shutdown membership descriptor: {error}")
+            });
+        if !descriptor_created {
+            panic!("Shutdown membership descriptor already exists: {descriptor}");
+        }
+    }
+
     /// Gracefully shuts down the server, stopping all network connections and the HTTP server
     pub async fn shutdown(&mut self) {
         println!("Shutting down CRDT Server {}", self.pid);
+
+        self.write_shutdown_descriptor().await;
 
         // Shutdown HTTP Server
         if let Some(http_sender) = self.http_shutdown_sender.take() {

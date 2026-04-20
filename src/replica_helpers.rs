@@ -67,6 +67,7 @@ pub struct ReplicaDescriptor {
     pub pid: Pid,
     pub address: SocketAddr,
     pub gc_counter: Counter,
+    pub final_counter: Option<Counter>,
 }
 
 impl ReplicaDescriptor {
@@ -74,11 +75,19 @@ impl ReplicaDescriptor {
         let membership_directory = membership_directory_path.trim_end_matches('/');
         format!("{}/{}", membership_directory, self)
     }
+
+    pub fn is_shutdown(&self) -> bool {
+        self.final_counter.is_some()
+    }
 }
 
 impl fmt::Display for ReplicaDescriptor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{},{},{}", self.pid, self.address, self.gc_counter)
+        write!(formatter, "{},{},{}", self.pid, self.address, self.gc_counter)?;
+        if let Some(final_counter) = self.final_counter {
+            write!(formatter, ",{}", final_counter)?;
+        }
+        Ok(())
     }
 }
 
@@ -103,6 +112,10 @@ impl FromStr for ReplicaDescriptor {
             .ok_or(ReplicaDescriptorParseError)?
             .parse()
             .map_err(|_| ReplicaDescriptorParseError)?;
+        let final_counter = parts
+            .next()
+            .map(|value| value.parse().map_err(|_| ReplicaDescriptorParseError))
+            .transpose()?;
         if parts.next().is_some() {
             return Err(ReplicaDescriptorParseError);
         }
@@ -110,6 +123,7 @@ impl FromStr for ReplicaDescriptor {
             pid,
             address,
             gc_counter,
+            final_counter,
         })
     }
 }
