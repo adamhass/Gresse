@@ -30,3 +30,4 @@ itertools = "0.12"
 statrs = "0.18.0"
 nix = { version = "0.30.1", features = ["signal"] }
 dialoguer = "0.11.0"
+object_store = { version = "0.13.2", features = ["aws"] }

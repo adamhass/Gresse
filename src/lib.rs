@@ -6,6 +6,7 @@ pub mod dots;
 pub mod http_client;
 pub mod http_server;
 pub mod network;
+pub mod object_storage;
 // pub use prelude::*; // Optionally re-export prelude items at the crate root
 
 pub mod prelude {
