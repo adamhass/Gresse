@@ -1,10 +1,10 @@
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
-use object_store::{Error, ObjectStore, PutMode, PutPayload, UpdateVersion, ObjectStoreExt};
 use object_store::path::Path;
-use thiserror::Error;
-use serde::{Serialize, Deserialize};
+use object_store::{Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, UpdateVersion};
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use thiserror::Error;
 
 #[derive(Clone, Debug)]
 pub struct ObjectStorageConfig {
@@ -13,21 +13,15 @@ pub struct ObjectStorageConfig {
     pub bucket: String,
     pub access_key: String,
     pub secret_key: String,
-    pub prefix_delimiter: Option<String>,
-    pub prefixes: ObjectStoragePrefixes,
-    pub discovery_interval: Duration
-}
-
-#[derive(Clone, Debug)]
-pub struct ObjectStoragePrefixes {
-    pub discovery: String,
-    pub bottom: String,
-    pub dormant: String,
-    pub lock: String,
+    pub persistent_replica_path: String,
+    pub membership_directory_path: String,
+    pub discovery_interval: Duration,
 }
 
 pub struct ObjectStorageClient {
     bucket: AmazonS3,
+    persistent_replica_path: String,
+    membership_directory_path: String,
 }
 
 impl ObjectStorageClient {
@@ -48,7 +42,17 @@ impl ObjectStorageClient {
 
         Ok(ObjectStorageClient {
             bucket,
+            persistent_replica_path: config.persistent_replica_path,
+            membership_directory_path: config.membership_directory_path,
         })
+    }
+
+    pub fn persistent_replica_path(&self) -> &str {
+        &self.persistent_replica_path
+    }
+
+    pub fn membership_directory_path(&self) -> &str {
+        &self.membership_directory_path
     }
 
     pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, ObjectStorageError> {
@@ -62,8 +66,11 @@ impl ObjectStorageClient {
         Ok(file_names)
     }
 
-
-    pub async fn upload_data<T: Serialize>(&self, file_path: &str, data: &T) -> Result<(), ObjectStorageError> {
+    pub async fn upload_data<T: Serialize>(
+        &self,
+        file_path: &str,
+        data: &T,
+    ) -> Result<(), ObjectStorageError> {
         let serialized_data = serde_json::to_string(data)?;
         let path = Path::from(file_path);
         let payload = PutPayload::from(serialized_data);
@@ -74,21 +81,24 @@ impl ObjectStorageClient {
         Ok(())
     }
 
-    pub async fn download_data<T: for<'de> Deserialize<'de>>(&self, file_path: &str) -> Result<(T, UpdateVersion), ObjectStorageError> {
+    pub async fn download_data<T: for<'de> Deserialize<'de>>(
+        &self,
+        file_path: &str,
+    ) -> Result<(T, UpdateVersion), ObjectStorageError> {
         let path = Path::from(file_path);
         let result = self.bucket.get(&path).await;
         if let Err(error) = result {
             return match error {
-                Error::NotFound { path: _, source: _} => Err(ObjectStorageError::FileNotFound),
+                Error::NotFound { path: _, source: _ } => Err(ObjectStorageError::FileNotFound),
                 _ => Err(ObjectStorageError::S3Error(error)),
-            }
+            };
         }
         let response = result?;
         let version = UpdateVersion {
             e_tag: response.meta.e_tag.clone(),
             version: response.meta.version.clone(),
         };
-        
+
         let raw_data = response.bytes().await?;
         let data: T = serde_json::from_slice(&raw_data)?;
 
@@ -104,42 +114,61 @@ impl ObjectStorageClient {
         Ok(())
     }
 
-    pub async fn upload_data_atomic_update<T: Serialize>(&self, file_path: &str, data: &T, version: UpdateVersion) -> Result<bool, ObjectStorageError> {
+    pub async fn upload_data_atomic_update<T: Serialize>(
+        &self,
+        file_path: &str,
+        data: &T,
+        version: UpdateVersion,
+    ) -> Result<bool, ObjectStorageError> {
         let path = Path::from(file_path);
         let serialized_data = serde_json::to_string(data)?;
         let payload = PutPayload::from(serialized_data);
-        let result = self.bucket.put_opts(&path, payload, PutMode::Update(version).into()).await;
+        let result = self
+            .bucket
+            .put_opts(&path, payload, PutMode::Update(version).into())
+            .await;
         match result {
-            Ok(_) => {
-                Ok(true)
-            }
-            Err(Error::Precondition { .. }) => {
-                Ok(false)
-            }
-            Err(error) => {
-                Err(ObjectStorageError::S3Error(error))
-            }
+            Ok(_) => Ok(true),
+            Err(Error::Precondition { .. }) => Ok(false),
+            Err(error) => Err(ObjectStorageError::S3Error(error)),
         }
     }
-    
-    pub async fn upload_data_atomic_create<T: Serialize>(&self, file_path: &str, data: &T) -> Result<bool, ObjectStorageError> {
+
+    pub async fn upload_data_atomic_create<T: Serialize>(
+        &self,
+        file_path: &str,
+        data: &T,
+    ) -> Result<bool, ObjectStorageError> {
         let path = Path::from(file_path);
         let serialized_data = serde_json::to_string(data)?;
         let payload = PutPayload::from(serialized_data);
-        let result = self.bucket.put_opts(&path, payload, PutMode::Create.into()).await;
+        let result = self
+            .bucket
+            .put_opts(&path, payload, PutMode::Create.into())
+            .await;
         match result {
-            Ok(_) => {
-                Ok(true)
-            }
-            Err(Error::AlreadyExists { .. }) => {
-                Ok(false)
-            }
-            Err(Error::Precondition { .. }) => {
-                Ok(false)
-            }
-            Err(error) => {
-                Err(ObjectStorageError::S3Error(error))
-            }
+            Ok(_) => Ok(true),
+            Err(Error::AlreadyExists { .. }) => Ok(false),
+            Err(Error::Precondition { .. }) => Ok(false),
+            Err(error) => Err(ObjectStorageError::S3Error(error)),
+        }
+    }
+
+    pub async fn upload_empty_atomic_create(
+        &self,
+        file_path: &str,
+    ) -> Result<bool, ObjectStorageError> {
+        let path = Path::from(file_path);
+        let payload = PutPayload::from(Vec::new());
+        let result = self
+            .bucket
+            .put_opts(&path, payload, PutMode::Create.into())
+            .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(Error::AlreadyExists { .. }) => Ok(false),
+            Err(Error::Precondition { .. }) => Ok(false),
+            Err(error) => Err(ObjectStorageError::S3Error(error)),
         }
     }
 

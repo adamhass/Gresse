@@ -2,34 +2,32 @@ use crate::prelude::{Pid, ServerAddr};
 // use crate::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
-use tokio::fs::{File, OpenOptions};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::{
-    io::{
-        self, AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Interest, Lines, ReadHalf,
-        WriteHalf,
-    },
+    io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, Interest, Lines, ReadHalf, WriteHalf},
     sync::mpsc::{channel, Receiver, Sender},
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct NetworkMember {
+    pub pid: Pid,
+    pub address: SocketAddr,
+}
+
 /// Network manager for a server, handles the systems internal network connections
-/// When it starts it writes its own address to a file and listens for new addresses in the file
-/// It also listens for incoming connections and sends out connections to new addresses
+/// It listens for incoming connections and connects to members received from the replica.
 pub struct NetworkManager<T> {
     pub local_event_sender: Sender<T>,
     pub connection_sender: Sender<(Pid, Sender<T>)>,
+    pub member_receiver: Receiver<NetworkMember>,
     pub listener: TcpListener,
     pub pid: Pid,
     pub address: ServerAddr,
-    pub server_list_file_path: PathBuf,
     // For graceful shutdown
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     task_handles: Vec<JoinHandle<()>>,
@@ -39,10 +37,15 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
     pub async fn launch_network_manager(
         address: ServerAddr,
         pid: Pid,
-        server_list_file_path: PathBuf,
-    ) -> (Receiver<T>, Receiver<(Pid, Sender<T>)>, oneshot::Sender<()>) {
+    ) -> (
+        Receiver<T>,
+        Receiver<(Pid, Sender<T>)>,
+        Sender<NetworkMember>,
+        oneshot::Sender<()>,
+    ) {
         let (local_event_sender, local_event_receiver) = channel::<T>(100);
         let (connection_sender, connection_receiver) = channel::<(Pid, Sender<T>)>(100);
+        let (member_sender, member_receiver) = channel::<NetworkMember>(100);
         let listener = TcpListener::bind(address.internal())
             .await
             .expect("Failed to bind to internal address");
@@ -52,22 +55,25 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         let mut this = NetworkManager::<T> {
             local_event_sender,
             connection_sender,
+            member_receiver,
             listener,
             pid,
             address,
-            server_list_file_path,
             shutdown_receiver: Some(shutdown_receiver),
             task_handles: Vec::new(),
         };
         tokio::spawn(async move {
             this.run().await;
         });
-        (local_event_receiver, connection_receiver, shutdown_sender)
+        (
+            local_event_receiver,
+            connection_receiver,
+            member_sender,
+            shutdown_sender,
+        )
     }
 
     pub async fn run(&mut self) {
-        let mut address_receiver = self.init_server_file_monitor().await;
-
         // Take ownership of shutdown_receiver from self
         let mut shutdown_receiver = self
             .shutdown_receiver
@@ -77,8 +83,8 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         loop {
             tokio::select! {
                 Ok((stream, _)) = self.listener.accept() => {self.handle_new_stream(stream).await},
-                Some(address) = address_receiver.recv() => {
-                    self.handle_new_address(address).await;
+                Some(member) = self.member_receiver.recv() => {
+                    self.handle_new_member(member).await;
                 }
                 Ok(()) = &mut shutdown_receiver => {
                     break;
@@ -91,70 +97,19 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         println!("NetworkManager for pid {} shutdown complete", self.pid);
     }
 
-    pub async fn handle_new_address(&mut self, address: SocketAddr) {
+    pub async fn handle_new_member(&mut self, member: NetworkMember) {
         // Ensure there's no self connection, or mutual connection attempts
-        if address == self.address.internal() || address < self.address.internal() {
+        if member.pid == self.pid
+            || member.address == self.address.internal()
+            || member.address < self.address.internal()
+        {
             return;
         }
-        println!("New address added: {:?}", address);
-        let stream = TcpStream::connect(address)
+        println!("New member added: {:?}", member);
+        let stream = TcpStream::connect(member.address)
             .await
             .expect("Failed to connect to new address");
         self.handle_new_stream(stream).await;
-    }
-
-    /// This method writes its own internal address to the server list file and returns a reader for monitoring
-    async fn init_server_file_monitor(&mut self) -> Receiver<SocketAddr> {
-        // Ensure the directory exists
-        if let Some(parent) = Path::new(&self.server_list_file_path).parent() {
-            std::fs::create_dir_all(parent).expect("Failed to create directories");
-        }
-
-        // Open or create the file asynchronously
-        let file = match OpenOptions::new()
-            .create(true) // Create the file if it doesn't exist
-            .write(true) // Allow writing to the file
-            .read(false) // Allow reading from the file (if needed)
-            .truncate(false)
-            .append(true)
-            .open(&self.server_list_file_path) // Open the file (won't truncate if it exists)
-            .await
-        {
-            Ok(file) => file,
-            Err(e) => {
-                panic!(
-                    "Failed to open file {}: {}",
-                    self.server_list_file_path.display(),
-                    e
-                );
-            }
-        };
-        let mut writer = BufWriter::new(file);
-        let _ = writer
-            .write(self.address.internal().to_string().as_bytes())
-            .await
-            .expect("Failed to write address");
-        let _ = writer.write(b"\n").await.expect("Failed to write newline");
-        writer.flush().await.expect("Failed to flush");
-        drop(writer);
-        let file = match File::open(&self.server_list_file_path).await {
-            Ok(file) => file,
-            Err(e) => {
-                panic!(
-                    "Failed to open file {}: {}",
-                    self.server_list_file_path.display(),
-                    e
-                );
-            }
-        };
-
-        let line_reader = BufReader::new(file).lines();
-        let (address_sender, address_receiver) = channel::<SocketAddr>(10);
-        let handle = tokio::spawn(async move {
-            Self::file_reader_loop(address_sender, line_reader).await;
-        });
-        self.task_handles.push(handle);
-        address_receiver
     }
 
     /// This method can be used both for incoming and outgoing streams
@@ -220,19 +175,6 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
                 Self::send_message(&mut writer, &request)
                     .await
                     .expect("Failed to send message");
-            }
-        }
-    }
-
-    async fn file_reader_loop(sender: Sender<SocketAddr>, mut reader: Lines<BufReader<File>>) {
-        loop {
-            while let Ok(Some(line)) = reader.next_line().await {
-                if !line.is_empty() {
-                    println!("New line added: {}", line);
-                    let addr: SocketAddr = line.parse().expect("Failed to parse address");
-                    sender.send(addr).await.unwrap();
-                }
-                sleep(Duration::from_secs(1)).await; // Avoid busy looping
             }
         }
     }

@@ -3,6 +3,8 @@ use std::{error::Error, fmt::Debug};
 
 use crate::{dots::DotSet, prelude::Pid};
 
+pub type Epoch = u64;
+
 pub trait CRDTData: Serialize + DeserializeOwned + Send + Sync + Clone + Debug {}
 
 impl<T> CRDTData for T where T: Serialize + DeserializeOwned + Sync + Send + Clone + Debug {}
@@ -22,6 +24,11 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
     /// CRDTs that include the local PID in their dots should store this value.
     /// CRDTs that do not need a local PID can use the default no-op implementation.
     fn set_pid(&mut self, _pid: Pid) {}
+
+    /// Returns the persistence epoch represented by this CRDT state.
+    fn epoch(&self) -> Epoch {
+        0
+    }
 
     /// Mutates the state, records the delta and returns the client response
     fn mutate(&mut self, mutation: Self::Mutation) -> Self::ClientResponse;

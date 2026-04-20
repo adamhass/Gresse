@@ -7,6 +7,7 @@ pub mod vector_dbw;
 pub mod vector_experiment;
 
 use gresse::{
+    object_storage::ObjectStorageConfig,
     prelude::*,
     replica::{Replica, ReplicaConfig},
 };
@@ -194,9 +195,9 @@ async fn run_dbc_servers(
             db,
             ReplicaConfig {
                 address: addr,
-                server_list_file_path: config.server_list_file_path.clone(),
                 sync_interval: config.sync_interval,
                 result_dir_path: config.result_dir_path.clone(),
+                object_storage_config: local_object_storage_config(),
             },
         )
         .await;
@@ -237,9 +238,9 @@ async fn run_dbw_servers(
             db,
             ReplicaConfig {
                 address: addr,
-                server_list_file_path: config.server_list_file_path.clone(),
                 sync_interval: config.sync_interval,
                 result_dir_path: config.result_dir_path.clone(),
+                object_storage_config: local_object_storage_config(),
             },
         )
         .await;
@@ -272,6 +273,19 @@ async fn run_faiss_server(
         faiss_proxy.run().await;
     });
     (addr, handle, shutdown_sender)
+}
+
+fn local_object_storage_config() -> ObjectStorageConfig {
+    ObjectStorageConfig {
+        url: "http://localhost:9000".to_string(),
+        region: "local".to_string(),
+        bucket: "gresse".to_string(),
+        access_key: "gresse".to_string(),
+        secret_key: "gresse".to_string(),
+        persistent_replica_path: "replicas".to_string(),
+        membership_directory_path: "membership".to_string(),
+        discovery_interval: Duration::from_secs(1),
+    }
 }
 
 #[cfg(test)]
