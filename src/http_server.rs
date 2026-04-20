@@ -1,8 +1,8 @@
 use crate::crdt::*;
 use crate::prelude::*;
 
-use crate::replica::ClientResponder;
 use crate::http_client::HttpError;
+use crate::replica_helpers::*;
 use bytes::Bytes;
 use http_body_util::BodyExt;
 use http_body_util::Full;

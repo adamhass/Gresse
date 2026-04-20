@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
 
+use crate::crdt::CRDT;
+use crate::replica_helpers::ReplicaDescriptor;
+
 #[derive(Clone, Debug)]
 pub struct ObjectStorageConfig {
     pub url: String,
@@ -53,6 +56,39 @@ impl ObjectStorageClient {
 
     pub fn membership_directory_path(&self) -> &str {
         &self.membership_directory_path
+    }
+
+    pub async fn read_persistent_replica<T: CRDT>(&self) -> Result<Option<T>, ObjectStorageError> {
+        match self.download_data(&self.persistent_replica_path).await {
+            Ok((persistent_crdt, _)) => Ok(Some(persistent_crdt)),
+            Err(ObjectStorageError::FileNotFound) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub async fn write_persistent_replica<T: CRDT>(
+        &self,
+        crdt: &T,
+    ) -> Result<(), ObjectStorageError> {
+        self.upload_data(&self.persistent_replica_path, crdt).await
+    }
+
+    pub async fn write_membership_descriptor(
+        &self,
+        descriptor: ReplicaDescriptor,
+    ) -> Result<bool, ObjectStorageError> {
+        let descriptor_path = descriptor.object_path(&self.membership_directory_path);
+        self.upload_empty_atomic_create(&descriptor_path).await
+    }
+
+    pub async fn list_membership_descriptors(
+        &self,
+    ) -> Result<Vec<ReplicaDescriptor>, ObjectStorageError> {
+        let members = self.list_objects(&self.membership_directory_path).await?;
+        Ok(members
+            .into_iter()
+            .filter_map(|member| member.parse::<ReplicaDescriptor>().ok())
+            .collect())
     }
 
     pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, ObjectStorageError> {

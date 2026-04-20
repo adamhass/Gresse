@@ -22,3 +22,6 @@ target
 
 # VS Code workspace settings
 .vscode/
+
+# macOS Finder metadata
+.DS_Store

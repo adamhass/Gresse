@@ -2,7 +2,8 @@ use crate::http_server::launch_http_server;
 // use crate::vectors::{api::*, vector_db::*, Float, Key, Vector};
 // use crate::prelude::*;
 use crate::network::{NetworkManager, NetworkMember};
-use crate::object_storage::{ObjectStorageClient, ObjectStorageConfig, ObjectStorageError};
+use crate::object_storage::ObjectStorageClient;
+use crate::replica_helpers::*;
 use crate::{
     crdt::*,
     prelude::{new_pid, now_micros, Pid, ServerAddr},
@@ -10,87 +11,12 @@ use crate::{
 use csv::WriterBuilder;
 use rand::Rng;
 use std::collections::HashMap;
-use std::env;
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
-
-pub type ClientResponder<T> =
-    oneshot::Sender<Result<<T as CRDT>::ClientResponse, <T as CRDT>::Error>>;
-
-pub struct ReplicaHandle {
-    shutdown_sender: oneshot::Sender<()>,
-    join_handle: tokio::task::JoinHandle<()>,
-}
-
-impl ReplicaHandle {
-    pub fn shutdown_sender(self) -> oneshot::Sender<()> {
-        self.shutdown_sender
-    }
-
-    pub async fn shutdown(self) {
-        let _ = self.shutdown_sender.send(());
-        let _ = self.join_handle.await;
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ReplicaConfig {
-    pub address: ServerAddr,
-    pub sync_interval: Duration,
-    pub result_dir_path: PathBuf,
-    pub object_storage_config: ObjectStorageConfig,
-}
-
-impl ReplicaConfig {
-    pub fn from_env() -> Self {
-        Self {
-            address: ServerAddr::from_env(),
-            result_dir_path: env_path("GRESSE_RESULT_DIR_PATH"),
-            sync_interval: env::var("GRESSE_SYNC_INTERVAL_MS")
-                .ok()
-                .map(|value| {
-                    Duration::from_millis(
-                        value
-                            .parse()
-                            .expect("GRESSE_SYNC_INTERVAL_MS must be an integer"),
-                    )
-                })
-                .unwrap_or(Duration::from_secs(1)),
-            object_storage_config: ObjectStorageConfig {
-                url: env_string("GRESSE_OBJECT_STORAGE_URL"),
-                region: env_string("GRESSE_OBJECT_STORAGE_REGION"),
-                bucket: env_string("GRESSE_OBJECT_STORAGE_BUCKET"),
-                access_key: env_string("GRESSE_OBJECT_STORAGE_ACCESS_KEY"),
-                secret_key: env_string("GRESSE_OBJECT_STORAGE_SECRET_KEY"),
-                persistent_replica_path: env_string("GRESSE_PERSISTENT_REPLICA_PATH"),
-                membership_directory_path: env_string("GRESSE_MEMBERSHIP_DIRECTORY_PATH"),
-                discovery_interval: env::var("GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS")
-                    .ok()
-                    .map(|value| {
-                        Duration::from_millis(value.parse().expect(
-                            "GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS must be an integer",
-                        ))
-                    })
-                    .unwrap_or(Duration::from_secs(1)),
-            },
-        }
-    }
-}
-
-fn env_string(name: &str) -> String {
-    env::var(name).unwrap_or_else(|_| panic!("{name} environment variable is required"))
-}
-
-fn env_path(name: &str) -> PathBuf {
-    env::var(name)
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| panic!("{name} environment variable is required"))
-}
 
 pub struct Replica<T: CRDT + Debug + Clone> {
     crdt: Arc<RwLock<T>>,
@@ -219,38 +145,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         )
     }
 
-    /// Gracefully shuts down the server, stopping all network connections and the HTTP server
-    pub async fn shutdown(&mut self) {
-        println!("Shutting down CRDT Server {}", self.pid);
-
-        // Shutdown HTTP Server
-        if let Some(http_sender) = self.http_shutdown_sender.take() {
-            let _ = http_sender.send(()); // Ignore error if receiver is already dropped
-        }
-
-        // Shutdown NetworkManager
-        if let Some(network_sender) = self.network_shutdown_sender.take() {
-            let _ = network_sender.send(()); // Ignore error if receiver is already dropped
-        }
-
-        // Close all writer channels
-        self.writers.clear();
-
-        // Flush metric writer
-        self.metric_writer
-            .flush()
-            .expect("Failed to flush metric writer");
-
-        println!("CRDT Server {} shutdown complete", self.pid);
-    }
-
-    /// Get a shutdown handle that can be used to trigger server shutdown
-    pub fn get_shutdown_handle(&mut self) -> oneshot::Sender<()> {
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
-        self.shutdown_receiver = Some(shutdown_receiver);
-        shutdown_sender
-    }
-
     pub async fn run(&mut self) {
         self.init().await;
 
@@ -297,95 +191,83 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         self.enqueue_network_members(&members).await;
 
-        if let Some(mut persistent_crdt) = persistent_crdt {
-            let max_membership_epoch = Self::max_membership_epoch(&members);
-            if max_membership_epoch <= persistent_crdt.epoch() {
-                persistent_crdt.set_pid(self.pid);
-                *self.crdt.write().await = persistent_crdt;
-            } else {
-                todo!(
-                    "Persistent replica epoch {} is older than membership epoch {}, handler not implemented yet!",
-                    persistent_crdt.epoch(),
-                    max_membership_epoch
-                );
+        match persistent_crdt {
+            Some(mut persistent_crdt) => {
+                let max_membership_epoch = Self::max_membership_epoch(&members);
+                if max_membership_epoch <= persistent_crdt.epoch() {
+                    persistent_crdt.set_pid(self.pid);
+                    *self.crdt.write().await = persistent_crdt;
+                } else {
+                    todo!(
+                        "Persistent replica epoch {} is older than membership epoch {}, handler not implemented yet!",
+                        persistent_crdt.epoch(),
+                        max_membership_epoch
+                    );
+                }
             }
+            None => self.write_initial_persistent_replica().await,
         }
     }
 
-    fn max_membership_epoch(members: &[String]) -> Epoch {
-        members
-            .iter()
-            .filter_map(|member| Self::parse_membership_descriptor(member))
-            .map(|(_, epoch)| epoch)
-            .max()
-            .unwrap_or(0)
-    }
-
-    fn parse_membership_descriptor(member: &str) -> Option<(NetworkMember, Epoch)> {
-        let descriptor = member.rsplit('/').next().unwrap_or(member);
-        let mut parts = descriptor.split(',');
-        let pid = parts.next()?.parse().ok()?;
-        let address = parts.next()?.parse().ok()?;
-        let epoch = parts.next()?.parse().ok()?;
-        if parts.next().is_some() {
-            return None;
-        }
-        Some((NetworkMember { pid, address }, epoch))
-    }
-
-    async fn enqueue_network_members(&self, members: &[String]) {
-        for member in members {
-            if let Some((network_member, _)) = Self::parse_membership_descriptor(member) {
-                self.network_member_sender
-                    .send(network_member)
-                    .await
-                    .expect("Failed to send network member");
-            }
+    async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
+        for descriptor in members {
+            self.network_member_sender
+                .send(NetworkMember {
+                    pid: descriptor.pid,
+                    address: descriptor.address,
+                })
+                .await
+                .expect("Failed to send network member");
         }
     }
 
     async fn read_persistent_replica(&self) -> Option<T> {
-        match self
-            .object_storage_client
-            .download_data::<T>(self.object_storage_client.persistent_replica_path())
+        self.object_storage_client
+            .read_persistent_replica()
             .await
-        {
-            Ok((persistent_crdt, _)) => Some(persistent_crdt),
-            Err(ObjectStorageError::FileNotFound) => None,
-            Err(error) => {
-                panic!("Failed to read persistent replica state: {error}");
-            }
-        }
+            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"))
+    }
+
+    async fn write_initial_persistent_replica(&self) {
+        let initial_crdt = self.crdt.read().await.clone();
+        self.object_storage_client
+            .write_persistent_replica(&initial_crdt)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("Failed to write initial persistent replica state: {error}")
+            });
     }
 
     async fn push_replica_descriptor(&self) {
-        let descriptor_path = self.replica_descriptor_path().await;
+        let descriptor = self.replica_descriptor().await;
         self.object_storage_client
-            .upload_empty_atomic_create(&descriptor_path)
+            .write_membership_descriptor(descriptor)
             .await
             .unwrap_or_else(|error| panic!("Failed to create replica descriptor: {error}"));
     }
 
-    async fn list_members(&self) -> Vec<String> {
+    async fn replica_descriptor(&self) -> ReplicaDescriptor {
+        let epoch = self.crdt.read().await.epoch();
+        ReplicaDescriptor {
+            pid: self.pid,
+            address: self.address.internal(),
+            epoch,
+        }
+    }
+
+    async fn list_members(&self) -> Vec<ReplicaDescriptor> {
         self.object_storage_client
-            .list_objects(self.object_storage_client.membership_directory_path())
+            .list_membership_descriptors()
             .await
             .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"))
     }
 
-    async fn replica_descriptor_path(&self) -> String {
-        let membership_directory = self
-            .object_storage_client
-            .membership_directory_path()
-            .trim_end_matches('/');
-        let epoch = self.crdt.read().await.epoch();
-        format!(
-            "{}/{},{},{}",
-            membership_directory,
-            self.pid,
-            self.address.internal(),
-            epoch
-        )
+    fn max_membership_epoch(members: &[ReplicaDescriptor]) -> Epoch {
+        members
+            .iter()
+            .map(|descriptor| descriptor.epoch)
+            .max()
+            .unwrap_or(0)
     }
 
     async fn handle_client_request(
@@ -493,4 +375,36 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     //             .expect("Failed to send message");
     //     }
     // }
+
+    /// Gracefully shuts down the server, stopping all network connections and the HTTP server
+    pub async fn shutdown(&mut self) {
+        println!("Shutting down CRDT Server {}", self.pid);
+
+        // Shutdown HTTP Server
+        if let Some(http_sender) = self.http_shutdown_sender.take() {
+            let _ = http_sender.send(()); // Ignore error if receiver is already dropped
+        }
+
+        // Shutdown NetworkManager
+        if let Some(network_sender) = self.network_shutdown_sender.take() {
+            let _ = network_sender.send(()); // Ignore error if receiver is already dropped
+        }
+
+        // Close all writer channels
+        self.writers.clear();
+
+        // Flush metric writer
+        self.metric_writer
+            .flush()
+            .expect("Failed to flush metric writer");
+
+        println!("CRDT Server {} shutdown complete", self.pid);
+    }
+
+    /// Get a shutdown handle that can be used to trigger server shutdown
+    pub fn get_shutdown_handle(&mut self) -> oneshot::Sender<()> {
+        let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
+        self.shutdown_receiver = Some(shutdown_receiver);
+        shutdown_sender
+    }
 }

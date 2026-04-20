@@ -7,6 +7,7 @@ pub mod http_server;
 pub mod network;
 pub mod object_storage;
 pub mod replica;
+pub mod replica_helpers;
 // pub use prelude::*; // Optionally re-export prelude items at the crate root
 
 pub mod prelude {

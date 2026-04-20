@@ -7,9 +7,8 @@ pub mod vector_dbw;
 pub mod vector_experiment;
 
 use gresse::{
-    object_storage::ObjectStorageConfig,
-    prelude::*,
-    replica::{Replica, ReplicaConfig},
+    object_storage::ObjectStorageConfig, prelude::*, replica::Replica,
+    replica_helpers::ReplicaConfig,
 };
 // use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use faiss_proxy::FaissProxy;
