@@ -2,7 +2,7 @@ use crate::prelude::Pid;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::HashMap};
 
-pub type Counter = u64;
+pub type Counter = i64;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Dot {
@@ -26,7 +26,7 @@ pub struct DotSet {
 
 impl PartialEq for DotSet {
     fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
+        self.set == other.set
     }
 }
 
@@ -82,6 +82,18 @@ impl DotSet {
         }
     }
 
+    pub fn set_counter(&mut self, pid: Pid, counter: Counter) {
+        self.set.insert(pid, counter);
+    }
+
+    pub fn pids(&self) -> impl Iterator<Item = Pid> + '_ {
+        self.set.keys().copied()
+    }
+
+    pub fn counter(&self, pid: &Pid) -> Option<Counter> {
+        self.set.get(pid).copied()
+    }
+
     pub fn insert(&mut self, dot: &Dot) {
         if let Some(previous_value) = self.set.insert(dot.pid, dot.counter) {
             assert!(previous_value + 1 == dot.counter, "DotSet in invalid state");
@@ -123,6 +135,46 @@ impl DotSet {
         } else {
             false
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct VersionMatrix {
+    matrix: HashMap<Pid, DotSet>,
+}
+
+impl VersionMatrix {
+    pub fn new() -> Self {
+        Self {
+            matrix: HashMap::new(),
+        }
+    }
+
+    pub fn update(&mut self, pid: Pid, version_vector: DotSet) {
+        self.matrix.insert(pid, version_vector);
+    }
+
+    pub fn get_stable(&self) -> DotSet {
+        let mut stable = DotSet::new();
+        for pid in self.pids() {
+            let counter = self
+                .matrix
+                .values()
+                .map(|version_vector| version_vector.counter(&pid).unwrap_or(-1))
+                .min()
+                .unwrap_or(-1);
+            stable.set_counter(pid, counter);
+        }
+        stable
+    }
+
+    fn pids(&self) -> impl Iterator<Item = Pid> + '_ {
+        let row_pids = self.matrix.keys().copied();
+        let column_pids = self
+            .matrix
+            .values()
+            .flat_map(|version_vector| version_vector.pids());
+        row_pids.chain(column_pids)
     }
 }
 

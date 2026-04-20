@@ -1,6 +1,7 @@
 use crate::http_server::launch_http_server;
 // use crate::vectors::{api::*, vector_db::*, Float, Key, Vector};
 // use crate::prelude::*;
+use crate::dots::{Counter, Dot, DotSet, VersionMatrix};
 use crate::network::{NetworkManager, NetworkMember};
 use crate::object_storage::ObjectStorageClient;
 use crate::replica_helpers::*;
@@ -17,12 +18,19 @@ use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
+use tokio::time::{Instant, Interval};
+
+const STABLE_REPLICA_PID: Pid = 0;
+const INITIAL_GC_COUNTER: Counter = 0;
+const DEFAULT_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 pub struct Replica<T: CRDT + Debug + Clone> {
     crdt: Arc<RwLock<T>>,
     pid: Pid,
     address: ServerAddr,
     sync_interval: Duration,
+    gc_base_interval: Duration,
+    gc_interval: Interval,
     // Network Stuff:
     writers: HashMap<Pid, Sender<ReplicaMessage<T>>>,
     client_request_receiver: Receiver<(T::Mutation, ClientResponder<T>)>,
@@ -30,6 +38,9 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     // Allows new connections to be established:
     replication_writer_receiver: Receiver<(Pid, Sender<ReplicaMessage<T>>)>,
     network_member_sender: Sender<NetworkMember>,
+    version_matrix: VersionMatrix,
+    last_gc: DotSet,
+    last_gc_marker: Dot,
     // Records results/metrics
     metric_writer: csv::Writer<std::fs::File>,
     object_storage_client: ObjectStorageClient,
@@ -132,12 +143,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 client_request_receiver,
                 replication_writer_receiver,
                 network_member_sender,
+                version_matrix: VersionMatrix::new(),
+                last_gc: DotSet::new(),
+                last_gc_marker: Dot {
+                    pid: STABLE_REPLICA_PID,
+                    counter: INITIAL_GC_COUNTER,
+                },
                 writers: HashMap::new(),
                 replication_receiver,
                 shutdown_receiver: Some(shutdown_receiver),
                 http_shutdown_sender: Some(http_shutdown_sender),
                 network_shutdown_sender: Some(network_shutdown_sender),
                 sync_interval: config.sync_interval,
+                gc_base_interval: DEFAULT_GC_INTERVAL,
+                gc_interval: Self::gc_interval(DEFAULT_GC_INTERVAL),
                 metric_writer,
                 object_storage_client,
             },
@@ -166,9 +185,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 _ = interval.tick() => {
                     self.pull_delta().await;
                 }
+                _ = self.gc_interval.tick() => {
+                    let stable = self.version_matrix.get_stable();
+                    self.init_gc(stable).await;
+                }
                 Some((pid, writer)) = self.replication_writer_receiver.recv() => {
                     println!("{} Received replication writer for Pid: {}", self.pid, pid);
                     self.writers.insert(pid, writer);
+                    // Update the gc_interval to minimize risk of simultanous attempts.
+                    self.change_gc_interval();
                 }
                 _ = &mut shutdown_receiver => {
                     println!("Shutdown signal received for server {}", self.pid);
@@ -177,6 +202,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 }
             }
         }
+    }
+
+    pub fn set_gc_interval(&mut self, interval: Duration) {
+        self.gc_base_interval = interval;
+        self.change_gc_interval();
+    }
+
+    fn gc_interval(interval: Duration) -> Interval {
+        tokio::time::interval_at(Instant::now() + interval, interval)
     }
 
     async fn init(&mut self) {
@@ -193,17 +227,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         match persistent_crdt {
             Some(mut persistent_crdt) => {
-                let max_membership_epoch = Self::max_membership_epoch(&members);
-                if max_membership_epoch <= persistent_crdt.epoch() {
-                    persistent_crdt.set_pid(self.pid);
-                    *self.crdt.write().await = persistent_crdt;
-                } else {
-                    todo!(
-                        "Persistent replica epoch {} is older than membership epoch {}, handler not implemented yet!",
-                        persistent_crdt.epoch(),
-                        max_membership_epoch
-                    );
-                }
+                persistent_crdt.set_pid(self.pid);
+                *self.crdt.write().await = persistent_crdt;
             }
             None => self.write_initial_persistent_replica().await,
         }
@@ -247,11 +272,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     async fn replica_descriptor(&self) -> ReplicaDescriptor {
-        let epoch = self.crdt.read().await.epoch();
         ReplicaDescriptor {
             pid: self.pid,
             address: self.address.internal(),
-            epoch,
+            gc_counter: self.last_gc_marker.counter,
         }
     }
 
@@ -260,14 +284,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .list_membership_descriptors()
             .await
             .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"))
-    }
-
-    fn max_membership_epoch(members: &[ReplicaDescriptor]) -> Epoch {
-        members
-            .iter()
-            .map(|descriptor| descriptor.epoch)
-            .max()
-            .unwrap_or(0)
     }
 
     async fn handle_client_request(
@@ -302,7 +318,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
         let received = now_micros();
         match event {
-            ReplicaMessage::<T>::DeltaGroup(delta, sent) => {
+            ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, sent) => {
+                if let Some(gc_metadata) = gc_metadata {
+                    self.observe_gc(gc_metadata).await;
+                }
                 let (start, (insert_count, delete_count)) = {
                     let mut writable = self.crdt.write().await;
                     let start = now_micros();
@@ -322,16 +341,18 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     .expect("Failed to write metric");
             }
             ReplicaMessage::<T>::VersionVector(pid, vv, sent) => {
+                self.version_matrix.update(pid, vv.clone());
                 let (start, (delta, insert_count, delete_count)) = {
                     let readable = self.crdt.read().await;
                     let start = now_micros();
                     (start, readable.get_delta(&vv))
                 };
                 let end = now_micros();
+                let gc_metadata = self.gc_metadata();
                 self.writers
                     .get(&pid)
                     .expect("Failed to get writer")
-                    .send(ReplicaMessage::<T>::DeltaGroup(delta, end))
+                    .send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, end))
                     .await
                     .expect("Failed to send delta");
                 self.metric_writer
@@ -355,8 +376,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
         // Select a random writer from self.writers
         let n = rand::rng().random_range(0..self.writers.len());
-        if let Some(writer) = self.writers.values().nth(n) {
+        if let Some(writer) = self.writers.values().nth(n).cloned() {
             let vv = { self.crdt.read().await.get_version_vector().clone() };
+            self.version_matrix.update(self.pid, vv.clone());
             writer
                 .send(ReplicaMessage::<T>::VersionVector(
                     self.pid,
@@ -367,14 +389,156 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .expect("Failed to send pull request");
         }
     }
-    // async fn broadcast(&mut self, message: ReplicaMessage<T>) {
-    //     for writer in self.writers.values_mut() {
-    //         writer
-    //             .send(message.clone())
-    //             .await
-    //             .expect("Failed to send message");
-    //     }
-    // }
+
+    async fn init_gc(&mut self, stable: DotSet) {
+        if stable == self.last_gc {
+            // No need to gc
+            return;
+        }
+
+        let previous_members = self.object_storage_client.membership_descriptors().await;
+        let previous_gc_counters = Self::membership_gc_counters_by_pid(&previous_members);
+
+        // 1. Increment our GC marker in the Membership directory before GC.
+        let new_marker = Dot {
+            pid: STABLE_REPLICA_PID,
+            counter: self.last_gc_marker.counter.saturating_add(1),
+        };
+        let new_descriptor = self.change_own_gc_counter(new_marker.counter).await;
+
+        // 2. Read the Membership directory and check that: no new replicas have appeared, no other replicas have incremented their GC marker.
+        let current_members = self.list_members().await;
+        if !Self::membership_is_still_stable(
+            &previous_gc_counters,
+            &current_members,
+            self.pid,
+        ) {
+            self.object_storage_client
+                .delete_membership_descriptor(new_descriptor)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("Failed to roll back replica membership GC marker: {error}")
+                });
+            let _ = self.list_members().await;
+            return;
+        }
+
+        // 3. Perform GC
+        let local_state = {
+            let mut writable = self.crdt.write().await;
+            writable.gc(stable.clone());
+            writable.clone()
+        };
+
+        // 4. Overwrite persistent replica with our local state.
+        self.object_storage_client
+            .write_persistent_replica(&local_state)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("Failed to write persistent replica after garbage collection: {error}")
+            });
+
+        // DONE
+        self.last_gc = stable;
+        self.last_gc_marker = new_marker;
+    }
+
+    async fn change_own_gc_counter(&mut self, gc_counter: Counter) -> ReplicaDescriptor {
+        let descriptor = ReplicaDescriptor {
+            pid: self.pid,
+            address: self.address.internal(),
+            gc_counter,
+        };
+        let descriptor_created = self
+            .object_storage_client
+            .write_membership_descriptor(descriptor)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("Failed to write replica membership GC marker: {error}")
+            });
+        if !descriptor_created {
+            panic!("Replica membership GC marker already exists: {descriptor}");
+        }
+        descriptor
+    }
+
+    async fn observe_gc(&mut self, metadata: GcMetadata) {
+        if metadata.marker.pid != STABLE_REPLICA_PID
+            || metadata.marker.counter <= self.last_gc_marker.counter
+        {
+            return;
+        }
+
+        self.crdt.write().await.gc(metadata.stable.clone());
+        self.last_gc = metadata.stable;
+        self.last_gc_marker = metadata.marker;
+        self.change_own_gc_counter(metadata.marker.counter).await;
+        self.gc_interval.reset();
+    }
+
+    fn gc_metadata(&self) -> Option<GcMetadata> {
+        if self.last_gc_marker.counter == INITIAL_GC_COUNTER {
+            return None;
+        }
+
+        Some(GcMetadata {
+            marker: self.last_gc_marker,
+            stable: self.last_gc.clone(),
+        })
+    }
+
+    fn membership_gc_counters_by_pid(members: &[ReplicaDescriptor]) -> HashMap<Pid, Counter> {
+        let mut gc_counters = HashMap::new();
+        for descriptor in members {
+            gc_counters
+                .entry(descriptor.pid)
+                .and_modify(|gc_counter: &mut Counter| {
+                    *gc_counter = (*gc_counter).max(descriptor.gc_counter)
+                })
+                .or_insert(descriptor.gc_counter);
+        }
+        gc_counters
+    }
+
+    fn membership_is_still_stable(
+        previous_gc_counters: &HashMap<Pid, Counter>,
+        current_members: &[ReplicaDescriptor],
+        local_pid: Pid,
+    ) -> bool {
+        let current_gc_counters = Self::membership_gc_counters_by_pid(current_members);
+        for (pid, current_gc_counter) in current_gc_counters {
+            if pid == local_pid {
+                continue;
+            }
+
+            let Some(previous_gc_counter) = previous_gc_counters.get(&pid) else {
+                return false;
+            };
+
+            if current_gc_counter > *previous_gc_counter {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn change_gc_interval(&mut self) {
+        let replica_count = self.writers.len().saturating_add(1).max(1);
+        let base_nanos = self.gc_base_interval.as_nanos();
+        if base_nanos == 0 {
+            self.gc_interval = Self::gc_interval(Duration::from_nanos(1));
+            return;
+        }
+
+        let jitter_nanos = base_nanos / replica_count as u128;
+        let lower_bound = base_nanos.saturating_sub(jitter_nanos).max(1);
+        let upper_bound = base_nanos.saturating_add(jitter_nanos).max(lower_bound + 1);
+        let interval_nanos = rand::rng().random_range(lower_bound..=upper_bound);
+        let interval_nanos = interval_nanos.min(u64::MAX as u128) as u64;
+
+        self.gc_interval = Self::gc_interval(Duration::from_nanos(interval_nanos));
+    }
 
     /// Gracefully shuts down the server, stopping all network connections and the HTTP server
     pub async fn shutdown(&mut self) {

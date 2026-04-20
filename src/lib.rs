@@ -1,19 +1,19 @@
 pub mod crdt;
 pub mod db;
 pub mod dots;
-pub (crate) mod http_client;
+pub mod http_client;
 pub (crate) mod http_server;
 pub (crate) mod network;
 pub (crate) mod object_storage;
-pub (crate) mod replica;
-pub (crate) mod replica_helpers;
-// pub use prelude::*; // Optionally re-export prelude items at the crate root
+pub mod replica;
+pub mod replica_helpers;
 
 pub mod prelude {
     use rand::Rng;
     use serde::{Deserialize, Serialize};
     use std::net::IpAddr;
     use std::net::SocketAddr;
+    use std::time::Duration;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     pub type Pid = u128;
@@ -90,5 +90,17 @@ pub mod prelude {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_micros()
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct ObjectStorageConfig {
+        pub url: String,
+        pub region: String,
+        pub bucket: String,
+        pub access_key: String,
+        pub secret_key: String,
+        pub persistent_replica_path: String,
+        pub membership_directory_path: String,
+        pub discovery_interval: Duration,
     }
 }

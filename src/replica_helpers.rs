@@ -1,6 +1,6 @@
-use crate::crdt::{Epoch, CRDT};
-use crate::object_storage::ObjectStorageConfig;
-use crate::prelude::{Pid, ServerAddr};
+use crate::crdt::CRDT;
+use crate::dots::Counter;
+use crate::prelude::{ObjectStorageConfig, Pid, ServerAddr};
 use std::env;
 use std::fmt;
 use std::net::SocketAddr;
@@ -66,7 +66,7 @@ fn env_path(name: &str) -> PathBuf {
 pub struct ReplicaDescriptor {
     pub pid: Pid,
     pub address: SocketAddr,
-    pub epoch: Epoch,
+    pub gc_counter: Counter,
 }
 
 impl ReplicaDescriptor {
@@ -78,7 +78,7 @@ impl ReplicaDescriptor {
 
 impl fmt::Display for ReplicaDescriptor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{},{},{}", self.pid, self.address, self.epoch)
+        write!(formatter, "{},{},{}", self.pid, self.address, self.gc_counter)
     }
 }
 
@@ -98,7 +98,7 @@ impl FromStr for ReplicaDescriptor {
             .ok_or(ReplicaDescriptorParseError)?
             .parse()
             .map_err(|_| ReplicaDescriptorParseError)?;
-        let epoch = parts
+        let gc_counter = parts
             .next()
             .ok_or(ReplicaDescriptorParseError)?
             .parse()
@@ -109,7 +109,7 @@ impl FromStr for ReplicaDescriptor {
         Ok(Self {
             pid,
             address,
-            epoch,
+            gc_counter,
         })
     }
 }

@@ -7,7 +7,7 @@ pub mod vector_dbw;
 pub mod vector_experiment;
 
 use gresse::{
-    object_storage::ObjectStorageConfig, prelude::*, replica::Replica,
+    prelude::*, replica::Replica,
     replica_helpers::ReplicaConfig,
 };
 // use dialoguer::{theme::ColorfulTheme, MultiSelect};
