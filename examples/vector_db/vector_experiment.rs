@@ -37,7 +37,7 @@ impl ExperimentConfig {
     pub fn get_pids(&self) -> Vec<Pid> {
         let mut pids = Vec::new();
         for i in 0..self.servers {
-            pids.push(i as u64);
+            pids.push(i as Pid);
         }
         pids
     }

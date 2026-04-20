@@ -36,6 +36,10 @@ impl CRDT for VectorDBW {
         Ok(Some(res))
     }
 
+    fn set_pid(&mut self, pid: Pid) {
+        self.pid = pid;
+    }
+
     fn get_delta(&self, dots: &DotSet) -> (DeltaGroup<DbDelta>, u16, u16) {
         let (list, insert_count, remove_count) = self.dot_map.get_all_greater_iter(dots).fold(
             (Vec::new(), 0, 0),

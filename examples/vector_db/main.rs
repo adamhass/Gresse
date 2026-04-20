@@ -6,7 +6,10 @@ pub mod vector_dbc;
 pub mod vector_dbw;
 pub mod vector_experiment;
 
-use gresse::{replica::Replica, prelude::*};
+use gresse::{
+    prelude::*,
+    replica::{Replica, ReplicaConfig},
+};
 // use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use faiss_proxy::FaissProxy;
 use helpers::to_absolute;
@@ -186,13 +189,15 @@ async fn run_dbc_servers(
         let db = Arc::new(RwLock::new(VectorDBC::new(pid, base_db.clone())));
         let addr = ServerAddr::default().increment_ports((10 * pid as u16) + port_offset);
         dbs.push(db.clone());
-        let (mut server, shutdown_sender) = Replica::new(
+        let (mut server, shutdown_sender) = Replica::with_shared_config(
             pid,
             db,
-            addr,
-            config.server_list_file_path.clone(),
-            config.sync_interval,
-            config.result_dir_path.clone(),
+            ReplicaConfig {
+                address: addr,
+                server_list_file_path: config.server_list_file_path.clone(),
+                sync_interval: config.sync_interval,
+                result_dir_path: config.result_dir_path.clone(),
+            },
         )
         .await;
         addrs.push(addr);
@@ -227,13 +232,15 @@ async fn run_dbw_servers(
         let db = Arc::new(RwLock::new(VectorDBW::new(pid, base_db.clone())));
         let addr = ServerAddr::default().increment_ports((10 * pid as u16) + port_offset);
         dbs.push(db.clone());
-        let (mut server, shutdown_sender) = Replica::new(
+        let (mut server, shutdown_sender) = Replica::with_shared_config(
             pid,
             db,
-            addr,
-            config.server_list_file_path.clone(),
-            config.sync_interval,
-            config.result_dir_path.clone(),
+            ReplicaConfig {
+                address: addr,
+                server_list_file_path: config.server_list_file_path.clone(),
+                sync_interval: config.sync_interval,
+                result_dir_path: config.result_dir_path.clone(),
+            },
         )
         .await;
         addrs.push(addr);

@@ -2,14 +2,14 @@ use crate::http_server::launch_http_server;
 // use crate::vectors::{api::*, vector_db::*, Float, Key, Vector};
 // use crate::prelude::*;
 use crate::network::NetworkManager;
-use crate::prelude::now_micros;
 use crate::{
     crdt::*,
-    prelude::{Pid, ServerAddr},
+    prelude::{new_pid, now_micros, Pid, ServerAddr},
 };
 use csv::WriterBuilder;
 use rand::Rng;
 use std::collections::HashMap;
+use std::env;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,6 +20,56 @@ use tokio::sync::RwLock;
 
 pub type ClientResponder<T> =
     oneshot::Sender<Result<<T as CRDT>::ClientResponse, <T as CRDT>::Error>>;
+
+pub struct ReplicaHandle {
+    shutdown_sender: oneshot::Sender<()>,
+    join_handle: tokio::task::JoinHandle<()>,
+}
+
+impl ReplicaHandle {
+    pub fn shutdown_sender(self) -> oneshot::Sender<()> {
+        self.shutdown_sender
+    }
+
+    pub async fn shutdown(self) {
+        let _ = self.shutdown_sender.send(());
+        let _ = self.join_handle.await;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplicaConfig {
+    pub address: ServerAddr,
+    pub server_list_file_path: PathBuf,
+    pub sync_interval: Duration,
+    pub result_dir_path: PathBuf,
+}
+
+impl ReplicaConfig {
+    pub fn from_env() -> Self {
+        Self {
+            address: ServerAddr::from_env(),
+            server_list_file_path: env_path("GRESSE_SERVER_LIST_PATH"),
+            result_dir_path: env_path("GRESSE_RESULT_DIR_PATH"),
+            sync_interval: env::var("GRESSE_SYNC_INTERVAL_MS")
+                .ok()
+                .map(|value| {
+                    Duration::from_millis(
+                        value
+                            .parse()
+                            .expect("GRESSE_SYNC_INTERVAL_MS must be an integer"),
+                    )
+                })
+                .unwrap_or(Duration::from_secs(1)),
+        }
+    }
+}
+
+fn env_path(name: &str) -> PathBuf {
+    env::var(name)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| panic!("{name} environment variable is required"))
+}
 
 pub struct Replica<T: CRDT + Debug + Clone> {
     crdt: Arc<RwLock<T>>,
@@ -47,30 +97,63 @@ pub struct Replica<T: CRDT + Debug + Clone> {
 ///     - Pull Based: Periodically pulls delta groups.
 /// The replication scheme is determined by the "use_deltas" flag.
 impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
-    /// Create a new CRDT Server, returns when it is fully ready to run with established connections to all neighbors
-    pub async fn new(
+    /// Create a new CRDT server from environment variables.
+    ///
+    /// Required:
+    /// - `GRESSE_ADDR`
+    /// - `GRESSE_HTTP_PORT`
+    /// - `GRESSE_INTERNAL_PORT`
+    /// - `GRESSE_SERVER_LIST_PATH`
+    /// - `GRESSE_RESULT_DIR_PATH`
+    ///
+    /// Optional:
+    /// - `GRESSE_SYNC_INTERVAL_MS`, defaults to 1000.
+    pub async fn new(crdt: T) -> ReplicaHandle {
+        let (mut replica, shutdown_sender) =
+            Self::with_config(new_pid(), crdt, ReplicaConfig::from_env()).await;
+        let join_handle = tokio::spawn(async move {
+            replica.run().await;
+        });
+        ReplicaHandle {
+            shutdown_sender,
+            join_handle,
+        }
+    }
+
+    /// Create a new CRDT server from explicit configuration.
+    pub async fn with_config(
+        pid: Pid,
+        mut crdt: T,
+        config: ReplicaConfig,
+    ) -> (Self, oneshot::Sender<()>) {
+        crdt.set_pid(pid);
+        let crdt = Arc::new(RwLock::new(crdt));
+        Self::with_shared_config(pid, crdt, config).await
+    }
+
+    /// Create a new CRDT server from explicit configuration and shared CRDT state.
+    pub async fn with_shared_config(
         pid: Pid,
         crdt: Arc<RwLock<T>>,
-        address: ServerAddr,
-        server_list_file_path: PathBuf,
-        sync_interval: Duration,
-        result_dir_path: PathBuf,
+        config: ReplicaConfig,
     ) -> (Self, oneshot::Sender<()>) {
+        crdt.write().await.set_pid(pid);
+
         // Launch HTTP server with shutdown capability
         let (client_request_receiver, http_shutdown_sender) =
-            launch_http_server::<T>(&address, crdt.clone()).await;
+            launch_http_server::<T>(&config.address, crdt.clone()).await;
 
         // Launch NetworkManager with shutdown capability
         let (replication_receiver, replication_writer_receiver, network_shutdown_sender) =
             NetworkManager::<ReplicaMessage<T>>::launch_network_manager(
-                address,
+                config.address,
                 pid,
-                server_list_file_path,
+                config.server_list_file_path,
             )
             .await;
 
         // Initialize metric writer
-        let mut result_path = result_dir_path.clone();
+        let mut result_path = config.result_dir_path.clone();
         result_path.push(format!("server_{}.csv", pid));
         if let Some(parent) = result_path.parent() {
             println!("Path (debug): {:?}", parent);
@@ -94,7 +177,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 shutdown_receiver: Some(shutdown_receiver),
                 http_shutdown_sender: Some(http_shutdown_sender),
                 network_shutdown_sender: Some(network_shutdown_sender),
-                sync_interval,
+                sync_interval: config.sync_interval,
                 metric_writer,
             },
             shutdown_sender,

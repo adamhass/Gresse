@@ -161,11 +161,11 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
     async fn handle_new_stream(&mut self, mut stream: TcpStream) {
         // Tell the stream who we are
         stream
-            .write_u64(self.pid)
+            .write_u128(self.pid)
             .await
             .expect("Failed to write id");
         // Find out who it is on the opposite end
-        let pid = stream.read_u64().await.expect("Failed to read id");
+        let pid = stream.read_u128().await.expect("Failed to read id");
         println!(
             "{:?} Received neighbor connection from: {:?}",
             self.pid, pid

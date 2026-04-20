@@ -1,21 +1,26 @@
 pub mod causal_order;
 pub mod crdt;
-pub mod replica;
 pub mod db;
 pub mod dots;
 pub mod http_client;
 pub mod http_server;
 pub mod network;
 pub mod object_storage;
+pub mod replica;
 // pub use prelude::*; // Optionally re-export prelude items at the crate root
 
 pub mod prelude {
+    use rand::Rng;
     use serde::{Deserialize, Serialize};
     use std::net::IpAddr;
     use std::net::SocketAddr;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    pub type Pid = u64;
+    pub type Pid = u128;
+
+    pub fn new_pid() -> Pid {
+        rand::rng().random()
+    }
 
     #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
     pub struct ServerAddr {
@@ -33,10 +38,14 @@ pub mod prelude {
         }
 
         pub fn from_args() -> ServerAddr {
+            Self::from_env()
+        }
+
+        pub fn from_env() -> ServerAddr {
             match (
-                std::env::var("ADDR"),
-                std::env::var("PORT"),
-                std::env::var("INTERNAL_PORT"),
+                std::env::var("GRESSE_ADDR"),
+                std::env::var("GRESSE_HTTP_PORT"),
+                std::env::var("GRESSE_INTERNAL_PORT"),
             ) {
                 (Ok(ip), Ok(http_port), Ok(internal_port)) => {
                     let ip: std::net::IpAddr = ip.parse().expect("Failed to parse IP");
@@ -49,10 +58,9 @@ pub mod prelude {
                     }
                 }
                 _ => {
-                    eprintln!(
-                        "ADDR or PORT environment variables not found, using default address"
+                    panic!(
+                        "GRESSE_ADDR, GRESSE_HTTP_PORT, and GRESSE_INTERNAL_PORT environment variables are required"
                     );
-                    ServerAddr::default()
                 }
             }
         }
