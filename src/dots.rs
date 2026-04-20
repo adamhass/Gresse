@@ -1,0 +1,210 @@
+use crate::prelude::Pid;
+use serde::{Deserialize, Serialize};
+use std::{cmp::Ordering, collections::HashMap};
+
+pub type Counter = u64;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Copy, PartialEq, PartialOrd, Eq, Ord)]
+pub struct Dot {
+    pub pid: Pid,
+    pub counter: Counter,
+}
+
+impl From<(&u64, &u64)> for Dot {
+    fn from(tuple: (&u64, &u64)) -> Self {
+        Dot {
+            pid: *tuple.0,
+            counter: *tuple.1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DotSet {
+    set: HashMap<Pid, Counter>,
+}
+
+impl PartialEq for DotSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for DotSet {}
+
+impl PartialOrd for DotSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DotSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut has_lower = false;
+        let mut has_greater = false;
+        for (pid, counter) in self.set.iter() {
+            let other_counter = other.get(pid);
+            if counter > other_counter {
+                has_greater = true;
+            } else if counter < other_counter {
+                has_lower = true;
+            }
+        }
+        if has_lower && has_greater {
+            Ordering::Equal
+        } else if has_lower {
+            return Ordering::Less;
+        } else {
+            return Ordering::Greater;
+        }
+    }
+}
+
+impl Default for DotSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DotSet {
+    pub fn new() -> Self {
+        Self {
+            set: HashMap::new(),
+        }
+    }
+
+    pub fn merge(&mut self, other: &DotSet) {
+        for (pid, counter) in other.set.iter() {
+            self.set
+                .entry(*pid)
+                .and_modify(|c| *c = (*c).max(*counter))
+                .or_insert(*counter);
+        }
+    }
+
+    pub fn insert(&mut self, dot: &Dot) {
+        if let Some(previous_value) = self.set.insert(dot.pid, dot.counter) {
+            assert!(previous_value + 1 == dot.counter, "DotSet in invalid state");
+        } else {
+            assert!(
+                dot.counter == 0,
+                "DotSet in invalid state, haven't received the first dot"
+            );
+        }
+    }
+
+    pub fn increment_and_get(&mut self, pid: Pid) -> Dot {
+        if let Some(count) = self.set.get_mut(&pid) {
+            *count += 1;
+            Dot {
+                pid,
+                counter: *count,
+            }
+        } else {
+            let dot = Dot { pid, counter: 0 };
+            self.insert(&dot);
+            dot
+        }
+    }
+
+    pub fn get(&self, pid: &Pid) -> &Counter {
+        self.set.get(pid).unwrap_or(&0)
+    }
+
+    /// Returns true iff self and other are concurrent
+    pub fn is_concurrent_with(&self, other: &DotSet) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+
+    /// Returns true iff self contains the dot
+    pub fn contains(&self, dot: &Dot) -> bool {
+        if let Some(this_counter) = self.set.get(&dot.pid) {
+            *this_counter >= dot.counter
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DotMap<T: Clone + PartialEq> {
+    map: HashMap<Pid, Vec<(Dot, T)>>,
+}
+
+impl<T: Clone + PartialEq> Default for DotMap<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Clone + PartialEq> DotMap<T> {
+    pub fn new() -> Self {
+        DotMap {
+            map: HashMap::new(),
+        }
+    }
+
+    /// The Dots must be contiguous, with no gaps in sequence numbers per Pid...
+    pub fn insert(&mut self, dot: Dot, value: T) {
+        let vec = self.map.entry(dot.pid).or_default();
+        // Ensure the DotMap is sorted
+        if let Some((last_dot, _)) = vec.last() {
+            assert!(
+                last_dot.counter + 1 == dot.counter,
+                "Missing delta! Last Dot: {}, new Dot: {}",
+                last_dot.counter,
+                dot.counter
+            );
+        } else {
+            assert!(
+                dot.counter == 0,
+                "Missing initial delta from Pid {}",
+                dot.pid
+            )
+        }
+        vec.push((dot, value))
+    }
+
+    fn get_greater_iter(&self, dot: &Dot) -> std::slice::Iter<'_, (Dot, T)> {
+        if let Some(all) = self.map.get(&dot.pid) {
+            let idx = match all.binary_search_by(|(d, _)| d.counter.cmp(&dot.counter)) {
+                Ok(pos) => pos + 1, // skip the exact match
+                Err(pos) => pos,    // first element > dot.counter
+            };
+            all[idx..].iter()
+        } else {
+            [].iter()
+        }
+    }
+
+    /// Returns all items with dots not subsumed by dot_set
+    pub fn get_all_greater_iter<'a>(
+        &'a self,
+        dot_set: &'a DotSet,
+    ) -> impl Iterator<Item = &'a (Dot, T)> + 'a {
+        // First, handle keys that exist in both dot_set and self.map
+        let existing_keys_iter = dot_set.set.iter().flat_map(move |elem| {
+            // bind the converted Dot to a local variable so we don't take
+            // a reference to a temporary
+            let dot: Dot = elem.into();
+            self.get_greater_iter(&dot)
+        });
+
+        // Then, handle keys that exist in self.map but not in dot_set
+        // For these keys, return all dots as they're all greater than what's in dot_set (which is nothing)
+        let missing_keys_iter = self
+            .map
+            .iter()
+            .filter_map(move |(pid, vec)| {
+                if dot_set.set.contains_key(pid) {
+                    None // Already handled in existing_keys_iter
+                } else {
+                    Some(vec.iter()) // Return all dots for this pid
+                }
+            })
+            .flatten();
+
+        // Combine both iterators
+        existing_keys_iter.chain(missing_keys_iter)
+    }
+}
