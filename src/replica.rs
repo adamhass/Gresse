@@ -11,6 +11,7 @@ use crate::{
 };
 use csv::WriterBuilder;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -24,13 +25,58 @@ const STABLE_REPLICA_PID: Pid = 0;
 const INITIAL_GC_COUNTER: Counter = 0;
 const DEFAULT_GC_INTERVAL: Duration = Duration::from_secs(60);
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct CRDTWrapper {
+    version_matrix: VersionMatrix,
+    gc_markers: Vec<(Dot, DotSet)>,
+}
+
+impl CRDTWrapper {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn current_gc_marker(&self) -> Dot {
+        self.gc_markers
+            .last()
+            .map(|(marker, _)| *marker)
+            .unwrap_or(Dot {
+                pid: STABLE_REPLICA_PID,
+                counter: INITIAL_GC_COUNTER,
+            })
+    }
+
+    fn current_stable(&self) -> Option<&DotSet> {
+        self.gc_markers.last().map(|(_, stable)| stable)
+    }
+
+    fn needs_gc(&self, stable: &DotSet) -> bool {
+        self.current_stable() != Some(stable)
+    }
+
+    fn push_gc_marker(&mut self, marker: Dot, stable: DotSet) {
+        self.gc_markers.push((marker, stable));
+    }
+
+    fn gc_metadata(&self) -> Option<GcMetadata> {
+        self.gc_markers.last().map(|(marker, stable)| GcMetadata {
+            marker: *marker,
+            stable: stable.clone(),
+        })
+    }
+}
+
 pub struct Replica<T: CRDT + Debug + Clone> {
     crdt: Arc<RwLock<T>>,
+    crdt_wrapper: CRDTWrapper,
+    // Identifiers
     pid: Pid,
     address: ServerAddr,
+    // Config:
     sync_interval: Duration,
     gc_base_interval: Duration,
     gc_interval: Interval,
+    membership_poll_interval: Interval,
     // Network Stuff:
     writers: HashMap<Pid, Sender<ReplicaMessage<T>>>,
     client_request_receiver: Receiver<(T::Mutation, ClientResponder<T>)>,
@@ -38,9 +84,6 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     // Allows new connections to be established:
     replication_writer_receiver: Receiver<(Pid, Sender<ReplicaMessage<T>>)>,
     network_member_sender: Sender<NetworkMember>,
-    version_matrix: VersionMatrix,
-    last_gc: DotSet,
-    last_gc_marker: Dot,
     // Records results/metrics
     metric_writer: csv::Writer<std::fs::File>,
     object_storage_client: ObjectStorageClient,
@@ -129,6 +172,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let result_file = std::fs::File::create(result_path.clone())
             .unwrap_or_else(|_| panic!("Failed to create result file {:?}", result_path));
         let metric_writer = WriterBuilder::new().flexible(true).from_writer(result_file);
+        let membership_poll_period = config.object_storage_config.discovery_interval;
         let object_storage_client = ObjectStorageClient::new(config.object_storage_config)
             .unwrap_or_else(|error| panic!("Failed to initialize object storage client: {error}"));
 
@@ -143,12 +187,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 client_request_receiver,
                 replication_writer_receiver,
                 network_member_sender,
-                version_matrix: VersionMatrix::new(),
-                last_gc: DotSet::new(),
-                last_gc_marker: Dot {
-                    pid: STABLE_REPLICA_PID,
-                    counter: INITIAL_GC_COUNTER,
-                },
+                crdt_wrapper: CRDTWrapper::new(),
                 writers: HashMap::new(),
                 replication_receiver,
                 shutdown_receiver: Some(shutdown_receiver),
@@ -157,6 +196,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 sync_interval: config.sync_interval,
                 gc_base_interval: DEFAULT_GC_INTERVAL,
                 gc_interval: Self::gc_interval(DEFAULT_GC_INTERVAL),
+                membership_poll_interval: Self::membership_poll_interval(membership_poll_period),
                 metric_writer,
                 object_storage_client,
             },
@@ -186,8 +226,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.pull_delta().await;
                 }
                 _ = self.gc_interval.tick() => {
-                    let stable = self.version_matrix.get_stable();
+                    let stable = self.crdt_wrapper.version_matrix.get_stable();
                     self.init_gc(stable).await;
+                }
+                _ = self.membership_poll_interval.tick() => {
+                    self.poll_membership_directory().await;
                 }
                 Some((pid, writer)) = self.replication_writer_receiver.recv() => {
                     println!("{} Received replication writer for Pid: {}", self.pid, pid);
@@ -210,6 +253,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     fn gc_interval(interval: Duration) -> Interval {
+        tokio::time::interval_at(Instant::now() + interval, interval)
+    }
+
+    fn membership_poll_interval(interval: Duration) -> Interval {
         tokio::time::interval_at(Instant::now() + interval, interval)
     }
 
@@ -250,6 +297,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .send(NetworkMember {
                     pid: descriptor.pid,
                     address: descriptor.address,
+                    final_counter: descriptor.final_counter,
                 })
                 .await
                 .expect("Failed to send network member");
@@ -285,7 +333,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         ReplicaDescriptor {
             pid: self.pid,
             address: self.address.internal(),
-            gc_counter: self.last_gc_marker.counter,
+            gc_counter: self.crdt_wrapper.current_gc_marker().counter,
             final_counter: None,
         }
     }
@@ -295,6 +343,47 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .list_membership_descriptors()
             .await
             .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"))
+    }
+
+    async fn poll_membership_directory(&mut self) {
+        let members = self.list_members().await;
+        let previous_writer_count = self.writers.len();
+        // Find shutdown descriptors
+        let shutdown_descriptors = members
+            .iter()
+            .filter(|descriptor| descriptor.is_shutdown())
+            .copied()
+            .collect::<Vec<_>>();
+        for descriptor in shutdown_descriptors {
+            self.handle_shutdown_descriptor(descriptor).await;
+        }
+        
+        // Update the gc interval
+        if self.writers.len() != previous_writer_count {
+            self.change_gc_interval();
+        }
+    }
+
+    async fn handle_shutdown_descriptor(&mut self, descriptor: ReplicaDescriptor) {
+        // Keep the replica row until its final dot is stable everywhere.
+        self.crdt_wrapper.version_matrix.insert_final_dot(Dot {
+            pid: descriptor.pid,
+            counter: descriptor
+                .final_counter
+                .expect("shutdown descriptor missing final counter"),
+        });
+
+        // Remove the writers
+        let _ = self.writers.remove(&descriptor.pid);
+        // Notify the network manager
+        self.network_member_sender
+            .send(NetworkMember {
+                pid: descriptor.pid,
+                address: descriptor.address,
+                final_counter: descriptor.final_counter,
+            })
+            .await
+            .expect("Failed to notify network manager about shutdown replica");
     }
 
     async fn handle_client_request(
@@ -352,7 +441,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     .expect("Failed to write metric");
             }
             ReplicaMessage::<T>::VersionVector(pid, vv, sent) => {
-                self.version_matrix.update(pid, vv.clone());
+                self.crdt_wrapper.version_matrix.update(pid, vv.clone());
                 let (start, (delta, insert_count, delete_count)) = {
                     let readable = self.crdt.read().await;
                     let start = now_micros();
@@ -389,7 +478,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let n = rand::rng().random_range(0..self.writers.len());
         if let Some(writer) = self.writers.values().nth(n).cloned() {
             let vv = { self.crdt.read().await.get_version_vector().clone() };
-            self.version_matrix.update(self.pid, vv.clone());
+            self.crdt_wrapper.version_matrix.update(self.pid, vv.clone());
             writer
                 .send(ReplicaMessage::<T>::VersionVector(
                     self.pid,
@@ -401,8 +490,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn init_gc(&mut self, stable: DotSet) {
-        if stable == self.last_gc {
+    async fn init_gc(&mut self, mut stable: DotSet) {
+        if !self.crdt_wrapper.needs_gc(&stable) {
             // No need to gc
             return;
         }
@@ -413,7 +502,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         // 1. Increment our GC marker in the Membership directory before GC.
         let new_marker = Dot {
             pid: STABLE_REPLICA_PID,
-            counter: self.last_gc_marker.counter.saturating_add(1),
+            counter: self
+                .crdt_wrapper
+                .current_gc_marker()
+                .counter
+                .saturating_add(1),
         };
         let new_descriptor = self.change_own_gc_counter(new_marker.counter).await;
 
@@ -435,23 +528,44 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
 
         // 3. Perform GC
+        let departed_pids = self.crdt_wrapper.version_matrix.garbage_collect(&stable);
+        if departed_pids.is_some()  {
+            // Update the stable DotSet
+            stable = self.crdt_wrapper.version_matrix.get_stable(); 
+        }
         let local_state = {
             let mut writable = self.crdt.write().await;
-            writable.gc(stable.clone());
+            writable.gc(stable.clone(), departed_pids.clone());
             writable.clone()
         };
 
-        // 4. Overwrite persistent replica with our local state.
+        // DONE
+        self.crdt_wrapper.push_gc_marker(new_marker, stable.clone());
+
+        // 4. Overwrite persistent replica with the new local state.
         self.object_storage_client
             .write_persistent_replica(&local_state)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to write persistent replica after garbage collection: {error}")
             });
+        
+        if let Some(departed_pids) = departed_pids {
+            self.gc_departed_pids(departed_pids).await;
+        }
 
-        // DONE
-        self.last_gc = stable;
-        self.last_gc_marker = new_marker;
+    }
+
+    async fn gc_departed_pids(&mut self, departed_pids: Vec<Pid>) {
+        futures::future::try_join_all(
+            departed_pids
+                .into_iter()
+                .map(|pid| self.object_storage_client.delete_membership_descriptors_for_pid(pid)),
+        )
+        .await
+        .unwrap_or_else(|error| {
+            panic!("Failed to garbage-collect departed replica membership descriptors: {error}")
+        });
     }
 
     async fn change_own_gc_counter(&mut self, gc_counter: Counter) -> ReplicaDescriptor {
@@ -476,27 +590,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
     async fn observe_gc(&mut self, metadata: GcMetadata) {
         if metadata.marker.pid != STABLE_REPLICA_PID
-            || metadata.marker.counter <= self.last_gc_marker.counter
+            || metadata.marker.counter <= self.crdt_wrapper.current_gc_marker().counter
         {
             return;
         }
 
-        self.crdt.write().await.gc(metadata.stable.clone());
-        self.last_gc = metadata.stable;
-        self.last_gc_marker = metadata.marker;
+        self.crdt.write().await.gc(metadata.stable.clone(), None);
+        self.crdt_wrapper
+            .push_gc_marker(metadata.marker, metadata.stable.clone());
         self.change_own_gc_counter(metadata.marker.counter).await;
         self.gc_interval.reset();
     }
 
     fn gc_metadata(&self) -> Option<GcMetadata> {
-        if self.last_gc_marker.counter == INITIAL_GC_COUNTER {
-            return None;
-        }
-
-        Some(GcMetadata {
-            marker: self.last_gc_marker,
-            stable: self.last_gc.clone(),
-        })
+        self.crdt_wrapper.gc_metadata()
     }
 
     fn membership_gc_counters_by_pid(members: &[ReplicaDescriptor]) -> HashMap<Pid, Counter> {
@@ -561,7 +668,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let descriptor = ReplicaDescriptor {
             pid: self.pid,
             address: self.address.internal(),
-            gc_counter: self.last_gc_marker.counter,
+            gc_counter: self.crdt_wrapper.current_gc_marker().counter,
             final_counter: Some(final_counter),
         };
 

@@ -141,12 +141,14 @@ impl DotSet {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VersionMatrix {
     matrix: HashMap<Pid, DotSet>,
+    final_dots: Vec<Dot>,
 }
 
 impl VersionMatrix {
     pub fn new() -> Self {
         Self {
             matrix: HashMap::new(),
+            final_dots: Vec::new(),
         }
     }
 
@@ -154,6 +156,7 @@ impl VersionMatrix {
         self.matrix.insert(pid, version_vector);
     }
 
+    /// Returns a DotSet 
     pub fn get_stable(&self) -> DotSet {
         let mut stable = DotSet::new();
         for pid in self.pids() {
@@ -175,6 +178,69 @@ impl VersionMatrix {
             .values()
             .flat_map(|version_vector| version_vector.pids());
         row_pids.chain(column_pids)
+    }
+
+    /// We must wait for final count for this Pid to stabilize before we can remove it completely
+    pub fn insert_final_dot(&mut self, final_dot: Dot) {
+        self.matrix
+            .entry(final_dot.pid)
+            .and_modify(|version_vector| version_vector.set_counter(final_dot.pid, final_dot.counter))
+            .or_insert_with(|| {
+                let mut version_vector = DotSet::new();
+                version_vector.set_counter(final_dot.pid, final_dot.counter);
+                version_vector
+            });
+
+        if !self.final_dots.contains(&final_dot) {
+            self.final_dots.push(final_dot);
+        }
+    }
+
+    /// Cleans up any "final dots" and returns a Vec of Pid's that can be GC'd
+    pub fn garbage_collect(&mut self, version_vector: &DotSet) -> Option<Vec<Pid>> {
+        if self.final_dots.is_empty() {
+            return None;
+        }
+
+        let filtered_matrix = self.filtered_matrix();
+        let filtered_stable = filtered_matrix.get_stable();
+        let dots_to_remove = self
+            .final_dots
+            .iter()
+            .copied()
+            .filter(|final_dot| {
+                version_vector.contains(final_dot) && filtered_stable.contains(final_dot)
+            })
+            .collect::<Vec<_>>();
+
+        if dots_to_remove.is_empty() {
+            return None;
+        }
+
+        self.final_dots.retain(|dot| !dots_to_remove.contains(dot));
+
+        for dot in &dots_to_remove {
+            self.matrix.remove(&dot.pid);
+            for version_vector in self.matrix.values_mut() {
+                version_vector.set.remove(&dot.pid);
+            }
+        }
+        Some(dots_to_remove.iter().map(|dot| dot.pid).collect())
+    }
+
+    fn filtered_matrix(&self) -> VersionMatrix {
+        let final_pids = self.final_dots.iter().map(|dot| dot.pid).collect::<Vec<_>>();
+        let matrix = self
+            .matrix
+            .iter()
+            .filter(|(pid, _)| !final_pids.contains(pid))
+            .map(|(pid, version_vector)| (*pid, version_vector.clone()))
+            .collect();
+
+        VersionMatrix {
+            matrix,
+            final_dots: Vec::new(),
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use futures::future::try_join_all;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::path::Path;
 use object_store::{Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, UpdateVersion};
@@ -79,6 +80,33 @@ impl ObjectStorageClient {
     ) -> Result<(), ObjectStorageError> {
         let descriptor_path = descriptor.object_path(&self.membership_directory_path);
         self.delete_data(&descriptor_path).await
+    }
+
+    pub async fn delete_membership_descriptors_for_pid(
+        &self,
+        pid: crate::prelude::Pid,
+    ) -> Result<(), ObjectStorageError> {
+        let descriptors_to_delete = self
+            .membership_descriptors()
+            .await
+            .into_iter()
+            .filter(|descriptor| descriptor.pid == pid)
+            .collect::<Vec<_>>();
+
+        try_join_all(
+            descriptors_to_delete
+                .iter()
+                .copied()
+                .map(|descriptor| self.delete_membership_descriptor(descriptor)),
+        )
+        .await?;
+
+        self.membership_descriptors
+            .write()
+            .await
+            .retain(|descriptor| descriptor.pid != pid);
+
+        Ok(())
     }
 
     pub async fn list_membership_descriptors(

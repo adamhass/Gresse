@@ -57,7 +57,7 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
     /// CRDTs that keep causal histories can override this to drop deltas that
     /// are known to be durable or observed. CRDTs that do not need garbage
     /// collection can use the default no-op implementation.
-    fn gc(&mut self, _version_vector: DotSet) {}
+    fn gc(&mut self, _version_vector: DotSet, _departed_pids: Option<Vec<Pid>>) {}
 }
 
 /// Delta group is a set of Deltas that are causally ordered

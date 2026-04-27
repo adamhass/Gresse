@@ -1,7 +1,9 @@
+use crate::dots::Counter;
 use crate::prelude::{Pid, ServerAddr};
 // use crate::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
+use std::collections::HashSet;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
@@ -17,6 +19,13 @@ use tokio::{
 pub struct NetworkMember {
     pub pid: Pid,
     pub address: SocketAddr,
+    pub final_counter: Option<Counter>,
+}
+
+impl NetworkMember {
+    pub fn is_shutdown(&self) -> bool {
+        self.final_counter.is_some()
+    }
 }
 
 /// Network manager for a server, handles the systems internal network connections
@@ -28,6 +37,7 @@ pub struct NetworkManager<T> {
     pub listener: TcpListener,
     pub pid: Pid,
     pub address: ServerAddr,
+    dead_members: HashSet<Pid>,
     // For graceful shutdown
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     task_handles: Vec<JoinHandle<()>>,
@@ -59,6 +69,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             listener,
             pid,
             address,
+            dead_members: HashSet::new(),
             shutdown_receiver: Some(shutdown_receiver),
             task_handles: Vec::new(),
         };
@@ -98,10 +109,16 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
     }
 
     pub async fn handle_new_member(&mut self, member: NetworkMember) {
+        if member.is_shutdown() {
+            self.dead_members.insert(member.pid);
+            return;
+        }
+
         // Ensure there's no self connection, or mutual connection attempts
         if member.pid == self.pid
             || member.address == self.address.internal()
             || member.address < self.address.internal()
+            || self.dead_members.contains(&member.pid)
         {
             return;
         }
@@ -121,6 +138,9 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             .expect("Failed to write id");
         // Find out who it is on the opposite end
         let pid = stream.read_u128().await.expect("Failed to read id");
+        if self.dead_members.contains(&pid) {
+            return;
+        }
         println!(
             "{:?} Received neighbor connection from: {:?}",
             self.pid, pid
