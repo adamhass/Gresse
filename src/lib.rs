@@ -5,6 +5,7 @@ pub mod http_client;
 pub (crate) mod http_server;
 pub (crate) mod network;
 pub (crate) mod object_storage;
+pub mod orset;
 pub mod replica;
 pub mod replica_helpers;
 

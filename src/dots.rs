@@ -86,6 +86,10 @@ impl DotSet {
         self.set.insert(pid, counter);
     }
 
+    pub fn remove_pid(&mut self, pid: &Pid) {
+        self.set.remove(pid);
+    }
+
     pub fn pids(&self) -> impl Iterator<Item = Pid> + '_ {
         self.set.keys().copied()
     }
@@ -324,5 +328,15 @@ impl<T: Clone + PartialEq> DotMap<T> {
 
         // Combine both iterators
         existing_keys_iter.chain(missing_keys_iter)
+    }
+
+    pub fn retain<F>(&mut self, mut predicate: F)
+    where
+        F: FnMut(&Dot, &T) -> bool,
+    {
+        self.map.retain(|_, values| {
+            values.retain(|(dot, value)| predicate(dot, value));
+            !values.is_empty()
+        });
     }
 }

@@ -111,6 +111,32 @@ export GRESSE_PERSISTENT_REPLICA_PATH=replicas/app-state.json
 export GRESSE_MEMBERSHIP_DIRECTORY_PATH=membership
 ```
 
+## Local MinIO For Integration Tests
+
+The repository includes [docker-compose.minio.yml](/Users/adam/Dev/Gresse/docker-compose.minio.yml) for a local MinIO deployment that automatically creates the `gresse-integration` bucket used by the integration test.
+
+Start it with:
+
+```sh
+docker compose -f docker-compose.minio.yml up -d
+```
+
+Run the MinIO-backed integration test with:
+
+```sh
+GRESSE_RUN_MINIO_TESTS=1 cargo test --test integration_smoke -- --nocapture
+```
+
+Optional overrides for non-default MinIO settings:
+
+```sh
+export GRESSE_TEST_MINIO_URL=http://127.0.0.1:9000
+export GRESSE_TEST_MINIO_REGION=us-east-1
+export GRESSE_TEST_MINIO_BUCKET=gresse-integration
+export GRESSE_TEST_MINIO_ACCESS_KEY=minioadmin
+export GRESSE_TEST_MINIO_SECRET_KEY=minioadmin
+```
+
 ## Membership And Bootstrap
 
 On startup, each replica writes an empty membership descriptor into `GRESSE_MEMBERSHIP_DIRECTORY_PATH`. The descriptor file name encodes:

@@ -3,14 +3,6 @@ name = "gresse"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "vector_db"
-path = "examples/vector_db/main.rs"
-
-[[bin]]
-name = "bench_function"
-path = "examples/bench_function/main.rs"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

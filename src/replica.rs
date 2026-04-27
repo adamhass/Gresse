@@ -134,6 +134,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
+
     /// Create a new CRDT server from explicit configuration.
     pub async fn with_config(
         pid: Pid,
