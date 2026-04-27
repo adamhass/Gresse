@@ -31,6 +31,12 @@ struct CRDTWrapper {
     gc_markers: Vec<(Dot, DotSet)>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PersistentReplica<T> {
+    local_state: T,
+    crdt_wrapper: CRDTWrapper,
+}
+
 impl CRDTWrapper {
     fn new() -> Self {
         Self::default()
@@ -261,7 +267,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     async fn init(&mut self) {
-        let (members, persistent_crdt) = tokio::join!(
+        let (members, persistent_replica) = tokio::join!(
             async {
                 self.push_replica_descriptor().await;
                 self.list_members().await
@@ -272,10 +278,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         self.enqueue_network_members(&members).await;
 
-        match persistent_crdt {
-            Some(mut persistent_crdt) => {
-                persistent_crdt.set_pid(self.pid);
-                *self.crdt.write().await = persistent_crdt;
+        match persistent_replica {
+            Some(mut persistent_replica) => {
+                persistent_replica.local_state.set_pid(self.pid);
+                *self.crdt.write().await = persistent_replica.local_state;
+                self.crdt_wrapper = persistent_replica.crdt_wrapper;
             }
             None => self.write_initial_persistent_replica().await,
         }
@@ -304,7 +311,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn read_persistent_replica(&self) -> Option<T> {
+    async fn read_persistent_replica(&self) -> Option<PersistentReplica<T>> {
         self.object_storage_client
             .read_persistent_replica()
             .await
@@ -312,9 +319,12 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     async fn write_initial_persistent_replica(&self) {
-        let initial_crdt = self.crdt.read().await.clone();
+        let persistent_replica = PersistentReplica {
+            local_state: self.crdt.read().await.clone(),
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
         self.object_storage_client
-            .write_persistent_replica(&initial_crdt)
+            .write_persistent_replica(&persistent_replica)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to write initial persistent replica state: {error}")
@@ -498,6 +508,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         let previous_members = self.object_storage_client.membership_descriptors().await;
         let previous_gc_counters = Self::membership_gc_counters_by_pid(&previous_members);
+        let previous_descriptor = self.replica_descriptor().await;
 
         // 1. Increment our GC marker in the Membership directory before GC.
         let new_marker = Dot {
@@ -517,6 +528,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             &current_members,
             self.pid,
         ) {
+            // Rollback the new membership desriptor
             self.object_storage_client
                 .delete_membership_descriptor(new_descriptor)
                 .await
@@ -541,10 +553,14 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         // DONE
         self.crdt_wrapper.push_gc_marker(new_marker, stable.clone());
+        let persistent_replica = PersistentReplica {
+            local_state,
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
 
         // 4. Overwrite persistent replica with the new local state.
         self.object_storage_client
-            .write_persistent_replica(&local_state)
+            .write_persistent_replica(&persistent_replica)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to write persistent replica after garbage collection: {error}")
@@ -554,6 +570,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.gc_departed_pids(departed_pids).await;
         }
 
+        // 5. Remove our old Membership Descriptor ? 
+        self.object_storage_client
+            .delete_membership_descriptor(previous_descriptor)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("Failed to delete previous replica membership descriptor: {error}")
+            });
     }
 
     async fn gc_departed_pids(&mut self, departed_pids: Vec<Pid>) {

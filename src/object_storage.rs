@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
-use crate::crdt::CRDT;
 use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
 
@@ -42,7 +41,9 @@ impl ObjectStorageClient {
         })
     }
 
-    pub async fn read_persistent_replica<T: CRDT>(&self) -> Result<Option<T>, ObjectStorageError> {
+    pub async fn read_persistent_replica<T: for<'de> Deserialize<'de>>(
+        &self,
+    ) -> Result<Option<T>, ObjectStorageError> {
         match self.download_data(&self.persistent_replica_path).await {
             Ok((persistent_crdt, _)) => Ok(Some(persistent_crdt)),
             Err(ObjectStorageError::FileNotFound) => Ok(None),
@@ -50,7 +51,7 @@ impl ObjectStorageClient {
         }
     }
 
-    pub async fn write_persistent_replica<T: CRDT>(
+    pub async fn write_persistent_replica<T: Serialize>(
         &self,
         crdt: &T,
     ) -> Result<(), ObjectStorageError> {
