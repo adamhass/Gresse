@@ -68,14 +68,14 @@ pub struct DeltaGroup<D> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GcMetadata {
+pub struct GcMarker {
     pub marker: Dot,
     pub stable: DotSet,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReplicaMessage<T: CRDT + Debug + Clone> {
-    DeltaGroup(DeltaGroup<T::Delta>, Option<GcMetadata>, u128),
+    DeltaGroup(DeltaGroup<T::Delta>, Option<GcMarker>, u128),
     VersionVector(Pid, DotSet, u128),
 }
 

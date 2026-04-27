@@ -28,7 +28,7 @@ const DEFAULT_GC_INTERVAL: Duration = Duration::from_secs(60);
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct CRDTWrapper {
     version_matrix: VersionMatrix,
-    gc_markers: Vec<(Dot, DotSet)>,
+    gc_markers: Vec<GcMarker>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ impl CRDTWrapper {
     fn current_gc_marker(&self) -> Dot {
         self.gc_markers
             .last()
-            .map(|(marker, _)| *marker)
+            .map(|gc_marker| gc_marker.marker)
             .unwrap_or(Dot {
                 pid: STABLE_REPLICA_PID,
                 counter: INITIAL_GC_COUNTER,
@@ -53,7 +53,7 @@ impl CRDTWrapper {
     }
 
     fn current_stable(&self) -> Option<&DotSet> {
-        self.gc_markers.last().map(|(_, stable)| stable)
+        self.gc_markers.last().map(|gc_marker| &gc_marker.stable)
     }
 
     fn needs_gc(&self, stable: &DotSet) -> bool {
@@ -61,14 +61,11 @@ impl CRDTWrapper {
     }
 
     fn push_gc_marker(&mut self, marker: Dot, stable: DotSet) {
-        self.gc_markers.push((marker, stable));
+        self.gc_markers.push(GcMarker { marker, stable });
     }
 
-    fn gc_metadata(&self) -> Option<GcMetadata> {
-        self.gc_markers.last().map(|(marker, stable)| GcMetadata {
-            marker: *marker,
-            stable: stable.clone(),
-        })
+    fn gc_metadata(&self) -> Option<GcMarker> {
+        self.gc_markers.last().cloned()
     }
 }
 
@@ -611,7 +608,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         descriptor
     }
 
-    async fn observe_gc(&mut self, metadata: GcMetadata) {
+    async fn observe_gc(&mut self, metadata: GcMarker) {
         if metadata.marker.pid != STABLE_REPLICA_PID
             || metadata.marker.counter <= self.crdt_wrapper.current_gc_marker().counter
         {
@@ -625,7 +622,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.gc_interval.reset();
     }
 
-    fn gc_metadata(&self) -> Option<GcMetadata> {
+    fn gc_metadata(&self) -> Option<GcMarker> {
         self.crdt_wrapper.gc_metadata()
     }
 
