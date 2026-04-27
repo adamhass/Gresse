@@ -11,6 +11,7 @@ use hyper::server::conn::http1::Builder;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
+use log::{debug, error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -57,11 +58,8 @@ async fn http_server_loop<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     crdt: Arc<RwLock<T>>,
     mut shutdown_receiver: oneshot::Receiver<()>,
 ) {
-    println!("Running CRDT HTTP Server");
-    println!(
-        "Listening for HTTP on: {}",
-        http_listener.local_addr().unwrap()
-    );
+    info!("running CRDT HTTP server");
+    info!("listening for HTTP on {}", http_listener.local_addr().unwrap());
 
     // Enter HTTP Listener event loop with shutdown capability:
     loop {
@@ -76,17 +74,17 @@ async fn http_server_loop<T: CRDT + Send + Sync + 'static + Clone + Debug>(
                         handle_http_connection(stream, addr, crdt_clone, client_request_sender_clone);
                     }
                     Err(e) => {
-                        eprintln!("server accept error: {}", e);
+                        error!("http server accept error: {}", e);
                     }
                 }
             }
             _ = &mut shutdown_receiver => {
-                println!("HTTP server received shutdown signal, terminating...");
+                info!("http server received shutdown signal");
                 break;
             }
         }
     }
-    println!("HTTP server shutdown complete");
+    info!("http server shutdown complete");
 }
 
 /// Spawns a new handler for each new connection
@@ -103,7 +101,7 @@ fn handle_http_connection<T: CRDT + Send + Sync + 'static + Clone + Debug>(
             handle_request(req, crdt.clone(), client_channel.clone())
         });
         if Builder::new().serve_connection(io, service).await.is_err() {
-            eprintln!("Server error: {}", addr);
+            error!("http server connection error for {}", addr);
         }
     });
 }
@@ -121,15 +119,14 @@ async fn handle_request<T: CRDT + Send + Sync + 'static + Clone + Debug>(
         // Queries are handled directly by the HTTP Server
         CRDTClientRequest::<T>::Query(arg) => {
             let crdt = crdt.read().await;
-            // println!("handling query");
+            debug!("handling client query request");
             crdt.query(arg)
         }
         CRDTClientRequest::<T>::Mutation(mutation) => {
-            // println!("handling mutation");
+            debug!("forwarding client mutation request to replica");
             forward_request::<T>(mutation.clone(), server_channel).await
         }
     };
-    // eprintln!("response: {:?}", response);
     let response = serde_json::to_string(&response).unwrap();
     let response = Response::new(response.into());
     Ok(response)
@@ -145,7 +142,6 @@ async fn forward_request<T: CRDT + Send + Sync + 'static>(
     // Wait for the request to be handled...
     let result = rx.await.expect("Server failed to handle the message");
     if let Ok(response) = result {
-        // eprintln!("got response: {:?}", &response);
         response
     } else {
         todo!("Handle error for forwarded request");

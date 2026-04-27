@@ -1,6 +1,7 @@
 use http_body_util::BodyExt;
 use hyper::{client::conn::http1::SendRequest, Request, Version};
 use hyper_util::rt::TokioIo;
+use log::{debug, warn};
 use serde::{de::DeserializeOwned, Serialize};
 use std::net::SocketAddr;
 use thiserror::Error;
@@ -43,7 +44,7 @@ where
             .unwrap();
         tokio::task::spawn(async move {
             if let Err(err) = conn.await {
-                println!("Connection failed {:?}", err);
+                warn!("http client connection failed: {:?}", err);
             }
         });
         HttpClient::<Req, Res> {
@@ -66,7 +67,7 @@ where
                     return Ok(res);
                 }
                 Err(e) => {
-                    eprintln!("Failed to send request: {}", e);
+                    debug!("http client send attempt {} failed: {}", i + 1, e);
                     if i == MAX_RETRIES - 1 {
                         return Err(HttpError::Hyper(e));
                     }

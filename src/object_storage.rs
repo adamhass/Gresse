@@ -75,6 +75,18 @@ impl ObjectStorageClient {
         self.upload_data_atomic_create(&descriptor_path, payload).await
     }
 
+    pub async fn read_membership_descriptor_payload<T: for<'de> Deserialize<'de>>(
+        &self,
+        descriptor: ReplicaDescriptor,
+    ) -> Result<Option<T>, ObjectStorageError> {
+        let descriptor_path = descriptor.object_path(&self.membership_directory_path);
+        match self.download_data(&descriptor_path).await {
+            Ok((payload, _)) => Ok(Some(payload)),
+            Err(ObjectStorageError::FileNotFound) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn delete_membership_descriptor(
         &self,
         descriptor: ReplicaDescriptor,

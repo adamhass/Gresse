@@ -1,5 +1,6 @@
 use crate::dots::Counter;
 use crate::prelude::{Pid, ServerAddr};
+use log::{debug, info, warn};
 // use crate::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
@@ -105,7 +106,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         for handle in self.task_handles.iter() {
             handle.abort();
         }
-        println!("NetworkManager for pid {} shutdown complete", self.pid);
+        info!("network manager for replica {} shutdown complete", self.pid);
     }
 
     pub async fn handle_new_member(&mut self, member: NetworkMember) {
@@ -122,7 +123,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         {
             return;
         }
-        println!("New member added: {:?}", member);
+        info!("replica {} discovered network member {:?}", self.pid, member);
         let stream = TcpStream::connect(member.address)
             .await
             .expect("Failed to connect to new address");
@@ -141,12 +142,13 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         if self.dead_members.contains(&pid) {
             return;
         }
-        println!(
-            "{:?} Received neighbor connection from: {:?}",
-            self.pid, pid
+        info!(
+            "replica {} completed network handshake with replica {}",
+            self.pid,
+            pid
         );
         while let Err(e) = stream.ready(Interest::READABLE | Interest::WRITABLE).await {
-            eprintln!("Failed to initialize stream: {:?}, retrying", e);
+            warn!("failed to initialize stream for replica {}: {:?}, retrying", self.pid, e);
         }
         let (read_half, stream_writer) = io::split(stream);
         let stream_reader = BufReader::new(read_half).lines();
@@ -164,6 +166,11 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             .send((pid as Pid, from_local_sender))
             .await
             .expect("Failed to send connection");
+        info!(
+            "replica {} registered bidirectional network channel for replica {}",
+            self.pid,
+            pid
+        );
     }
 
     async fn read_loop(mut reader: Lines<BufReader<ReadHalf<TcpStream>>>, sender: Sender<T>) {
@@ -172,7 +179,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             // println!("Looping read loop");
             while let Ok(Some(line)) = reader.next_line().await {
                 let message: T = serde_json::from_str(&line).expect("Failed to parse request");
-                // println!("Received request: {:?}", message);
+                debug!("network read loop received message: {:?}", message);
                 sender.send(message).await.expect("Failed to send request");
             }
         }
@@ -191,7 +198,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
     async fn write_loop(mut writer: WriteHalf<TcpStream>, mut receiver: Receiver<T>) {
         loop {
             while let Some(request) = receiver.recv().await {
-                // println!("Sending request: {:?}", request);
+                debug!("network write loop sending message: {:?}", request);
                 Self::send_message(&mut writer, &request)
                     .await
                     .expect("Failed to send message");

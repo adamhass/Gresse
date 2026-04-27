@@ -266,6 +266,10 @@ impl<T: Clone + PartialEq> DotMap<T> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.map.values().map(Vec::len).sum()
+    }
+
     /// The Dots must be contiguous, with no gaps in sequence numbers per Pid...
     pub fn insert(&mut self, dot: Dot, value: T) {
         let vec = self.map.entry(dot.pid).or_default();

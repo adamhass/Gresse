@@ -24,6 +24,13 @@ pub enum OrSetMutation<T: Clone + Eq + Hash + Ord> {
 pub enum OrSetQuery<T: Clone + Eq + Hash + Ord> {
     Contains(T),
     Elements,
+    Meta,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrSetMeta {
+    pub entry_count: usize,
+    pub delta_log_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -35,6 +42,7 @@ pub enum OrSetResponse<T: Clone + Eq + Hash + Ord> {
     Acknowledged,
     Contains(bool),
     Elements(Vec<T>),
+    Meta(OrSetMeta),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -108,6 +116,13 @@ where
         let pid = self.pid.ok_or(OrSetError::MissingPid)?;
         Ok(self.version_vector.increment_and_get(pid))
     }
+
+    fn meta(&self) -> OrSetMeta {
+        OrSetMeta {
+            entry_count: self.entries.len(),
+            delta_log_count: self.delta_log.len(),
+        }
+    }
 }
 
 impl<T> Default for ORSet<T>
@@ -139,6 +154,7 @@ where
                 elements.sort();
                 Ok(OrSetResponse::Elements(elements))
             }
+            OrSetQuery::Meta => Ok(OrSetResponse::Meta(self.meta())),
         }
     }
 
@@ -239,11 +255,6 @@ where
         for pid in &departed_pids {
             self.version_vector.remove_pid(pid);
         }
-
-        self.entries.retain(|_, dots| {
-            dots.retain(|dot| !departed_pids.contains(&dot.pid));
-            !dots.is_empty()
-        });
     }
 }
 
@@ -267,5 +278,67 @@ mod tests {
             set.query(OrSetQuery::Contains("apple".into())).unwrap(),
             OrSetResponse::Contains(false)
         );
+    }
+
+    #[test]
+    fn meta_query_reports_entry_and_delta_log_sizes() {
+        let mut set = ORSet::<String>::new();
+        set.set_pid(1);
+
+        assert_eq!(
+            set.query(OrSetQuery::Meta).unwrap(),
+            OrSetResponse::Meta(OrSetMeta {
+                entry_count: 0,
+                delta_log_count: 0,
+            })
+        );
+
+        set.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+        set.mutate(OrSetMutation::Insert("banana".into())).unwrap();
+        set.mutate(OrSetMutation::Remove("apple".into())).unwrap();
+
+        assert_eq!(
+            set.query(OrSetQuery::Meta).unwrap(),
+            OrSetResponse::Meta(OrSetMeta {
+                entry_count: 1,
+                delta_log_count: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn gc_for_departed_pid_preserves_live_entries() {
+        let mut set = ORSet::<String>::new();
+        set.set_pid(1);
+
+        set.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+        let replica_two_delta = OrSetDelta {
+            dot: Dot { pid: 2, counter: 0 },
+            change: OrSetChange::Insert {
+                element: "banana".into(),
+            },
+        };
+        set.merge_delta_group(DeltaGroup {
+            list: vec![replica_two_delta],
+            version_vector: DotSet::new(),
+        });
+
+        let mut stable = DotSet::new();
+        stable.set_counter(1, 0);
+        stable.set_counter(2, 0);
+        set.gc(stable, Some(vec![2]));
+
+        assert_eq!(
+            set.query(OrSetQuery::Elements).unwrap(),
+            OrSetResponse::Elements(vec!["apple".into(), "banana".into()])
+        );
+        assert_eq!(
+            set.query(OrSetQuery::Meta).unwrap(),
+            OrSetResponse::Meta(OrSetMeta {
+                entry_count: 2,
+                delta_log_count: 0,
+            })
+        );
+        assert_eq!(set.get_version_vector().counter(&2), None);
     }
 }

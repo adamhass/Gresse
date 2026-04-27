@@ -69,6 +69,29 @@ async fn main() {
 
 `Replica::new` generates a fresh replica PID, reads configuration from environment variables, starts the HTTP server, starts the internal replication server, joins membership through object storage, loads persistent state when available, and begins synchronizing with other replicas.
 
+## Logging
+
+Gresse now uses the standard `log` facade with `env_logger`.
+
+Initialize logging once near process startup:
+
+```rust
+gresse::logging::init();
+```
+
+The crate default is compile-time `info` logging. You can select a different compile-time max level with Cargo features:
+
+```sh
+cargo test --no-default-features --features log-level-debug
+cargo run --no-default-features --features log-level-trace
+```
+
+At runtime, `GRESSE_LOG` can further filter output within that compile-time ceiling:
+
+```sh
+GRESSE_LOG=debug cargo test --test basic_integration -- --nocapture
+```
+
 ## Required Config
 
 Gresse reads runtime configuration from environment variables.
@@ -124,7 +147,7 @@ docker compose -f docker-compose.minio.yml up -d
 Run the MinIO-backed integration test with:
 
 ```sh
-GRESSE_RUN_MINIO_TESTS=1 cargo test --test integration_smoke -- --nocapture
+cargo test --test basic_integration -- --nocapture
 ```
 
 Optional overrides for non-default MinIO settings:

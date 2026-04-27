@@ -2,6 +2,7 @@ pub mod crdt;
 pub mod db;
 pub mod dots;
 pub mod http_client;
+pub mod logging;
 pub (crate) mod http_server;
 pub (crate) mod network;
 pub (crate) mod object_storage;
