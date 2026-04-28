@@ -32,11 +32,12 @@ impl ReplicaConfig {
                 })
                 .unwrap_or(Duration::from_secs(1)),
             object_storage_config: ObjectStorageConfig {
-                url: env_string("GRESSE_OBJECT_STORAGE_URL"),
+                url: env_optional_string("GRESSE_OBJECT_STORAGE_URL"),
                 region: env_string("GRESSE_OBJECT_STORAGE_REGION"),
                 bucket: env_string("GRESSE_OBJECT_STORAGE_BUCKET"),
-                access_key: env_string("GRESSE_OBJECT_STORAGE_ACCESS_KEY"),
-                secret_key: env_string("GRESSE_OBJECT_STORAGE_SECRET_KEY"),
+                access_key: env_optional_string("GRESSE_OBJECT_STORAGE_ACCESS_KEY"),
+                secret_key: env_optional_string("GRESSE_OBJECT_STORAGE_SECRET_KEY"),
+                session_token: env_optional_string("GRESSE_OBJECT_STORAGE_SESSION_TOKEN"),
                 persistent_replica_path: env_string("GRESSE_PERSISTENT_REPLICA_PATH"),
                 membership_directory_path: env_string("GRESSE_MEMBERSHIP_DIRECTORY_PATH"),
                 discovery_interval: env::var("GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS")
@@ -54,6 +55,10 @@ impl ReplicaConfig {
 
 fn env_string(name: &str) -> String {
     env::var(name).unwrap_or_else(|_| panic!("{name} environment variable is required"))
+}
+
+fn env_optional_string(name: &str) -> Option<String> {
+    env::var(name).ok().filter(|value| !value.trim().is_empty())
 }
 
 fn env_path(name: &str) -> PathBuf {

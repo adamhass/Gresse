@@ -102,11 +102,8 @@ Gresse reads runtime configuration from environment variables.
 | `GRESSE_HTTP_PORT` | HTTP port for client query and mutation requests. |
 | `GRESSE_INTERNAL_PORT` | Internal replication port for peer-to-peer replica traffic. |
 | `GRESSE_RESULT_DIR_PATH` | Local directory where replica metrics are written. |
-| `GRESSE_OBJECT_STORAGE_URL` | Object storage endpoint URL. |
 | `GRESSE_OBJECT_STORAGE_REGION` | Object storage region. |
 | `GRESSE_OBJECT_STORAGE_BUCKET` | Object storage bucket name. |
-| `GRESSE_OBJECT_STORAGE_ACCESS_KEY` | Object storage access key. |
-| `GRESSE_OBJECT_STORAGE_SECRET_KEY` | Object storage secret key. |
 | `GRESSE_PERSISTENT_REPLICA_PATH` | Object path for the serialized persistent CRDT state. |
 | `GRESSE_MEMBERSHIP_DIRECTORY_PATH` | Object-storage directory prefix used for replica membership descriptors. |
 
@@ -114,10 +111,20 @@ Optional configuration:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `GRESSE_OBJECT_STORAGE_URL` | unset | Custom object-storage endpoint URL. Set this for S3-compatible stores such as MinIO. Leave it unset for AWS S3. |
+| `GRESSE_OBJECT_STORAGE_ACCESS_KEY` | unset | Optional explicit access key. |
+| `GRESSE_OBJECT_STORAGE_SECRET_KEY` | unset | Optional explicit secret key. |
+| `GRESSE_OBJECT_STORAGE_SESSION_TOKEN` | unset | Optional explicit session token for temporary credentials. |
 | `GRESSE_SYNC_INTERVAL_MS` | `1000` | Interval between replica delta synchronization ticks. |
 | `GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS` | `1000` | Object storage discovery interval. |
 
-Example:
+Authentication options:
+- Explicit Gresse credentials via `GRESSE_OBJECT_STORAGE_ACCESS_KEY`, `GRESSE_OBJECT_STORAGE_SECRET_KEY`, and optionally `GRESSE_OBJECT_STORAGE_SESSION_TOKEN`.
+- Standard AWS environment variables such as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`.
+- Shared AWS profiles via `AWS_PROFILE` together with `~/.aws/credentials` and `~/.aws/config`.
+- AWS metadata-based providers already supported by `object_store`, such as EC2 instance roles, ECS task roles, and web-identity credentials.
+
+Example for local MinIO:
 
 ```sh
 export GRESSE_ADDR=0.0.0.0
@@ -133,6 +140,24 @@ export GRESSE_OBJECT_STORAGE_SECRET_KEY=minioadmin
 export GRESSE_PERSISTENT_REPLICA_PATH=replicas/app-state.json
 export GRESSE_MEMBERSHIP_DIRECTORY_PATH=membership
 ```
+
+Example for AWS S3 with a shared AWS profile:
+
+```sh
+export AWS_PROFILE=gresse-experiment
+
+export GRESSE_ADDR=0.0.0.0
+export GRESSE_HTTP_PORT=9090
+export GRESSE_INTERNAL_PORT=8080
+export GRESSE_RESULT_DIR_PATH=./results
+
+export GRESSE_OBJECT_STORAGE_REGION=eu-north-1
+export GRESSE_OBJECT_STORAGE_BUCKET=gresse
+export GRESSE_PERSISTENT_REPLICA_PATH=experiment1/persistent.json
+export GRESSE_MEMBERSHIP_DIRECTORY_PATH=experiment1/membership
+```
+
+With that setup, Gresse will read credentials from your normal AWS profile files instead of storing secrets in the repository.
 
 ## Local MinIO For Integration Tests
 

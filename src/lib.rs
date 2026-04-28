@@ -96,11 +96,12 @@ pub mod prelude {
 
     #[derive(Clone, Debug)]
     pub struct ObjectStorageConfig {
-        pub url: String,
+        pub url: Option<String>,
         pub region: String,
         pub bucket: String,
-        pub access_key: String,
-        pub secret_key: String,
+        pub access_key: Option<String>,
+        pub secret_key: Option<String>,
+        pub session_token: Option<String>,
         pub persistent_replica_path: String,
         pub membership_directory_path: String,
         pub discovery_interval: Duration,

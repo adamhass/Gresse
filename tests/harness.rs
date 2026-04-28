@@ -191,11 +191,18 @@ impl MinioHarness {
 
     fn object_storage_config(&self, discovery_interval: Duration) -> ObjectStorageConfig {
         ObjectStorageConfig {
-            url: env_or_default("GRESSE_TEST_MINIO_URL", DEFAULT_MINIO_URL),
+            url: Some(env_or_default("GRESSE_TEST_MINIO_URL", DEFAULT_MINIO_URL)),
             region: env_or_default("GRESSE_TEST_MINIO_REGION", DEFAULT_MINIO_REGION),
             bucket: self.bucket.clone(),
-            access_key: env_or_default("GRESSE_TEST_MINIO_ACCESS_KEY", DEFAULT_MINIO_ACCESS_KEY),
-            secret_key: env_or_default("GRESSE_TEST_MINIO_SECRET_KEY", DEFAULT_MINIO_SECRET_KEY),
+            access_key: Some(env_or_default(
+                "GRESSE_TEST_MINIO_ACCESS_KEY",
+                DEFAULT_MINIO_ACCESS_KEY,
+            )),
+            secret_key: Some(env_or_default(
+                "GRESSE_TEST_MINIO_SECRET_KEY",
+                DEFAULT_MINIO_SECRET_KEY,
+            )),
+            session_token: None,
             persistent_replica_path: self.persistent_replica_path.clone(),
             membership_directory_path: self.membership_directory_path.clone(),
             discovery_interval,

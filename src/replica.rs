@@ -112,15 +112,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     /// - `GRESSE_HTTP_PORT`
     /// - `GRESSE_INTERNAL_PORT`
     /// - `GRESSE_RESULT_DIR_PATH`
-    /// - `GRESSE_OBJECT_STORAGE_URL`
     /// - `GRESSE_OBJECT_STORAGE_REGION`
     /// - `GRESSE_OBJECT_STORAGE_BUCKET`
-    /// - `GRESSE_OBJECT_STORAGE_ACCESS_KEY`
-    /// - `GRESSE_OBJECT_STORAGE_SECRET_KEY`
     /// - `GRESSE_PERSISTENT_REPLICA_PATH`
     /// - `GRESSE_MEMBERSHIP_DIRECTORY_PATH`
     ///
     /// Optional:
+    /// - `GRESSE_OBJECT_STORAGE_URL`, for S3-compatible custom endpoints such as MinIO.
+    /// - `GRESSE_OBJECT_STORAGE_ACCESS_KEY`
+    /// - `GRESSE_OBJECT_STORAGE_SECRET_KEY`
+    /// - `GRESSE_OBJECT_STORAGE_SESSION_TOKEN`
     /// - `GRESSE_SYNC_INTERVAL_MS`, defaults to 1000.
     /// - `GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS`, defaults to 1000.
     pub async fn new(crdt: T) -> ReplicaHandle {
