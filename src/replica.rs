@@ -15,6 +15,9 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -36,6 +39,104 @@ struct CRDTWrapper {
 struct PersistentReplica<T> {
     local_state: T,
     crdt_wrapper: CRDTWrapper,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RawDurabilityRecord {
+    record_type: String,
+    payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+struct DurabilityJournal {
+    path: PathBuf,
+}
+
+impl DurabilityJournal {
+    fn new(path: PathBuf) -> Result<Self, DurabilityError> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        Ok(Self { path })
+    }
+
+    fn recover<T: CRDT + Debug + Clone>(&self) -> Result<Option<PersistentReplica<T>>, DurabilityError> {
+        if !self.path.exists() {
+            return Ok(None);
+        }
+
+        let file = std::fs::File::open(&self.path)?;
+        let reader = BufReader::new(file);
+        let mut recovered: Option<PersistentReplica<T>> = None;
+
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let record: RawDurabilityRecord = serde_json::from_str(&line)?;
+            match record.record_type.as_str() {
+                "snapshot" => {
+                    recovered = Some(serde_json::from_value(record.payload)?);
+                }
+                "delta_group" => {
+                    let Some(snapshot) = recovered.as_mut() else {
+                        return Err(DurabilityError::MissingSnapshot);
+                    };
+                    let delta_group = serde_json::from_value(record.payload)?;
+                    snapshot.local_state.merge_delta_group(delta_group);
+                }
+                other => return Err(DurabilityError::UnknownRecordType(other.to_string())),
+            }
+        }
+
+        Ok(recovered)
+    }
+
+    fn append_snapshot<T: CRDT + Debug + Clone>(
+        &self,
+        snapshot: &PersistentReplica<T>,
+    ) -> Result<(), DurabilityError> {
+        self.append_record(&RawDurabilityRecord {
+            record_type: "snapshot".to_string(),
+            payload: serde_json::to_value(snapshot)?,
+        })
+    }
+
+    fn append_delta_group<T: CRDT + Debug + Clone>(
+        &self,
+        delta_group: &DeltaGroup<T::Delta>,
+    ) -> Result<(), DurabilityError> {
+        self.append_record(&RawDurabilityRecord {
+            record_type: "delta_group".to_string(),
+            payload: serde_json::to_value(delta_group)?,
+        })
+    }
+
+    fn append_record(&self, record: &RawDurabilityRecord) -> Result<(), DurabilityError> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        serde_json::to_writer(&mut file, record)?;
+        file.write_all(b"\n")?;
+        file.sync_data()?;
+        Ok(())
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+enum DurabilityError {
+    #[error("durability journal requires a snapshot before delta records")]
+    MissingSnapshot,
+    #[error("unknown durability record type: {0}")]
+    UnknownRecordType(String),
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("serialization error: {0}")]
+    Serialization(#[from] serde_json::Error),
 }
 
 impl CRDTWrapper {
@@ -91,6 +192,8 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     // Records results/metrics
     metric_writer: csv::Writer<std::fs::File>,
     object_storage_client: ObjectStorageClient,
+    durability_journal: Option<DurabilityJournal>,
+    recovered_from_durability: bool,
     // Shutdown channel
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     http_shutdown_sender: Option<oneshot::Sender<()>>,
@@ -140,12 +243,30 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     /// Create a new CRDT server from explicit configuration.
     pub async fn with_config(
         pid: Pid,
-        mut crdt: T,
+        crdt: T,
         config: ReplicaConfig,
     ) -> (Self, oneshot::Sender<()>) {
-        crdt.set_pid(pid);
-        let crdt = Arc::new(RwLock::new(crdt));
-        Self::with_shared_config(pid, crdt, config).await
+        let durability_journal = config
+            .durability_path
+            .clone()
+            .map(DurabilityJournal::new)
+            .transpose()
+            .unwrap_or_else(|error| panic!("Failed to initialize durability journal: {error}"));
+        let recovered_replica = durability_journal
+            .as_ref()
+            .map(|journal| journal.recover::<T>())
+            .transpose()
+            .unwrap_or_else(|error| panic!("Failed to recover durable replica state: {error}"))
+            .flatten();
+
+        let mut effective_crdt = recovered_replica
+            .as_ref()
+            .map(|replica| replica.local_state.clone())
+            .unwrap_or(crdt);
+        effective_crdt.set_pid(pid);
+        let crdt = Arc::new(RwLock::new(effective_crdt));
+        Self::with_shared_config_internal(pid, crdt, config, durability_journal, recovered_replica)
+            .await
     }
 
     /// Create a new CRDT server from explicit configuration and shared CRDT state.
@@ -153,6 +274,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         pid: Pid,
         crdt: Arc<RwLock<T>>,
         config: ReplicaConfig,
+    ) -> (Self, oneshot::Sender<()>) {
+        Self::with_shared_config_internal(pid, crdt, config, None, None).await
+    }
+
+    async fn with_shared_config_internal(
+        pid: Pid,
+        crdt: Arc<RwLock<T>>,
+        config: ReplicaConfig,
+        durability_journal: Option<DurabilityJournal>,
+        recovered_replica: Option<PersistentReplica<T>>,
     ) -> (Self, oneshot::Sender<()>) {
         crdt.write().await.set_pid(pid);
 
@@ -193,7 +324,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 client_request_receiver,
                 replication_writer_receiver,
                 network_member_sender,
-                crdt_wrapper: CRDTWrapper::new(),
+                crdt_wrapper: recovered_replica
+                    .as_ref()
+                    .map(|replica| replica.crdt_wrapper.clone())
+                    .unwrap_or_else(CRDTWrapper::new),
                 writers: HashMap::new(),
                 replication_receiver,
                 shutdown_receiver: Some(shutdown_receiver),
@@ -205,6 +339,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 membership_poll_interval: Self::membership_poll_interval(membership_poll_period),
                 metric_writer,
                 object_storage_client,
+                durability_journal,
+                recovered_from_durability: recovered_replica.is_some(),
             },
             shutdown_sender,
         )
@@ -279,13 +415,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
     async fn init(&mut self) {
         debug!("replica {} initiating bootstrap", self.pid);
-        let (members, persistent_replica) = tokio::join!(
-            async {
-                self.push_replica_descriptor().await;
-                self.list_members().await
-            },
-            self.read_persistent_replica()
-        );
+        self.push_replica_descriptor().await;
+        let members = self.list_members().await;
         info!(
             "replica {} discovered {} membership descriptors during init",
             self.pid,
@@ -294,21 +425,30 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         self.enqueue_network_members(&members).await;
 
-        match persistent_replica {
-            Some(mut persistent_replica) => {
-                debug!("replica {} restoring persistent replica state", self.pid);
-                persistent_replica.local_state.set_pid(self.pid);
-                *self.crdt.write().await = persistent_replica.local_state;
-                self.crdt_wrapper = persistent_replica.crdt_wrapper;
-            }
-            None => {
-                debug!(
-                    "replica {} found no persistent replica state; writing initial snapshot",
-                    self.pid
-                );
-                self.write_initial_persistent_replica().await
+        if self.recovered_from_durability {
+            info!(
+                "replica {} restored local state from durability journal before startup",
+                self.pid
+            );
+        } else {
+            match self.read_persistent_replica().await {
+                Some(mut persistent_replica) => {
+                    debug!("replica {} restoring persistent replica state", self.pid);
+                    persistent_replica.local_state.set_pid(self.pid);
+                    *self.crdt.write().await = persistent_replica.local_state;
+                    self.crdt_wrapper = persistent_replica.crdt_wrapper;
+                }
+                None => {
+                    debug!(
+                        "replica {} found no persistent replica state; writing initial snapshot",
+                        self.pid
+                    );
+                    self.write_initial_persistent_replica().await
+                }
             }
         }
+
+        self.persist_durable_snapshot().await;
     }
 
     async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
@@ -482,6 +622,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             delta.list.len(),
             descriptor.pid
         );
+        self.persist_delta_before_apply(&delta);
         self.crdt.write().await.merge_delta_group(delta);
         let current_version_vector = { self.crdt.read().await.get_version_vector().clone() };
         self.crdt_wrapper
@@ -497,10 +638,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         debug!("replica {} handling client mutation", self.pid);
         let received = now_micros();
         let (start, response) = {
-            // Scoped to release the lock ASAP
             let mut writable = self.crdt.write().await;
+            let version_vector_before = writable.get_version_vector().clone();
+            let mut candidate = writable.clone();
+            let response = candidate.mutate(mutation);
+            let (delta_group, _, _) = candidate.get_delta(&version_vector_before);
+            self.persist_delta_before_apply(&delta_group);
             let start = now_micros();
-            (start, writable.mutate(mutation))
+            writable.merge_delta_group(delta_group);
+            (start, response)
         };
         let end = now_micros();
         self.metric_writer
@@ -527,6 +673,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.observe_gc(gc_metadata).await;
                 }
                 let delta_len = delta.list.len();
+                self.persist_delta_before_apply(&delta);
                 let (start, (insert_count, delete_count)) = {
                     let mut writable = self.crdt.write().await;
                     let start = now_micros();
@@ -691,6 +838,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .unwrap_or_else(|error| {
                 panic!("Failed to write persistent replica after garbage collection: {error}")
             });
+        self.persist_durable_snapshot_with(persistent_replica.clone());
         info!("replica {} completed gc round", self.pid);
         
         if let Some(departed_pids) = departed_pids {
@@ -754,6 +902,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.crdt.write().await.gc(metadata.stable.clone(), None);
         self.crdt_wrapper
             .push_gc_marker(metadata.marker, metadata.stable.clone());
+        self.persist_durable_snapshot().await;
         self.change_own_gc_counter(metadata.marker.counter).await;
         self.gc_interval.reset();
     }
@@ -876,5 +1025,90 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
         self.shutdown_receiver = Some(shutdown_receiver);
         shutdown_sender
+    }
+
+    async fn persist_durable_snapshot(&self) {
+        let snapshot = PersistentReplica {
+            local_state: self.crdt.read().await.clone(),
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
+        self.persist_durable_snapshot_with(snapshot);
+    }
+
+    fn persist_durable_snapshot_with(&self, snapshot: PersistentReplica<T>) {
+        let Some(journal) = &self.durability_journal else {
+            return;
+        };
+        journal
+            .append_snapshot(&snapshot)
+            .unwrap_or_else(|error| panic!("Failed to append durable snapshot: {error}"));
+    }
+
+    fn persist_delta_before_apply(&self, delta_group: &DeltaGroup<T::Delta>) {
+        let Some(journal) = &self.durability_journal else {
+            return;
+        };
+        journal
+            .append_delta_group::<T>(delta_group)
+            .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orset::{ORSet, OrSetMutation, OrSetQuery, OrSetResponse};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_journal_path(name: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock drifted before unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("gresse-{name}-{unique}.jsonl"))
+    }
+
+    #[test]
+    fn durability_journal_recovers_snapshot_and_delta_groups() {
+        let journal_path = temp_journal_path("durability");
+        let journal = DurabilityJournal::new(journal_path.clone())
+            .expect("failed to create durability journal");
+
+        let mut base = ORSet::<String>::new();
+        base.set_pid(1);
+        base.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+
+        journal
+            .append_snapshot(&PersistentReplica {
+                local_state: base.clone(),
+                crdt_wrapper: CRDTWrapper::new(),
+            })
+            .expect("failed to append durability snapshot");
+
+        let version_vector_before = base.get_version_vector().clone();
+        let mut candidate = base.clone();
+        candidate
+            .mutate(OrSetMutation::Insert("banana".into()))
+            .unwrap();
+        let (delta_group, _, _) = candidate.get_delta(&version_vector_before);
+
+        journal
+            .append_delta_group::<ORSet<String>>(&delta_group)
+            .expect("failed to append durability delta group");
+
+        let recovered = journal
+            .recover::<ORSet<String>>()
+            .expect("failed to recover durability journal")
+            .expect("expected recovered replica");
+
+        assert_eq!(
+            recovered
+                .local_state
+                .query(OrSetQuery::Elements)
+                .expect("failed to query recovered ORSet"),
+            OrSetResponse::Elements(vec!["apple".into(), "banana".into()])
+        );
+
+        std::fs::remove_file(journal_path).expect("failed to clean up durability journal");
     }
 }

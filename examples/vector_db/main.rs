@@ -196,6 +196,7 @@ async fn run_dbc_servers(
                 address: addr,
                 sync_interval: config.sync_interval,
                 result_dir_path: config.result_dir_path.clone(),
+                durability_path: None,
                 object_storage_config: local_object_storage_config(),
             },
         )
@@ -239,6 +240,7 @@ async fn run_dbw_servers(
                 address: addr,
                 sync_interval: config.sync_interval,
                 result_dir_path: config.result_dir_path.clone(),
+                durability_path: None,
                 object_storage_config: local_object_storage_config(),
             },
         )
@@ -276,11 +278,12 @@ async fn run_faiss_server(
 
 fn local_object_storage_config() -> ObjectStorageConfig {
     ObjectStorageConfig {
-        url: "http://localhost:9000".to_string(),
+        url: Some("http://localhost:9000".to_string()),
         region: "local".to_string(),
         bucket: "gresse".to_string(),
-        access_key: "gresse".to_string(),
-        secret_key: "gresse".to_string(),
+        access_key: Some("gresse".to_string()),
+        secret_key: Some("gresse".to_string()),
+        session_token: None,
         persistent_replica_path: "replicas".to_string(),
         membership_directory_path: "membership".to_string(),
         discovery_interval: Duration::from_secs(1),

@@ -117,6 +117,8 @@ Optional configuration:
 | `GRESSE_OBJECT_STORAGE_SESSION_TOKEN` | unset | Optional explicit session token for temporary credentials. |
 | `GRESSE_SYNC_INTERVAL_MS` | `1000` | Interval between replica delta synchronization ticks. |
 | `GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS` | `1000` | Object storage discovery interval. |
+| `GRESSE_DURABLE` | `false` | Enables local durable replay logging when set to `true`/`1`. |
+| `GRESSE_DURABILITY_PATH` | unset | Append-only local durability journal path. Required when `GRESSE_DURABLE` is enabled. |
 
 Authentication options:
 - Explicit Gresse credentials via `GRESSE_OBJECT_STORAGE_ACCESS_KEY`, `GRESSE_OBJECT_STORAGE_SECRET_KEY`, and optionally `GRESSE_OBJECT_STORAGE_SESSION_TOKEN`.
@@ -158,6 +160,21 @@ export GRESSE_MEMBERSHIP_DIRECTORY_PATH=experiment1/membership
 ```
 
 With that setup, Gresse will read credentials from your normal AWS profile files instead of storing secrets in the repository.
+
+## Local Durability
+
+Replicas are non-durable by default. If you enable durability, Gresse writes an append-only local journal containing:
+- snapshot checkpoints of the replica state
+- delta groups for local mutations and remote merges, written before they are applied
+
+On restart, the replica replays that journal before joining the cluster.
+
+Example:
+
+```sh
+export GRESSE_DURABLE=true
+export GRESSE_DURABILITY_PATH=./results/replica-9090.journal
+```
 
 ## Local MinIO For Integration Tests
 

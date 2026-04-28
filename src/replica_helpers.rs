@@ -13,14 +13,21 @@ pub struct ReplicaConfig {
     pub address: ServerAddr,
     pub sync_interval: Duration,
     pub result_dir_path: PathBuf,
+    pub durability_path: Option<PathBuf>,
     pub object_storage_config: ObjectStorageConfig,
 }
 
 impl ReplicaConfig {
     pub fn from_env() -> Self {
+        let durable = env_bool("GRESSE_DURABLE").unwrap_or(false);
         Self {
             address: ServerAddr::from_env(),
             result_dir_path: env_path("GRESSE_RESULT_DIR_PATH"),
+            durability_path: if durable {
+                Some(env_path("GRESSE_DURABILITY_PATH"))
+            } else {
+                None
+            },
             sync_interval: env::var("GRESSE_SYNC_INTERVAL_MS")
                 .ok()
                 .map(|value| {
@@ -65,6 +72,14 @@ fn env_path(name: &str) -> PathBuf {
     env::var(name)
         .map(PathBuf::from)
         .unwrap_or_else(|_| panic!("{name} environment variable is required"))
+}
+
+fn env_bool(name: &str) -> Option<bool> {
+    env::var(name).ok().map(|value| match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => true,
+        "0" | "false" | "no" | "off" => false,
+        _ => panic!("{name} must be a boolean value"),
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
