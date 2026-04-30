@@ -13,18 +13,6 @@ stringData:
   MINIO_ROOT_USER: minioadmin
   MINIO_ROOT_PASSWORD: minioadmin
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: minio-data
-  namespace: gresse-minio
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -73,8 +61,7 @@ spec:
               mountPath: /data
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: minio-data
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -131,7 +118,7 @@ spec:
               curl -sf -X DELETE http://127.0.0.1:8474/proxies/minio >/dev/null || true
               curl -sf -X POST http://127.0.0.1:8474/proxies \
                 -H 'Content-Type: application/json' \
-                -d '{"name":"minio","listen":"0.0.0.0:8666","upstream":"minio.gresse-minio.svc.cluster.local:9000"}'
+                -d '{"name":"minio","listen":"0.0.0.0:8666","upstream":"minio:9000"}'
               curl -sf -X POST http://127.0.0.1:8474/proxies/minio/toxics \
                 -H 'Content-Type: application/json' \
                 -d '{"name":"latency-upstream","type":"latency","stream":"upstream","attributes":{"latency":25,"jitter":0}}'
@@ -176,7 +163,7 @@ spec:
             - /bin/sh
             - -ec
             - |
-              until mc alias set local http://minio.gresse-minio.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
+              until mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
                 sleep 2
               done
               mc mb --ignore-existing local/gresse
