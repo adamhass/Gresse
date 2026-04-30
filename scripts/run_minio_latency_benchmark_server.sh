@@ -28,6 +28,7 @@ RUN_INDEX_CSV="${RUN_INDEX_CSV:-${RESULT_ROOT}/run_index.csv}"
 
 PORT_FORWARD_PID=""
 REUSED_PORT_FORWARD="0"
+ACTIVE_HOST_PORT="${HOST_PORT}"
 
 cleanup() {
   if [[ "${REUSED_PORT_FORWARD}" == "0" ]] && [[ -n "${PORT_FORWARD_PID}" ]] && kill -0 "${PORT_FORWARD_PID}" >/dev/null 2>&1; then
@@ -37,25 +38,55 @@ cleanup() {
 }
 trap cleanup EXIT
 
-existing_port_forward_pid() {
-  local pid command
-  while read -r pid; do
-    [[ -n "${pid}" ]] || continue
-    command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
-    if [[ "${command}" == *"kubectl"* ]] && [[ "${command}" == *"port-forward"* ]] && [[ "${command}" == *"svc/minio-proxy"* ]]; then
-      echo "${pid}"
-      return 0
-    fi
-  done < <(lsof -ti "tcp:${HOST_PORT}" 2>/dev/null || true)
-  return 1
+port_is_listening() {
+  local port="$1"
+  nc -z 127.0.0.1 "${port}" >/dev/null 2>&1
+}
+
+minio_proxy_healthy() {
+  local port="$1"
+  curl -fsS --max-time 2 "http://127.0.0.1:${port}/minio/health/live" >/dev/null 2>&1
 }
 
 wait_for_port_forward() {
+  local port="$1"
   for _ in $(seq 1 30); do
-    if nc -z 127.0.0.1 "${HOST_PORT}" >/dev/null 2>&1; then
+    if port_is_listening "${port}" && minio_proxy_healthy "${port}"; then
       return 0
     fi
     sleep 1
+  done
+  return 1
+}
+
+find_existing_minio_port_forward() {
+  local line pid command port
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    pid="${line%% *}"
+    command="${line#* }"
+    if [[ "${command}" != *"kubectl"* ]] || [[ "${command}" != *"port-forward"* ]] || [[ "${command}" != *"svc/minio-proxy"* ]]; then
+      continue
+    fi
+    if [[ "${command}" =~ ([0-9]+):9000 ]]; then
+      port="${BASH_REMATCH[1]}"
+      if port_is_listening "${port}" && minio_proxy_healthy "${port}"; then
+        printf "%s %s\n" "${pid}" "${port}"
+        return 0
+      fi
+    fi
+  done < <(ps -ax -o pid=,command=)
+  return 1
+}
+
+find_free_port() {
+  local start_port="$1"
+  local port
+  for port in $(seq "${start_port}" $((start_port + 100))); do
+    if ! port_is_listening "${port}"; then
+      echo "${port}"
+      return 0
+    fi
   done
   return 1
 }
@@ -65,19 +96,27 @@ if [[ "${DEPLOY_MINIO}" == "1" ]]; then
 fi
 
 mkdir -p "$(dirname "${PORT_FORWARD_LOG}")"
-if PORT_FORWARD_PID="$(existing_port_forward_pid)"; then
+if read -r existing_pid existing_port < <(find_existing_minio_port_forward); then
+  PORT_FORWARD_PID="${existing_pid}"
+  ACTIVE_HOST_PORT="${existing_port}"
   REUSED_PORT_FORWARD="1"
-  echo "Reusing existing MinIO proxy port-forward on 127.0.0.1:${HOST_PORT} (pid ${PORT_FORWARD_PID})."
+  echo "Reusing existing MinIO proxy port-forward on 127.0.0.1:${ACTIVE_HOST_PORT} (pid ${PORT_FORWARD_PID})."
 else
-  if lsof -ti "tcp:${HOST_PORT}" >/dev/null 2>&1; then
-    echo "Port ${HOST_PORT} is already in use by a non-MinIO process. Free that port or set HOST_PORT." >&2
-    exit 1
+  if port_is_listening "${HOST_PORT}"; then
+    ACTIVE_HOST_PORT="$(find_free_port $((HOST_PORT + 1)))"
+    if [[ -z "${ACTIVE_HOST_PORT}" ]]; then
+      echo "Could not find a free local port for the MinIO proxy port-forward." >&2
+      exit 1
+    fi
+    echo "Port ${HOST_PORT} is busy; using fallback local port ${ACTIVE_HOST_PORT} for the MinIO proxy port-forward."
+  else
+    ACTIVE_HOST_PORT="${HOST_PORT}"
   fi
 
-  kubectl -n gresse-minio port-forward svc/minio-proxy "${HOST_PORT}:9000" >"${PORT_FORWARD_LOG}" 2>&1 &
+  kubectl -n gresse-minio port-forward svc/minio-proxy "${ACTIVE_HOST_PORT}:9000" >"${PORT_FORWARD_LOG}" 2>&1 &
   PORT_FORWARD_PID="$!"
 
-  if ! wait_for_port_forward; then
+  if ! wait_for_port_forward "${ACTIVE_HOST_PORT}"; then
     echo "MinIO proxy port-forward did not become ready. See ${PORT_FORWARD_LOG}" >&2
     exit 1
   fi
@@ -110,7 +149,7 @@ for run_index in $(seq 1 "${NUM_RUNS}"); do
     --cooldown-seconds "${COOLDOWN_SECONDS}" \
     --startup-stagger-seconds "${STARTUP_STAGGER_SECONDS}" \
     --discovery-interval-ms "${DISCOVERY_INTERVAL_MS}" \
-    --object-storage-url "http://127.0.0.1:${HOST_PORT}" \
+    --object-storage-url "http://127.0.0.1:${ACTIVE_HOST_PORT}" \
     --object-storage-access-key "${LATENCY_ACCESS_KEY}" \
     --object-storage-secret-key "${LATENCY_SECRET_KEY}" \
     --region "${LATENCY_REGION}" \
