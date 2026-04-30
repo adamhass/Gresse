@@ -60,6 +60,7 @@ class BenchmarkConfig:
     duration_seconds: float
     result_dir: Path
     max_store_size_mb: float
+    seed: int = 0
     host: str = "127.0.0.1"
     base_http_port: int = 18080
     base_internal_port: int = 19080
@@ -119,6 +120,7 @@ class ReplicaClientWorker(threading.Thread):
         ops_per_second: float,
         remove_probability: float,
         csv_path: Path,
+        rng_seed: int,
     ) -> None:
         super().__init__(daemon=True)
         self.client_id = client_id
@@ -129,7 +131,7 @@ class ReplicaClientWorker(threading.Thread):
         self.remove_probability = remove_probability
         self.csv_path = csv_path
         self.stop_event = threading.Event()
-        self.random = random.Random(hash((client_id, replica.replica_id, replica.pid)) & 0xFFFFFFFF)
+        self.random = random.Random(rng_seed)
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -282,6 +284,11 @@ class ManagedReplica:
                 ops_per_second=self.config.ops_per_second_per_client,
                 remove_probability=self.config.remove_probability,
                 csv_path=self.result_dir / f"client_{self.replica.replica_id}_{client_index}.csv",
+                rng_seed=derive_client_seed(
+                    self.config.seed,
+                    self.replica.replica_id,
+                    client_index,
+                ),
             )
             worker.start()
             self.client_workers.append(worker)
@@ -668,3 +675,11 @@ def write_manifest(
 
 def now_micros() -> int:
     return time.time_ns() // 1_000
+
+
+def derive_client_seed(base_seed: int, replica_id: int, client_index: int) -> int:
+    return (
+        (base_seed * 1_000_003)
+        + (replica_id * 10_007)
+        + client_index
+    ) & 0xFFFFFFFF
