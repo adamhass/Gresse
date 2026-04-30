@@ -1,0 +1,17 @@
+[2026-04-30T10:23:40.221Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T10:23:40.221Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18383
+[2026-04-30T10:23:40.605Z INFO  gresse::replica] replica 3 initiating runtime at http=127.0.0.1:18383 internal=127.0.0.1:19383
+[2026-04-30T10:23:40.688Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=put-create, object_path=experiment1/replicas_3/membership/3,127.0.0.1:19383,0
+[2026-04-30T10:23:40.746Z INFO  gresse::replica] replica 3 discovered 3 membership descriptors during init
+[2026-04-30T10:23:40.746Z INFO  gresse::replica] replica 3 startup completed
+[2026-04-30T10:23:41.189Z INFO  gresse::network] replica 3 completed network handshake with replica 1
+[2026-04-30T10:23:41.189Z INFO  gresse::network] replica 3 registered bidirectional network channel for replica 1
+[2026-04-30T10:23:41.189Z INFO  gresse::replica] replica 3 established peer replication connection with replica 1
+[2026-04-30T10:23:41.379Z INFO  gresse::network] replica 3 completed network handshake with replica 2
+[2026-04-30T10:23:41.379Z INFO  gresse::network] replica 3 registered bidirectional network channel for replica 2
+[2026-04-30T10:23:41.379Z INFO  gresse::replica] replica 3 established peer replication connection with replica 2
+[2026-04-30T10:23:46.419Z INFO  gresse::replica] shutdown signal received for replica 3
+[2026-04-30T10:23:46.419Z INFO  gresse::replica] replica 3 shutting down with 2 connected writers
+[2026-04-30T10:23:46.576Z INFO  gresse::network] network manager for replica 3 shutdown complete
+[2026-04-30T10:23:46.576Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T10:23:46.576Z INFO  gresse::http_server] http server shutdown complete

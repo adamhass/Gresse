@@ -75,11 +75,13 @@ fn env_path(name: &str) -> PathBuf {
 }
 
 fn env_bool(name: &str) -> Option<bool> {
-    env::var(name).ok().map(|value| match value.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => true,
-        "0" | "false" | "no" | "off" => false,
-        _ => panic!("{name} must be a boolean value"),
-    })
+    env::var(name)
+        .ok()
+        .map(|value| match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => panic!("{name} must be a boolean value"),
+        })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,7 +105,11 @@ impl ReplicaDescriptor {
 
 impl fmt::Display for ReplicaDescriptor {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{},{},{}", self.pid, self.address, self.gc_counter)?;
+        write!(
+            formatter,
+            "{},{},{}",
+            self.pid, self.address, self.gc_counter
+        )?;
         if let Some(final_counter) = self.final_counter {
             write!(formatter, ",{}", final_counter)?;
         }

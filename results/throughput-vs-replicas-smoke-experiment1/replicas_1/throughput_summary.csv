@@ -1,0 +1,2 @@
+replica_pid,successful_requests,stable_successful_requests,stable_throughput_ops_per_sec
+1,9258,8396,2145.255461956848

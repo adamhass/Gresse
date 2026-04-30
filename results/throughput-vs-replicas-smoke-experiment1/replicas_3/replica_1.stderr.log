@@ -1,0 +1,15 @@
+[2026-04-30T10:10:38.236Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T10:10:38.236Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18381
+[2026-04-30T10:10:38.591Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18381 internal=127.0.0.1:19381
+
+thread 'tokio-rt-worker' (7014867) panicked at src/replica.rs:596:37:
+Failed to create replica descriptor: S3 error: Generic S3 error: Error performing PUT https://s3.eu-north-1.amazonaws.com/gresse/experiment1/replicas_3/membership/1%2C127.0.0.1%3A19381%2C0 in 1.71428526s, after 10 retries, max_retries: 10, retry_timeout: 180s  - HTTP error: error sending request
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-rt-worker' (7014855) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7014869) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+[2026-04-30T10:10:40.306Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T10:10:40.306Z INFO  gresse::http_server] http server shutdown complete

@@ -1,0 +1,59 @@
+{
+  "config": {
+    "replicas": 3,
+    "duration_seconds": 90.0,
+    "result_dir": "/Users/adam/Dev/Gresse/results/throughput-vs-replicas-minio-full/replicas_3",
+    "max_store_size_mb": 64.0,
+    "host": "127.0.0.1",
+    "base_http_port": 18380,
+    "base_internal_port": 19380,
+    "clients_per_replica": 8,
+    "ops_per_second_per_client": 0.0,
+    "remove_probability": 0.5,
+    "sync_interval_ms": 1000,
+    "discovery_interval_ms": 1000,
+    "gc_interval_ms": 60000,
+    "network_latency_ms": 0,
+    "network_latency_jitter_ms": 0,
+    "startup_stagger_seconds": 1.0,
+    "warmup_seconds": 20.0,
+    "cooldown_seconds": 10.0,
+    "aws_profile": "gresse",
+    "region": "us-east-1",
+    "bucket": "gresse",
+    "object_storage_url": "http://127.0.0.1:9000",
+    "object_storage_access_key": "minioadmin",
+    "object_storage_secret_key": "minioadmin",
+    "object_storage_session_token": null,
+    "persistent_path": "experiment1/replicas_3/persistent.json",
+    "membership_path": "experiment1/replicas_3/membership",
+    "cargo_profile": "release",
+    "lifecycle_events": []
+  },
+  "replicas": [
+    {
+      "replica_id": 1,
+      "pid": 1,
+      "http_port": 18381,
+      "internal_port": 19381
+    },
+    {
+      "replica_id": 2,
+      "pid": 2,
+      "http_port": 18382,
+      "internal_port": 19382
+    },
+    {
+      "replica_id": 3,
+      "pid": 3,
+      "http_port": 18383,
+      "internal_port": 19383
+    }
+  ],
+  "domain_limit": 16777216,
+  "raw_i32_domain_formula": "floor(max_store_size_mb * 1024 * 1024 / 4)",
+  "run_started_us": 1777547031133527,
+  "run_finished_us": 1777547124976680,
+  "stable_window_start_us": 1777547051133527,
+  "stable_window_end_us": 1777547114976680
+}

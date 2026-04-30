@@ -1,0 +1,23 @@
+[2026-04-30T11:05:41.600Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T11:05:41.600Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18483
+[2026-04-30T11:05:41.964Z INFO  gresse::replica] replica 3 initiating runtime at http=127.0.0.1:18483 internal=127.0.0.1:19483
+[2026-04-30T11:05:42.031Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/replicas_4/membership/3,127.0.0.1:19483,0
+[2026-04-30T11:05:42.145Z INFO  gresse::replica] replica 3 discovered 3 membership descriptors during init
+[2026-04-30T11:05:42.145Z INFO  gresse::replica] replica 3 startup completed
+[2026-04-30T11:05:42.669Z INFO  gresse::network] replica 3 completed network handshake with replica 1
+[2026-04-30T11:05:42.669Z INFO  gresse::network] replica 3 registered bidirectional network channel for replica 1
+[2026-04-30T11:05:42.669Z INFO  gresse::replica] replica 3 established peer replication connection with replica 1
+[2026-04-30T11:05:42.779Z INFO  gresse::network] replica 3 completed network handshake with replica 2
+[2026-04-30T11:05:42.779Z INFO  gresse::network] replica 3 registered bidirectional network channel for replica 2
+[2026-04-30T11:05:42.779Z INFO  gresse::replica] replica 3 established peer replication connection with replica 2
+[2026-04-30T11:05:44.021Z INFO  gresse::network] replica 3 discovered network member NetworkMember { pid: 4, address: 127.0.0.1:19484, final_counter: None }
+[2026-04-30T11:05:44.021Z INFO  gresse::network] replica 3 completed network handshake with replica 4
+[2026-04-30T11:05:44.021Z INFO  gresse::network] replica 3 registered bidirectional network channel for replica 4
+[2026-04-30T11:05:44.023Z INFO  gresse::replica] replica 3 established peer replication connection with replica 4
+[2026-04-30T11:06:35.566Z INFO  gresse::replica] replica 3 gc departed_pids=None updated_stable=DotSet { set: {2: 7997, 4: 4955, 1: 10822, 3: 6076} }
+[2026-04-30T11:06:39.118Z INFO  gresse::replica] replica 3 completed gc round
+[2026-04-30T11:07:13.709Z INFO  gresse::replica] shutdown signal received for replica 3
+[2026-04-30T11:07:13.709Z INFO  gresse::replica] replica 3 shutting down with 3 connected writers
+[2026-04-30T11:07:13.896Z INFO  gresse::network] network manager for replica 3 shutdown complete
+[2026-04-30T11:07:13.896Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T11:07:13.896Z INFO  gresse::http_server] http server shutdown complete

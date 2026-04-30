@@ -1,4 +1,4 @@
-use crate::crdt::{CRDT, DeltaGroup};
+use crate::crdt::{DeltaGroup, CRDT};
 use crate::dots::{Dot, DotMap, DotSet};
 use crate::prelude::Pid;
 use serde::{Deserialize, Serialize};
@@ -136,7 +136,15 @@ where
 
 impl<T> CRDT for ORSet<T>
 where
-    T: Clone + Eq + Hash + Ord + Serialize + for<'de> Deserialize<'de> + std::fmt::Debug + Send + Sync,
+    T: Clone
+        + Eq
+        + Hash
+        + Ord
+        + Serialize
+        + for<'de> Deserialize<'de>
+        + std::fmt::Debug
+        + Send
+        + Sync,
 {
     type Delta = OrSetDelta<T>;
     type Query = OrSetQuery<T>;
@@ -147,7 +155,9 @@ where
     fn query(&self, query: Self::Query) -> Self::ClientResponse {
         match query {
             OrSetQuery::Contains(element) => Ok(OrSetResponse::Contains(
-                self.entries.get(&element).is_some_and(|dots| !dots.is_empty()),
+                self.entries
+                    .get(&element)
+                    .is_some_and(|dots| !dots.is_empty()),
             )),
             OrSetQuery::Elements => {
                 let mut elements = self.entries.keys().cloned().collect::<Vec<_>>();
@@ -244,9 +254,8 @@ where
             .into_iter()
             .collect::<HashSet<_>>();
 
-        self.delta_log.retain(|dot, _| {
-            !version_vector.contains(dot) && !departed_pids.contains(&dot.pid)
-        });
+        self.delta_log
+            .retain(|dot, _| !version_vector.contains(dot) && !departed_pids.contains(&dot.pid));
 
         if departed_pids.is_empty() {
             return;

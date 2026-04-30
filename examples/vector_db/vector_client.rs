@@ -2,11 +2,11 @@ use std::net::SocketAddr;
 
 use super::vector_experiment::*;
 use crate::helpers::*;
+use csv::WriterBuilder;
+use futures::future::join_all;
 use gresse::http_client;
 use gresse::http_client::*;
 use gresse::prelude::*;
-use csv::WriterBuilder;
-use futures::future::join_all;
 use tokio::task::JoinHandle;
 
 pub struct BenchClient {

@@ -1,0 +1,9 @@
+replicas,clients_per_replica,stable_window_seconds,combined_stable_throughput_ops_per_sec,average_replica_stable_throughput_ops_per_sec,min_replica_stable_throughput_ops_per_sec,max_replica_stable_throughput_ops_per_sec,run_dir
+1,2,3.667407,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_1
+2,2,3.860618,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_2
+3,2,4.084616,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_3
+4,2,4.325279,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_4
+5,2,4.52762,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_5
+6,2,4.788121,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_6
+7,2,4.960452,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_7
+8,2,5.192806,0.0,0.0,0.0,0.0,/Users/adam/Dev/Gresse/results/throughput-vs-replicas-smoke/replicas_8

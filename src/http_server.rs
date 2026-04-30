@@ -59,7 +59,10 @@ async fn http_server_loop<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     mut shutdown_receiver: oneshot::Receiver<()>,
 ) {
     info!("running CRDT HTTP server");
-    info!("listening for HTTP on {}", http_listener.local_addr().unwrap());
+    info!(
+        "listening for HTTP on {}",
+        http_listener.local_addr().unwrap()
+    );
 
     // Enter HTTP Listener event loop with shutdown capability:
     loop {

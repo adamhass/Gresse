@@ -160,7 +160,7 @@ impl VersionMatrix {
         self.matrix.insert(pid, version_vector);
     }
 
-    /// Returns a DotSet 
+    /// Returns a DotSet
     pub fn get_stable(&self) -> DotSet {
         let mut stable = DotSet::new();
         for pid in self.pids() {
@@ -188,7 +188,9 @@ impl VersionMatrix {
     pub fn insert_final_dot(&mut self, final_dot: Dot) {
         self.matrix
             .entry(final_dot.pid)
-            .and_modify(|version_vector| version_vector.set_counter(final_dot.pid, final_dot.counter))
+            .and_modify(|version_vector| {
+                version_vector.set_counter(final_dot.pid, final_dot.counter)
+            })
             .or_insert_with(|| {
                 let mut version_vector = DotSet::new();
                 version_vector.set_counter(final_dot.pid, final_dot.counter);
@@ -233,7 +235,11 @@ impl VersionMatrix {
     }
 
     fn filtered_matrix(&self) -> VersionMatrix {
-        let final_pids = self.final_dots.iter().map(|dot| dot.pid).collect::<Vec<_>>();
+        let final_pids = self
+            .final_dots
+            .iter()
+            .map(|dot| dot.pid)
+            .collect::<Vec<_>>();
         let matrix = self
             .matrix
             .iter()

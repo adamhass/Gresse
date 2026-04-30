@@ -1,5 +1,5 @@
-use futures::StreamExt;
 use futures::future::try_join_all;
+use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::path::Path;
 use object_store::{Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, UpdateVersion};
@@ -73,7 +73,8 @@ impl ObjectStorageClient {
         payload: &T,
     ) -> Result<bool, ObjectStorageError> {
         let descriptor_path = descriptor.object_path(&self.membership_directory_path);
-        self.upload_data_atomic_create(&descriptor_path, payload).await
+        self.upload_data_atomic_create(&descriptor_path, payload)
+            .await
     }
 
     pub async fn read_membership_descriptor_payload<T: for<'de> Deserialize<'de>>(
@@ -295,7 +296,11 @@ fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageE
         .with_region(config.region.clone())
         .with_bucket_name(config.bucket.clone());
 
-    if let Some(endpoint) = config.url.as_deref().filter(|value| !value.trim().is_empty()) {
+    if let Some(endpoint) = config
+        .url
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
         builder = builder
             .with_endpoint(endpoint)
             .with_allow_http(endpoint.starts_with("http://"));
@@ -328,11 +333,13 @@ fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageE
 fn resolve_profile_credentials(
     config: &ObjectStorageConfig,
 ) -> Result<Option<SharedProfileCredentials>, ObjectStorageError> {
-    if config.access_key.is_some() || config.secret_key.is_some() || config.session_token.is_some() {
+    if config.access_key.is_some() || config.secret_key.is_some() || config.session_token.is_some()
+    {
         return Ok(None);
     }
 
-    if env::var_os("AWS_ACCESS_KEY_ID").is_some() || env::var_os("AWS_SECRET_ACCESS_KEY").is_some() {
+    if env::var_os("AWS_ACCESS_KEY_ID").is_some() || env::var_os("AWS_SECRET_ACCESS_KEY").is_some()
+    {
         return Ok(None);
     }
 
@@ -484,7 +491,10 @@ mod tests {
         let parsed = parse_profile_file(&path).expect("failed to parse credentials file");
         let section = parsed.get("default").expect("missing default profile");
         assert_eq!(section.get("aws_access_key_id"), Some(&"abc".to_string()));
-        assert_eq!(section.get("aws_secret_access_key"), Some(&"def".to_string()));
+        assert_eq!(
+            section.get("aws_secret_access_key"),
+            Some(&"def".to_string())
+        );
         assert_eq!(section.get("aws_session_token"), Some(&"ghi".to_string()));
 
         fs::remove_file(path).expect("failed to clean up credentials file");

@@ -119,6 +119,10 @@ Optional configuration:
 | `GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS` | `1000` | Object storage discovery interval. |
 | `GRESSE_DURABLE` | `false` | Enables local durable replay logging when set to `true`/`1`. |
 | `GRESSE_DURABILITY_PATH` | unset | Append-only local durability journal path. Required when `GRESSE_DURABLE` is enabled. |
+| `GRESSE_GC_INTERVAL_MS` | runtime-specific | GC interval override for the benchmark replica binary. |
+| `GRESSE_REPLICA_NETWORK_LATENCY_MS` | `0` | Fixed one-way latency added before each replica-to-replica send. |
+| `GRESSE_REPLICA_NETWORK_LATENCY_JITTER_MS` | `0` | Uniform jitter applied around `GRESSE_REPLICA_NETWORK_LATENCY_MS`. |
+| `GRESSE_BENCH_PID` | unset | Required replica identifier for the standalone OR-Set benchmark binary. |
 
 Authentication options:
 - Explicit Gresse credentials via `GRESSE_OBJECT_STORAGE_ACCESS_KEY`, `GRESSE_OBJECT_STORAGE_SECRET_KEY`, and optionally `GRESSE_OBJECT_STORAGE_SESSION_TOKEN`.
@@ -160,6 +164,130 @@ export GRESSE_MEMBERSHIP_DIRECTORY_PATH=experiment1/membership
 ```
 
 With that setup, Gresse will read credentials from your normal AWS profile files instead of storing secrets in the repository.
+
+## Distributed OR-Set Benchmark
+
+The repository now includes:
+- `src/bin/orset_bench_replica.rs`: a standalone `ORSet<i32>` replica process for benchmarks.
+- `scripts/orset_benchmark_lib.py`: reusable orchestration and analysis helpers for OR-Set benchmark experiments.
+- `scripts/orset_distributed_benchmark.py`: a single-run process-based benchmark wrapper built on that library.
+- `scripts/orset_throughput_vs_replicas.py`: an experiment driver that runs the throughput-vs-replica-count benchmark for increasing replica counts.
+
+Server metrics are written as structured CSV rows and include:
+- replica bootstrap timestamps
+- membership descriptor and membership directory timings
+- persistent-state fetch and write timings
+- GC initiation, validation, persistence, cleanup, and GC observation timestamps
+- peer replication pull/get-delta/merge timings
+
+GC-related rows include the integer `gc_marker` so separate replicas can be correlated.
+
+Example:
+
+```sh
+export AWS_PROFILE='gresse'
+export AWS_REGION='eu-north-1'
+export AWS_DEFAULT_REGION='eu-north-1'
+
+python3 scripts/orset_distributed_benchmark.py \
+  --replicas 3 \
+  --duration-seconds 60 \
+  --result-dir ./results/experiment1 \
+  --max-store-size-mb 64 \
+  --bucket gresse \
+  --region eu-north-1 \
+  --persistent-path experiment1/persistent.json \
+  --membership-path experiment1/membership \
+  --network-latency-ms 25 \
+  --network-latency-jitter-ms 5 \
+  --lifecycle-event start:1:0 \
+  --lifecycle-event start:2:0 \
+  --lifecycle-event start:3:15 \
+  --lifecycle-event stop:2:40
+```
+
+The single-run wrapper now supports multiple clients per replica and a stable-window throughput analysis:
+
+```sh
+python3 scripts/orset_distributed_benchmark.py \
+  --replicas 4 \
+  --duration-seconds 90 \
+  --result-dir ./results/single-run \
+  --max-store-size-mb 64 \
+  --clients-per-replica 8 \
+  --ops-per-second-per-client 0 \
+  --warmup-seconds 20 \
+  --cooldown-seconds 10
+```
+
+`--ops-per-second-per-client 0` means unthrottled clients, which is the intended mode when you want to saturate each replica.
+
+If you want to target a custom S3-compatible object store such as MinIO, pass:
+- `--object-storage-url`
+- `--object-storage-access-key`
+- `--object-storage-secret-key`
+- optionally `--object-storage-session-token`
+
+The throughput-vs-replicas experiment uses:
+- GC interval fixed at `60000ms`
+- peer-to-peer replication tick fixed at `1000ms`
+- replica startup stagger fixed at `1s` by default
+- replica counts increasing from `1` to `8` by default
+- stable throughput computed only over the configured warmup/cooldown-trimmed window
+
+Example:
+
+```sh
+python3 scripts/orset_throughput_vs_replicas.py \
+  --result-root ./results/throughput-vs-replicas \
+  --max-store-size-mb 64 \
+  --clients-per-replica 8 \
+  --duration-seconds 90 \
+  --warmup-seconds 20 \
+  --cooldown-seconds 10
+```
+
+This writes:
+- one run directory per replica count
+- `throughput_vs_replicas_summary.csv`
+- `throughput_vs_replicas.svg`
+
+If you want to run the same experiment on a Kubernetes-backed server using the bundled MinIO latency proxy, use:
+
+```sh
+bash scripts/run_minio_latency_benchmark_server.sh
+```
+
+That script will:
+- deploy `integrations/minio-latency/minio-latency.yaml` unless `DEPLOY_MINIO=0`
+- start a local `kubectl port-forward` to the MinIO proxy
+- run `scripts/orset_throughput_vs_replicas.py` against the proxied MinIO endpoint
+
+Common overrides are passed as environment variables:
+
+```sh
+RESULT_ROOT=./results/server-run \
+CLIENTS_PER_REPLICA=12 \
+MAX_STORE_SIZE_MB=128 \
+MIN_REPLICAS=1 \
+MAX_REPLICAS=8 \
+DURATION_SECONDS=120 \
+WARMUP_SECONDS=30 \
+COOLDOWN_SECONDS=15 \
+bash scripts/run_minio_latency_benchmark_server.sh
+```
+
+The summary reports both:
+- stable combined throughput for the full replica set
+- stable average per-replica throughput
+
+The runner derives the random `i32` domain from `max_store_size_mb` using:
+
+```text
+floor(max_store_size_mb * 1024 * 1024 / 4)
+```
+
+This is an intentionally simple raw-value approximation for workload generation, not an exact in-memory OR-Set capacity bound.
 
 ## Local Durability
 

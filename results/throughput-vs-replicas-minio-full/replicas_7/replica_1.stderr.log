@@ -1,0 +1,49 @@
+[2026-04-30T11:11:02.529Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T11:11:02.529Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18781
+[2026-04-30T11:11:02.957Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18781 internal=127.0.0.1:19781
+[2026-04-30T11:11:03.023Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/replicas_7/membership/1,127.0.0.1:19781,0
+[2026-04-30T11:11:03.194Z INFO  gresse::replica] replica 1 discovered 1 membership descriptors during init
+[2026-04-30T11:11:03.194Z INFO  gresse::replica] replica 1 startup completed
+[2026-04-30T11:11:05.015Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 2, address: 127.0.0.1:19782, final_counter: None }
+[2026-04-30T11:11:05.015Z INFO  gresse::network] replica 1 completed network handshake with replica 2
+[2026-04-30T11:11:05.015Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 2
+[2026-04-30T11:11:05.015Z INFO  gresse::replica] replica 1 established peer replication connection with replica 2
+[2026-04-30T11:11:06.016Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 3, address: 127.0.0.1:19783, final_counter: None }
+[2026-04-30T11:11:06.016Z INFO  gresse::network] replica 1 completed network handshake with replica 3
+[2026-04-30T11:11:06.016Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 3
+[2026-04-30T11:11:06.017Z INFO  gresse::replica] replica 1 established peer replication connection with replica 3
+[2026-04-30T11:11:07.042Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 4, address: 127.0.0.1:19784, final_counter: None }
+[2026-04-30T11:11:07.042Z INFO  gresse::network] replica 1 completed network handshake with replica 4
+[2026-04-30T11:11:07.042Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 4
+[2026-04-30T11:11:07.043Z INFO  gresse::replica] replica 1 established peer replication connection with replica 4
+[2026-04-30T11:11:08.014Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 5, address: 127.0.0.1:19785, final_counter: None }
+[2026-04-30T11:11:08.014Z INFO  gresse::network] replica 1 completed network handshake with replica 5
+[2026-04-30T11:11:08.014Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 5
+[2026-04-30T11:11:08.015Z INFO  gresse::replica] replica 1 established peer replication connection with replica 5
+[2026-04-30T11:11:10.015Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 6, address: 127.0.0.1:19786, final_counter: None }
+[2026-04-30T11:11:10.016Z INFO  gresse::network] replica 1 completed network handshake with replica 6
+[2026-04-30T11:11:10.016Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 6
+[2026-04-30T11:11:10.018Z INFO  gresse::replica] replica 1 established peer replication connection with replica 6
+[2026-04-30T11:11:15.704Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 7, address: 127.0.0.1:19787, final_counter: None }
+
+thread 'tokio-rt-worker' (7162556) panicked at src/network.rs:177:14:
+Failed to connect to new address: Os { code: 49, kind: AddrNotAvailable, message: "Can't assign requested address" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-rt-worker' (7162563) panicked at src/replica.rs:531:18:
+Failed to send network member: SendError { .. }
+
+thread 'tokio-rt-worker' (7162568) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7162562) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7162556) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7162565) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+[2026-04-30T11:11:17.556Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T11:11:17.556Z INFO  gresse::http_server] http server shutdown complete
+Error: JoinError::Panic(Id(28), "Failed to send network member: SendError { .. }", ...)

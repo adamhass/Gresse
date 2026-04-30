@@ -21,7 +21,9 @@ async fn replica_bootstraps_against_local_minio() {
         .spawn_replica(
             1,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19090,
                 internal_port: 18080,
             },
@@ -42,7 +44,9 @@ async fn mutation_replicates_between_two_replicas() {
         .spawn_replica(
             1,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19090,
                 internal_port: 18080,
             },
@@ -53,7 +57,9 @@ async fn mutation_replicates_between_two_replicas() {
         .spawn_replica(
             2,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19091,
                 internal_port: 18081,
             },
@@ -61,16 +67,20 @@ async fn mutation_replicates_between_two_replicas() {
         )
         .await;
 
-    harness.wait_for_membership_count(2, Duration::from_secs(10)).await;
+    harness
+        .wait_for_membership_count(2, Duration::from_secs(10))
+        .await;
 
-    let mutation_response: Result<OrSetResponse<String>, _> =
-        replica_a.mutate(OrSetMutation::Insert("apple".to_string())).await;
+    let mutation_response: Result<OrSetResponse<String>, _> = replica_a
+        .mutate(OrSetMutation::Insert("apple".to_string()))
+        .await;
     assert_eq!(mutation_response, Ok(OrSetResponse::Acknowledged));
 
     tokio::time::sleep(Duration::from_millis(1500)).await;
 
-    let query_response: Result<OrSetResponse<String>, _> =
-        replica_b.query(OrSetQuery::Contains("apple".to_string())).await;
+    let query_response: Result<OrSetResponse<String>, _> = replica_b
+        .query(OrSetQuery::Contains("apple".to_string()))
+        .await;
     assert_eq!(query_response, Ok(OrSetResponse::Contains(true)));
 
     replica_a.shutdown().await;
@@ -92,7 +102,9 @@ async fn gc_converges_meta_lengths_across_replicas() {
         .spawn_replica_with_timing(
             1,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19090,
                 internal_port: 18080,
             },
@@ -104,7 +116,9 @@ async fn gc_converges_meta_lengths_across_replicas() {
         .spawn_replica_with_timing(
             2,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19091,
                 internal_port: 18081,
             },
@@ -113,7 +127,9 @@ async fn gc_converges_meta_lengths_across_replicas() {
         )
         .await;
 
-    harness.wait_for_membership_count(2, Duration::from_secs(10)).await;
+    harness
+        .wait_for_membership_count(2, Duration::from_secs(10))
+        .await;
 
     let operations = [
         OrSetMutation::Insert("apple".to_string()),
@@ -173,7 +189,9 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
         .spawn_replica_with_timing(
             1,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19090,
                 internal_port: 18080,
             },
@@ -185,7 +203,9 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
         .spawn_replica_with_timing(
             2,
             ServerAddr {
-                ip: "127.0.0.1".parse().expect("failed to parse loopback address"),
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
                 http_port: 19091,
                 internal_port: 18081,
             },
@@ -194,7 +214,9 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
         )
         .await;
 
-    harness.wait_for_membership_count(2, Duration::from_secs(10)).await;
+    harness
+        .wait_for_membership_count(2, Duration::from_secs(10))
+        .await;
 
     let operations = [
         OrSetMutation::Insert("apple".to_string()),
@@ -210,16 +232,18 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
         assert_eq!(response, Ok(OrSetResponse::Acknowledged));
     }
 
-    let final_response: Result<OrSetResponse<String>, _> =
-        replica_b.mutate(OrSetMutation::Insert("elderberry".to_string())).await;
+    let final_response: Result<OrSetResponse<String>, _> = replica_b
+        .mutate(OrSetMutation::Insert("elderberry".to_string()))
+        .await;
     assert_eq!(final_response, Ok(OrSetResponse::Acknowledged));
 
     replica_b.shutdown().await;
 
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            let contains_elderberry: Result<OrSetResponse<String>, _> =
-                replica_a.query(OrSetQuery::Contains("elderberry".to_string())).await;
+            let contains_elderberry: Result<OrSetResponse<String>, _> = replica_a
+                .query(OrSetQuery::Contains("elderberry".to_string()))
+                .await;
             if contains_elderberry == Ok(OrSetResponse::Contains(true)) {
                 break;
             }
@@ -229,7 +253,9 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
     .await
     .expect("timed out waiting for replica a to absorb replica b's final shutdown mutation");
 
-    harness.wait_for_pid_removal(2, Duration::from_secs(15)).await;
+    harness
+        .wait_for_pid_removal(2, Duration::from_secs(15))
+        .await;
 
     let expected_meta = OrSetResponse::Meta(OrSetMeta {
         entry_count: 3,
@@ -251,8 +277,9 @@ async fn shutdown_preserves_final_mutation_and_removes_departed_membership_descr
     let final_meta_a: Result<OrSetResponse<String>, _> = replica_a.query(OrSetQuery::Meta).await;
     assert_eq!(final_meta_a, Ok(expected_meta));
 
-    let contains_elderberry: Result<OrSetResponse<String>, _> =
-        replica_a.query(OrSetQuery::Contains("elderberry".to_string())).await;
+    let contains_elderberry: Result<OrSetResponse<String>, _> = replica_a
+        .query(OrSetQuery::Contains("elderberry".to_string()))
+        .await;
     assert_eq!(contains_elderberry, Ok(OrSetResponse::Contains(true)));
 
     replica_a.shutdown().await;

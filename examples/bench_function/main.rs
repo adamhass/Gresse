@@ -1,4 +1,4 @@
-use gresse::crdt::{CRDT, DeltaGroup};
+use gresse::crdt::{DeltaGroup, CRDT};
 use gresse::dots::{Dot, DotMap, DotSet};
 use gresse::prelude::Pid;
 use gresse::replica::Replica;
@@ -278,8 +278,7 @@ pub enum BenchFunctionError {
     RequestFailed,
 }
 
-pub type BenchFunctionClientResponse =
-    Result<BenchFunctionUserResponse, BenchFunctionError>;
+pub type BenchFunctionClientResponse = Result<BenchFunctionUserResponse, BenchFunctionError>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BenchFunctionUserResponse {

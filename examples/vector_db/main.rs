@@ -6,10 +6,7 @@ pub mod vector_dbc;
 pub mod vector_dbw;
 pub mod vector_experiment;
 
-use gresse::{
-    prelude::*, replica::Replica,
-    replica_helpers::ReplicaConfig,
-};
+use gresse::{prelude::*, replica::Replica, replica_helpers::ReplicaConfig};
 // use dialoguer::{theme::ColorfulTheme, MultiSelect};
 use faiss_proxy::FaissProxy;
 use helpers::to_absolute;

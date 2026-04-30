@@ -1,0 +1,29 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='900' height='520' viewBox='0 0 900 520'>
+<rect width='100%' height='100%' fill='#f8fafc' />
+<text x='450.0' y='26' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='20' fill='#0f172a'>
+Throughput vs Replica Count
+</text>
+<text x='450.0' y='504' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='14' fill='#334155'>
+Replica count
+</text>
+<text x='22' y='260.0' transform='rotate(-90 22 260.0)' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='14' fill='#334155'>
+Stable throughput (ops/sec)
+</text>
+<line x1='80' y1='450.00' x2='870' y2='450.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='455.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>0.0</text><line x1='80' y1='368.00' x2='870' y2='368.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='373.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>104.0</text><line x1='80' y1='286.00' x2='870' y2='286.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='291.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>207.9</text><line x1='80' y1='204.00' x2='870' y2='204.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='209.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>311.9</text><line x1='80' y1='122.00' x2='870' y2='122.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='127.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>415.9</text><line x1='80' y1='40.00' x2='870' y2='40.00' stroke='#d9e0e6' stroke-width='1' /><text x='70' y='45.00' text-anchor='end' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>519.9</text>
+<line x1='80' y1='40' x2='80' y2='450' stroke='#475569' stroke-width='2' />
+<line x1='80' y1='450' x2='870' y2='450' stroke='#475569' stroke-width='2' />
+<polyline fill='none' stroke='#0f766e' stroke-width='3' points='80.00,288.75 192.86,142.01 305.71,139.94 418.57,77.27 531.43,118.12 644.29,392.87 757.14,450.00 870.00,449.99' />
+<polyline fill='none' stroke='#b45309' stroke-width='3' points='80.00,288.75 192.86,296.00 305.71,346.65 418.57,356.82 531.43,383.62 644.29,440.48 757.14,450.00 870.00,450.00' />
+<circle cx='80.00' cy='288.75' r='4' fill='#0f766e' /><circle cx='192.86' cy='142.01' r='4' fill='#0f766e' /><circle cx='305.71' cy='139.94' r='4' fill='#0f766e' /><circle cx='418.57' cy='77.27' r='4' fill='#0f766e' /><circle cx='531.43' cy='118.12' r='4' fill='#0f766e' /><circle cx='644.29' cy='392.87' r='4' fill='#0f766e' /><circle cx='757.14' cy='450.00' r='4' fill='#0f766e' /><circle cx='870.00' cy='449.99' r='4' fill='#0f766e' />
+<circle cx='80.00' cy='288.75' r='4' fill='#b45309' /><circle cx='192.86' cy='296.00' r='4' fill='#b45309' /><circle cx='305.71' cy='346.65' r='4' fill='#b45309' /><circle cx='418.57' cy='356.82' r='4' fill='#b45309' /><circle cx='531.43' cy='383.62' r='4' fill='#b45309' /><circle cx='644.29' cy='440.48' r='4' fill='#b45309' /><circle cx='757.14' cy='450.00' r='4' fill='#b45309' /><circle cx='870.00' cy='450.00' r='4' fill='#b45309' />
+<text x='80.00' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>1</text><text x='192.86' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>2</text><text x='305.71' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>3</text><text x='418.57' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>4</text><text x='531.43' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>5</text><text x='644.29' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>6</text><text x='757.14' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>7</text><text x='870.00' y='475' text-anchor='middle' font-family='Helvetica, Arial, sans-serif' font-size='12' fill='#334155'>8</text>
+<rect x='645' y='50' width='220' height='58' rx='8' fill='white' stroke='#cbd5e1' />
+<line x1='660' y1='72' x2='695' y2='72' stroke='#0f766e' stroke-width='3' />
+<text x='705' y='77' font-family='Helvetica, Arial, sans-serif' font-size='13' fill='#0f172a'>
+Combined stable throughput
+</text>
+<line x1='660' y1='94' x2='695' y2='94' stroke='#b45309' stroke-width='3' />
+<text x='705' y='99' font-family='Helvetica, Arial, sans-serif' font-size='13' fill='#0f172a'>
+Average per-replica throughput
+</text>
+</svg>

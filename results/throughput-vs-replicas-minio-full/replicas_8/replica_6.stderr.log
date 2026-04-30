@@ -1,0 +1,48 @@
+[2026-04-30T11:13:01.647Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T11:13:01.647Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18886
+[2026-04-30T11:13:02.218Z INFO  gresse::replica] replica 6 initiating runtime at http=127.0.0.1:18886 internal=127.0.0.1:19886
+[2026-04-30T11:13:02.288Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/replicas_8/membership/6,127.0.0.1:19886,0
+[2026-04-30T11:13:02.404Z INFO  gresse::replica] replica 6 discovered 6 membership descriptors during init
+[2026-04-30T11:13:02.404Z INFO  gresse::replica] replica 6 startup completed
+[2026-04-30T11:13:02.456Z INFO  gresse::network] replica 6 completed network handshake with replica 3
+[2026-04-30T11:13:02.456Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 3
+[2026-04-30T11:13:02.456Z INFO  gresse::replica] replica 6 established peer replication connection with replica 3
+[2026-04-30T11:13:02.687Z INFO  gresse::network] replica 6 completed network handshake with replica 4
+[2026-04-30T11:13:02.687Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 4
+[2026-04-30T11:13:02.687Z INFO  gresse::replica] replica 6 established peer replication connection with replica 4
+[2026-04-30T11:13:02.970Z INFO  gresse::network] replica 6 completed network handshake with replica 5
+[2026-04-30T11:13:02.970Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 5
+[2026-04-30T11:13:02.970Z INFO  gresse::replica] replica 6 established peer replication connection with replica 5
+[2026-04-30T11:13:03.161Z INFO  gresse::network] replica 6 completed network handshake with replica 1
+[2026-04-30T11:13:03.161Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 1
+[2026-04-30T11:13:03.161Z INFO  gresse::replica] replica 6 established peer replication connection with replica 1
+[2026-04-30T11:13:03.205Z INFO  gresse::network] replica 6 completed network handshake with replica 2
+[2026-04-30T11:13:03.205Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 2
+[2026-04-30T11:13:03.205Z INFO  gresse::replica] replica 6 established peer replication connection with replica 2
+[2026-04-30T11:13:04.281Z INFO  gresse::network] replica 6 discovered network member NetworkMember { pid: 7, address: 127.0.0.1:19887, final_counter: None }
+[2026-04-30T11:13:04.282Z INFO  gresse::network] replica 6 completed network handshake with replica 7
+[2026-04-30T11:13:04.282Z INFO  gresse::network] replica 6 registered bidirectional network channel for replica 7
+[2026-04-30T11:13:04.284Z INFO  gresse::replica] replica 6 established peer replication connection with replica 7
+[2026-04-30T11:13:06.879Z INFO  gresse::network] replica 6 discovered network member NetworkMember { pid: 8, address: 127.0.0.1:19888, final_counter: None }
+
+thread 'tokio-rt-worker' (7167580) panicked at src/network.rs:177:14:
+Failed to connect to new address: Os { code: 49, kind: AddrNotAvailable, message: "Can't assign requested address" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-rt-worker' (7167569) panicked at src/replica.rs:531:18:
+Failed to send network member: SendError { .. }
+
+thread 'tokio-rt-worker' (7167577) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7167582) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7167580) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7167581) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+[2026-04-30T11:13:10.796Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T11:13:10.796Z INFO  gresse::http_server] http server shutdown complete
+Error: JoinError::Panic(Id(28), "Failed to send network member: SendError { .. }", ...)

@@ -4,8 +4,8 @@ use gresse::http_client::HttpClient;
 use gresse::logging;
 use gresse::prelude::{ObjectStorageConfig, ServerAddr};
 use gresse::replica::Replica;
-use gresse::replica_helpers::ReplicaDescriptor;
 use gresse::replica_helpers::ReplicaConfig;
+use gresse::replica_helpers::ReplicaDescriptor;
 use object_store::aws::AmazonS3Builder;
 use object_store::path::Path;
 use object_store::ObjectStore;
@@ -212,7 +212,10 @@ impl MinioHarness {
 
     fn verification_bucket(&self) -> object_store::aws::AmazonS3 {
         AmazonS3Builder::new()
-            .with_region(env_or_default("GRESSE_TEST_MINIO_REGION", DEFAULT_MINIO_REGION))
+            .with_region(env_or_default(
+                "GRESSE_TEST_MINIO_REGION",
+                DEFAULT_MINIO_REGION,
+            ))
             .with_bucket_name(&self.bucket)
             .with_access_key_id(env_or_default(
                 "GRESSE_TEST_MINIO_ACCESS_KEY",
@@ -279,8 +282,12 @@ where
 
     async fn send(&self, request: CRDTClientRequest<T>) -> T::ClientResponse {
         let host = self.address.http().to_string();
-        let mut client =
-            HttpClient::<CRDTClientRequest<T>, T::ClientResponse>::new(&host, "/", self.address.http()).await;
+        let mut client = HttpClient::<CRDTClientRequest<T>, T::ClientResponse>::new(
+            &host,
+            "/",
+            self.address.http(),
+        )
+        .await;
         client
             .send(&request)
             .await
@@ -294,8 +301,14 @@ fn env_or_default(name: &str, default: &str) -> String {
 
 async fn ensure_minio_available() {
     let bucket = AmazonS3Builder::new()
-        .with_region(env_or_default("GRESSE_TEST_MINIO_REGION", DEFAULT_MINIO_REGION))
-        .with_bucket_name(env_or_default("GRESSE_TEST_MINIO_BUCKET", DEFAULT_MINIO_BUCKET))
+        .with_region(env_or_default(
+            "GRESSE_TEST_MINIO_REGION",
+            DEFAULT_MINIO_REGION,
+        ))
+        .with_bucket_name(env_or_default(
+            "GRESSE_TEST_MINIO_BUCKET",
+            DEFAULT_MINIO_BUCKET,
+        ))
         .with_access_key_id(env_or_default(
             "GRESSE_TEST_MINIO_ACCESS_KEY",
             DEFAULT_MINIO_ACCESS_KEY,
@@ -309,7 +322,12 @@ async fn ensure_minio_available() {
         .build()
         .expect("failed to create verification object-store client");
 
-    if let Err(error) = bucket.list(Some(&Path::from("test-runs"))).next().await.transpose() {
+    if let Err(error) = bucket
+        .list(Some(&Path::from("test-runs")))
+        .next()
+        .await
+        .transpose()
+    {
         panic!(
             "MinIO integration tests require a reachable local MinIO bucket. Start it with `docker compose -f docker-compose.minio.yml up -d` and rerun `cargo test --test basic_integration -- --nocapture`. Underlying error: {error}"
         );

@@ -1,10 +1,13 @@
 use crate::dots::Counter;
 use crate::prelude::{Pid, ServerAddr};
 use log::{debug, info, warn};
+use rand::Rng;
 // use crate::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
 use std::collections::HashSet;
+use std::env;
+use std::fmt::Debug;
+use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
@@ -23,6 +26,37 @@ pub struct NetworkMember {
     pub final_counter: Option<Counter>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct NetworkLatencyProfile {
+    base_latency: Duration,
+    jitter: Duration,
+}
+
+impl NetworkLatencyProfile {
+    fn from_env() -> Self {
+        Self {
+            base_latency: env_duration_ms("GRESSE_REPLICA_NETWORK_LATENCY_MS"),
+            jitter: env_duration_ms("GRESSE_REPLICA_NETWORK_LATENCY_JITTER_MS"),
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        !self.base_latency.is_zero() || !self.jitter.is_zero()
+    }
+
+    fn sample_delay(&self) -> Duration {
+        if self.jitter.is_zero() {
+            return self.base_latency;
+        }
+
+        let base_ms = self.base_latency.as_millis() as u64;
+        let jitter_ms = self.jitter.as_millis() as u64;
+        let lower = base_ms.saturating_sub(jitter_ms);
+        let upper = base_ms.saturating_add(jitter_ms);
+        Duration::from_millis(rand::rng().random_range(lower..=upper))
+    }
+}
+
 impl NetworkMember {
     pub fn is_shutdown(&self) -> bool {
         self.final_counter.is_some()
@@ -39,6 +73,7 @@ pub struct NetworkManager<T> {
     pub pid: Pid,
     pub address: ServerAddr,
     dead_members: HashSet<Pid>,
+    latency_profile: NetworkLatencyProfile,
     // For graceful shutdown
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     task_handles: Vec<JoinHandle<()>>,
@@ -60,6 +95,15 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         let listener = TcpListener::bind(address.internal())
             .await
             .expect("Failed to bind to internal address");
+        let latency_profile = NetworkLatencyProfile::from_env();
+        if latency_profile.is_enabled() {
+            info!(
+                "replica {} enabling network latency emulation: base={}ms jitter={}ms",
+                pid,
+                latency_profile.base_latency.as_millis(),
+                latency_profile.jitter.as_millis(),
+            );
+        }
         // Create shutdown channel
         let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
 
@@ -71,6 +115,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             pid,
             address,
             dead_members: HashSet::new(),
+            latency_profile,
             shutdown_receiver: Some(shutdown_receiver),
             task_handles: Vec::new(),
         };
@@ -123,7 +168,10 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         {
             return;
         }
-        info!("replica {} discovered network member {:?}", self.pid, member);
+        info!(
+            "replica {} discovered network member {:?}",
+            self.pid, member
+        );
         let stream = TcpStream::connect(member.address)
             .await
             .expect("Failed to connect to new address");
@@ -144,11 +192,13 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         }
         info!(
             "replica {} completed network handshake with replica {}",
-            self.pid,
-            pid
+            self.pid, pid
         );
         while let Err(e) = stream.ready(Interest::READABLE | Interest::WRITABLE).await {
-            warn!("failed to initialize stream for replica {}: {:?}, retrying", self.pid, e);
+            warn!(
+                "failed to initialize stream for replica {}: {:?}, retrying",
+                self.pid, e
+            );
         }
         let (read_half, stream_writer) = io::split(stream);
         let stream_reader = BufReader::new(read_half).lines();
@@ -158,8 +208,9 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             Self::read_loop(stream_reader, sender_clone).await;
         });
         self.task_handles.push(handle);
+        let latency_profile = self.latency_profile;
         let handle = tokio::spawn(async move {
-            Self::write_loop(stream_writer, from_local_receiver).await;
+            Self::write_loop(stream_writer, from_local_receiver, latency_profile).await;
         });
         self.task_handles.push(handle);
         self.connection_sender
@@ -168,8 +219,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             .expect("Failed to send connection");
         info!(
             "replica {} registered bidirectional network channel for replica {}",
-            self.pid,
-            pid
+            self.pid, pid
         );
     }
 
@@ -195,14 +245,34 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         Ok(())
     }
 
-    async fn write_loop(mut writer: WriteHalf<TcpStream>, mut receiver: Receiver<T>) {
+    async fn write_loop(
+        mut writer: WriteHalf<TcpStream>,
+        mut receiver: Receiver<T>,
+        latency_profile: NetworkLatencyProfile,
+    ) {
         loop {
             while let Some(request) = receiver.recv().await {
                 debug!("network write loop sending message: {:?}", request);
+                if latency_profile.is_enabled() {
+                    tokio::time::sleep(latency_profile.sample_delay()).await;
+                }
                 Self::send_message(&mut writer, &request)
                     .await
                     .expect("Failed to send message");
             }
         }
     }
+}
+
+fn env_duration_ms(name: &str) -> Duration {
+    env::var(name)
+        .ok()
+        .map(|value| {
+            Duration::from_millis(
+                value
+                    .parse()
+                    .unwrap_or_else(|_| panic!("{name} must be an integer number of milliseconds")),
+            )
+        })
+        .unwrap_or_default()
 }

@@ -41,6 +41,29 @@ struct PersistentReplica<T> {
     crdt_wrapper: CRDTWrapper,
 }
 
+#[derive(Debug, Serialize)]
+struct MetricRecord {
+    source: String,
+    event: String,
+    phase: String,
+    timestamp_us: u128,
+    replica_pid: Pid,
+    peer_pid: Option<Pid>,
+    gc_marker: Option<Counter>,
+    sent_us: Option<u128>,
+    received_us: Option<u128>,
+    start_us: Option<u128>,
+    end_us: Option<u128>,
+    insert_count: Option<u16>,
+    delete_count: Option<u16>,
+    detail: Option<String>,
+    client_id: Option<String>,
+    operation: Option<String>,
+    value: Option<i32>,
+    status_code: Option<u16>,
+    latency_us: Option<u128>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RawDurabilityRecord {
     record_type: String,
@@ -61,7 +84,9 @@ impl DurabilityJournal {
         Ok(Self { path })
     }
 
-    fn recover<T: CRDT + Debug + Clone>(&self) -> Result<Option<PersistentReplica<T>>, DurabilityError> {
+    fn recover<T: CRDT + Debug + Clone>(
+        &self,
+    ) -> Result<Option<PersistentReplica<T>>, DurabilityError> {
         if !self.path.exists() {
             return Ok(None);
         }
@@ -239,7 +264,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-
     /// Create a new CRDT server from explicit configuration.
     pub async fn with_config(
         pid: Pid,
@@ -388,6 +412,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                         pid
                     );
                     self.writers.insert(pid, writer);
+                    self.metric_instant(
+                        "peer_replication_connection",
+                        "established",
+                        Some(pid),
+                        None,
+                        None,
+                    );
                     // Update the gc_interval to minimize risk of simultanous attempts.
                     self.change_gc_interval();
                 }
@@ -415,20 +446,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
     async fn init(&mut self) {
         debug!("replica {} initiating bootstrap", self.pid);
-        self.push_replica_descriptor().await;
-        let members = self.list_members().await;
-        info!(
-            "replica {} discovered {} membership descriptors during init",
-            self.pid,
-            members.len()
-        );
-
-        self.enqueue_network_members(&members).await;
+        self.metric_instant("replica_init", "start", None, None, None);
+        self.push_replica_descriptor(None).await;
 
         if self.recovered_from_durability {
             info!(
                 "replica {} restored local state from durability journal before startup",
                 self.pid
+            );
+            self.metric_instant(
+                "persistent_state_fetch",
+                "completed",
+                None,
+                None,
+                Some("recovered_from_durability_journal".to_string()),
             );
         } else {
             match self.read_persistent_replica().await {
@@ -443,12 +474,29 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                         "replica {} found no persistent replica state; writing initial snapshot",
                         self.pid
                     );
-                    self.write_initial_persistent_replica().await
+                    self.write_initial_persistent_replica().await;
+                    self.metric_instant(
+                        "persistent_state_fetch",
+                        "completed",
+                        None,
+                        None,
+                        Some("initialized_new_persistent_snapshot".to_string()),
+                    );
                 }
             }
         }
 
+        let members = self.list_members("init", None).await;
+        info!(
+            "replica {} discovered {} membership descriptors during init",
+            self.pid,
+            members.len()
+        );
+
+        self.enqueue_network_members(&members).await;
+
         self.persist_durable_snapshot().await;
+        self.metric_instant("replica_init", "completed", None, None, None);
     }
 
     async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
@@ -470,10 +518,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
             debug!(
                 "replica {} discovering member pid={} addr={} gc_counter={}",
-                self.pid,
-                descriptor.pid,
-                descriptor.address,
-                descriptor.gc_counter
+                self.pid, descriptor.pid, descriptor.address, descriptor.gc_counter
             );
 
             self.network_member_sender
@@ -487,32 +532,81 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn read_persistent_replica(&self) -> Option<PersistentReplica<T>> {
-        self.object_storage_client
+    async fn read_persistent_replica(&mut self) -> Option<PersistentReplica<T>> {
+        let start = now_micros();
+        let result = self
+            .object_storage_client
             .read_persistent_replica()
             .await
-            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"))
+            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"));
+        let end = now_micros();
+        let detail = if result.is_some() {
+            "restored_existing_snapshot".to_string()
+        } else {
+            "persistent_snapshot_missing".to_string()
+        };
+        self.metric_span(
+            "persistent_state_fetch",
+            "completed",
+            None,
+            None,
+            start,
+            end,
+            None,
+            None,
+            None,
+            Some(detail),
+        );
+        result
     }
 
-    async fn write_initial_persistent_replica(&self) {
+    async fn write_initial_persistent_replica(&mut self) {
         let persistent_replica = PersistentReplica {
             local_state: self.crdt.read().await.clone(),
             crdt_wrapper: self.crdt_wrapper.clone(),
         };
+        let start = now_micros();
         self.object_storage_client
             .write_persistent_replica(&persistent_replica)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to write initial persistent replica state: {error}")
             });
+        let end = now_micros();
+        self.metric_span(
+            "persistent_state_write",
+            "completed",
+            None,
+            None,
+            start,
+            end,
+            None,
+            None,
+            None,
+            Some("initial_snapshot".to_string()),
+        );
     }
 
-    async fn push_replica_descriptor(&self) {
+    async fn push_replica_descriptor(&mut self, gc_marker: Option<Counter>) {
         let descriptor = self.replica_descriptor().await;
+        let start = now_micros();
         self.object_storage_client
             .write_membership_descriptor(descriptor)
             .await
             .unwrap_or_else(|error| panic!("Failed to create replica descriptor: {error}"));
+        let end = now_micros();
+        self.metric_span(
+            "membership_descriptor_write",
+            "completed",
+            None,
+            gc_marker,
+            start,
+            end,
+            None,
+            None,
+            None,
+            Some(descriptor.to_string()),
+        );
     }
 
     async fn replica_descriptor(&self) -> ReplicaDescriptor {
@@ -524,15 +618,35 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn list_members(&self) -> Vec<ReplicaDescriptor> {
-        self.object_storage_client
+    async fn list_members(
+        &mut self,
+        detail: &'static str,
+        gc_marker: Option<Counter>,
+    ) -> Vec<ReplicaDescriptor> {
+        let start = now_micros();
+        let members = self
+            .object_storage_client
             .list_membership_descriptors()
             .await
-            .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"))
+            .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"));
+        let end = now_micros();
+        self.metric_span(
+            "membership_directory_read",
+            "completed",
+            None,
+            gc_marker,
+            start,
+            end,
+            None,
+            None,
+            None,
+            Some(format!("{detail}:{} descriptors", members.len())),
+        );
+        members
     }
 
     async fn poll_membership_directory(&mut self) {
-        let members = self.list_members().await;
+        let members = self.list_members("poll", None).await;
         trace!(
             "replica {} polling membership directory saw {} descriptors",
             self.pid,
@@ -553,7 +667,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         for descriptor in shutdown_descriptors {
             self.handle_shutdown_descriptor(descriptor).await;
         }
-        
+
         // Update the gc interval
         if self.writers.len() != previous_writer_count {
             self.change_gc_interval();
@@ -563,9 +677,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     async fn handle_shutdown_descriptor(&mut self, descriptor: ReplicaDescriptor) {
         info!(
             "replica {} observed shutdown descriptor for replica {} with final counter {:?}",
-            self.pid,
-            descriptor.pid,
-            descriptor.final_counter
+            self.pid, descriptor.pid, descriptor.final_counter
         );
         self.merge_shutdown_payload(descriptor).await;
         // Keep the replica row until its final dot is stable everywhere.
@@ -610,8 +722,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .update(self.pid, current_version_vector);
             debug!(
                 "replica {} found no missing shutdown deltas for replica {}",
-                self.pid,
-                descriptor.pid
+                self.pid, descriptor.pid
             );
             return;
         }
@@ -649,17 +760,18 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             (start, response)
         };
         let end = now_micros();
-        self.metric_writer
-            .write_record(&[
-                "mutate".to_string(),
-                "".to_string(),
-                received.to_string(),
-                start.to_string(),
-                end.to_string(),
-                "".to_string(),
-                "".to_string(),
-            ])
-            .expect("Failed to write metric");
+        self.metric_span(
+            "client_mutation",
+            "completed",
+            None,
+            None,
+            start,
+            end,
+            None,
+            None,
+            Some(received),
+            None,
+        );
         responder
             .send(Ok(response))
             .expect("failed to send confirmation");
@@ -669,6 +781,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let received = now_micros();
         match event {
             ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, sent) => {
+                let gc_marker = gc_metadata.as_ref().map(|marker| marker.marker.counter);
                 if let Some(gc_metadata) = gc_metadata {
                     self.observe_gc(gc_metadata).await;
                 }
@@ -681,21 +794,21 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 };
                 debug!(
                     "replica {} merging remote delta group with {} entries",
-                    self.pid,
-                    delta_len
+                    self.pid, delta_len
                 );
                 let end = now_micros();
-                self.metric_writer
-                    .write_record(&[
-                        "merge_delta".to_string(),
-                        sent.to_string(),
-                        received.to_string(),
-                        start.to_string(),
-                        end.to_string(),
-                        insert_count.to_string(),
-                        delete_count.to_string(),
-                    ])
-                    .expect("Failed to write metric");
+                self.metric_span(
+                    "peer_replication_merge_delta",
+                    "completed",
+                    None,
+                    gc_marker,
+                    start,
+                    end,
+                    Some(insert_count),
+                    Some(delete_count),
+                    Some(received),
+                    Some(format!("delta_len={delta_len},sent_us={sent}")),
+                );
             }
             ReplicaMessage::<T>::VersionVector(pid, vv, sent) => {
                 self.crdt_wrapper.version_matrix.update(pid, vv.clone());
@@ -704,31 +817,32 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     let start = now_micros();
                     (start, readable.get_delta(&vv))
                 };
+                let delta_len = delta.list.len();
                 debug!(
                     "replica {} get_delta for replica {} produced {} deltas",
-                    self.pid,
-                    pid,
-                    delta.list.len()
+                    self.pid, pid, delta_len
                 );
                 let end = now_micros();
                 let gc_metadata = self.gc_metadata();
+                let gc_marker = gc_metadata.as_ref().map(|marker| marker.marker.counter);
                 self.writers
                     .get(&pid)
                     .expect("Failed to get writer")
                     .send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, end))
                     .await
                     .expect("Failed to send delta");
-                self.metric_writer
-                    .write_record(&[
-                        "get_delta".to_string(),
-                        sent.to_string(),
-                        received.to_string(),
-                        start.to_string(),
-                        end.to_string(),
-                        insert_count.to_string(),
-                        delete_count.to_string(),
-                    ])
-                    .expect("Failed to write metric");
+                self.metric_span(
+                    "peer_replication_get_delta",
+                    "completed",
+                    Some(pid),
+                    gc_marker,
+                    start,
+                    end,
+                    Some(insert_count),
+                    Some(delete_count),
+                    Some(received),
+                    Some(format!("delta_len={delta_len},sent_us={sent}")),
+                );
             }
         }
     }
@@ -741,7 +855,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let n = rand::rng().random_range(0..self.writers.len());
         if let Some(writer) = self.writers.values().nth(n).cloned() {
             let vv = { self.crdt.read().await.get_version_vector().clone() };
-            self.crdt_wrapper.version_matrix.update(self.pid, vv.clone());
+            self.crdt_wrapper
+                .version_matrix
+                .update(self.pid, vv.clone());
             debug!(
                 "replica {} initiating pull_delta with {} connected peers",
                 self.pid,
@@ -755,6 +871,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 ))
                 .await
                 .expect("Failed to send pull request");
+            self.metric_instant(
+                "peer_replication_pull_request",
+                "sent",
+                None,
+                None,
+                Some(format!("connected_peers={}", self.writers.len())),
+            );
         }
     }
 
@@ -765,10 +888,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
         debug!(
             "replica {} initiating gc with stable frontier {:?}",
-            self.pid,
-            stable
+            self.pid, stable
         );
 
+        let previous_marker = self.crdt_wrapper.current_gc_marker().counter;
         let previous_members = self.object_storage_client.membership_descriptors().await;
         let previous_gc_counters = Self::membership_gc_counters_by_pid(&previous_members);
         let previous_descriptor = self.replica_descriptor().await;
@@ -782,15 +905,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .counter
                 .saturating_add(1),
         };
+        self.metric_instant(
+            "gc_init",
+            "start",
+            None,
+            Some(new_marker.counter),
+            Some(format!("previous_gc_marker={previous_marker}")),
+        );
         let new_descriptor = self.change_own_gc_counter(new_marker.counter).await;
 
         // 2. Read the Membership directory and check that: no new replicas have appeared, no other replicas have incremented their GC marker.
-        let current_members = self.list_members().await;
-        if !Self::membership_is_still_stable(
-            &previous_gc_counters,
-            &current_members,
-            self.pid,
-        ) {
+        let current_members = self
+            .list_members("gc_validation", Some(new_marker.counter))
+            .await;
+        if !Self::membership_is_still_stable(&previous_gc_counters, &current_members, self.pid) {
             debug!(
                 "replica {} aborted gc round because membership changed",
                 self.pid
@@ -802,27 +930,48 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .unwrap_or_else(|error| {
                     panic!("Failed to roll back replica membership GC marker: {error}")
                 });
-            let _ = self.list_members().await;
+            self.metric_instant(
+                "gc_init",
+                "aborted",
+                None,
+                Some(new_marker.counter),
+                Some("membership_changed".to_string()),
+            );
+            let _ = self
+                .list_members("gc_abort_refresh", Some(new_marker.counter))
+                .await;
             return;
         }
 
         // 3. Perform GC
+        let gc_start = now_micros();
         let departed_pids = self.crdt_wrapper.version_matrix.garbage_collect(&stable);
-        if departed_pids.is_some()  {
+        if departed_pids.is_some() {
             // Update the stable DotSet
-            stable = self.crdt_wrapper.version_matrix.get_stable(); 
+            stable = self.crdt_wrapper.version_matrix.get_stable();
         }
         info!(
             "replica {} gc departed_pids={:?} updated_stable={:?}",
-            self.pid,
-            departed_pids,
-            stable
+            self.pid, departed_pids, stable
         );
         let local_state = {
             let mut writable = self.crdt.write().await;
             writable.gc(stable.clone(), departed_pids.clone());
             writable.clone()
         };
+        let gc_end = now_micros();
+        self.metric_span(
+            "gc_local_collect",
+            "completed",
+            None,
+            Some(new_marker.counter),
+            gc_start,
+            gc_end,
+            None,
+            None,
+            None,
+            Some(format!("departed_pids={:?}", departed_pids)),
+        );
 
         // DONE
         self.crdt_wrapper.push_gc_marker(new_marker, stable.clone());
@@ -832,38 +981,67 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         };
 
         // 4. Overwrite persistent replica with the new local state.
+        let persist_start = now_micros();
         self.object_storage_client
             .write_persistent_replica(&persistent_replica)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to write persistent replica after garbage collection: {error}")
             });
+        let persist_end = now_micros();
+        self.metric_span(
+            "gc_persistent_state_write",
+            "completed",
+            None,
+            Some(new_marker.counter),
+            persist_start,
+            persist_end,
+            None,
+            None,
+            None,
+            None,
+        );
         self.persist_durable_snapshot_with(persistent_replica.clone());
         info!("replica {} completed gc round", self.pid);
-        
+
         if let Some(departed_pids) = departed_pids {
             self.gc_departed_pids(departed_pids).await;
         }
 
-        // 5. Remove our old Membership Descriptor ? 
+        // 5. Remove our old Membership Descriptor ?
         self.object_storage_client
             .delete_membership_descriptor(previous_descriptor)
             .await
             .unwrap_or_else(|error| {
                 panic!("Failed to delete previous replica membership descriptor: {error}")
             });
+        self.metric_instant(
+            "gc_finalize",
+            "completed",
+            None,
+            Some(new_marker.counter),
+            Some(previous_descriptor.to_string()),
+        );
     }
 
     async fn gc_departed_pids(&mut self, departed_pids: Vec<Pid>) {
-        futures::future::try_join_all(
-            departed_pids
-                .into_iter()
-                .map(|pid| self.object_storage_client.delete_membership_descriptors_for_pid(pid)),
-        )
+        futures::future::try_join_all(departed_pids.into_iter().map(|pid| {
+            self.object_storage_client
+                .delete_membership_descriptors_for_pid(pid)
+        }))
         .await
         .unwrap_or_else(|error| {
             panic!("Failed to garbage-collect departed replica membership descriptors: {error}")
         });
+        self.metric_instant(
+            "gc_membership_cleanup",
+            "completed",
+            None,
+            self.gc_metadata()
+                .as_ref()
+                .map(|metadata| metadata.marker.counter),
+            None,
+        );
     }
 
     async fn change_own_gc_counter(&mut self, gc_counter: Counter) -> ReplicaDescriptor {
@@ -883,6 +1061,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         if !descriptor_created {
             panic!("Replica membership GC marker already exists: {descriptor}");
         }
+        self.metric_instant(
+            "gc_membership_descriptor_write",
+            "completed",
+            None,
+            Some(gc_counter),
+            Some(descriptor.to_string()),
+        );
         descriptor
     }
 
@@ -895,9 +1080,14 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         debug!(
             "replica {} observing gc marker {} with stable frontier {:?}",
-            self.pid,
-            metadata.marker.counter,
-            metadata.stable
+            self.pid, metadata.marker.counter, metadata.stable
+        );
+        self.metric_instant(
+            "gc_observed",
+            "start",
+            None,
+            Some(metadata.marker.counter),
+            None,
         );
         self.crdt.write().await.gc(metadata.stable.clone(), None);
         self.crdt_wrapper
@@ -905,6 +1095,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.persist_durable_snapshot().await;
         self.change_own_gc_counter(metadata.marker.counter).await;
         self.gc_interval.reset();
+        self.metric_instant(
+            "gc_observed",
+            "completed",
+            None,
+            Some(metadata.marker.counter),
+            None,
+        );
     }
 
     fn gc_metadata(&self) -> Option<GcMarker> {
@@ -1051,6 +1248,80 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         journal
             .append_delta_group::<T>(delta_group)
             .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
+    }
+
+    fn metric_instant(
+        &mut self,
+        event: &str,
+        phase: &str,
+        peer_pid: Option<Pid>,
+        gc_marker: Option<Counter>,
+        detail: Option<String>,
+    ) {
+        let timestamp_us = now_micros();
+        self.write_metric(MetricRecord {
+            source: "server".to_string(),
+            event: event.to_string(),
+            phase: phase.to_string(),
+            timestamp_us,
+            replica_pid: self.pid,
+            peer_pid,
+            gc_marker,
+            sent_us: None,
+            received_us: None,
+            start_us: None,
+            end_us: None,
+            insert_count: None,
+            delete_count: None,
+            detail,
+            client_id: None,
+            operation: None,
+            value: None,
+            status_code: None,
+            latency_us: None,
+        });
+    }
+
+    fn metric_span(
+        &mut self,
+        event: &str,
+        phase: &str,
+        peer_pid: Option<Pid>,
+        gc_marker: Option<Counter>,
+        start_us: u128,
+        end_us: u128,
+        insert_count: Option<u16>,
+        delete_count: Option<u16>,
+        received_us: Option<u128>,
+        detail: Option<String>,
+    ) {
+        self.write_metric(MetricRecord {
+            source: "server".to_string(),
+            event: event.to_string(),
+            phase: phase.to_string(),
+            timestamp_us: end_us,
+            replica_pid: self.pid,
+            peer_pid,
+            gc_marker,
+            sent_us: None,
+            received_us,
+            start_us: Some(start_us),
+            end_us: Some(end_us),
+            insert_count,
+            delete_count,
+            detail,
+            client_id: None,
+            operation: None,
+            value: None,
+            status_code: None,
+            latency_us: Some(end_us.saturating_sub(start_us)),
+        });
+    }
+
+    fn write_metric(&mut self, record: MetricRecord) {
+        self.metric_writer
+            .serialize(record)
+            .expect("Failed to write metric");
     }
 }
 

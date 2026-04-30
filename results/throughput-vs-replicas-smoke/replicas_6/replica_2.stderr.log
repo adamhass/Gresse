@@ -1,0 +1,17 @@
+[2026-04-30T10:05:21.592Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T10:05:21.592Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18682
+[2026-04-30T10:05:21.953Z INFO  gresse::replica] replica 2 initiating runtime at http=127.0.0.1:18682 internal=127.0.0.1:19682
+
+thread 'tokio-rt-worker' (7001473) panicked at src/replica.rs:596:37:
+Failed to create replica descriptor: S3 error: The operation lacked the necessary privileges to complete for path throughput-vs-replicas/replicas_6/membership/2,127.0.0.1:19682,0: Error performing PUT https://s3.eu-north-1.amazonaws.com/gresse/throughput-vs-replicas/replicas_6/membership/2%2C127.0.0.1%3A19682%2C0 in 47.618394ms - Server returned non-2xx status code: 403 Forbidden: <?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>AccessDenied</Code><Message>User: arn:aws:iam::035351467464:user/gresse is not authorized to perform: s3:PutObject on resource: "arn:aws:s3:::gresse/throughput-vs-replicas/replicas_6/membership/2,127.0.0.1:19682,0" because no identity-based policy allows the s3:PutObject action</Message><RequestId>KXGMMM6C5S0Y5AAH</RequestId><HostId>O6M/gSkt1JBx3SkGHQF71SFf3+4E5o+4UC7nX7N0hBBVne4cy8Cq1KOSu6N/0niiKxrrgOVC9xL+orqIcycn8at/pT5xjQZC</HostId></Error>
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tokio-rt-worker' (7001474) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+
+thread 'tokio-rt-worker' (7001477) panicked at src/http_server.rs:146:27:
+Server failed to handle the message: RecvError(())
+[2026-04-30T10:05:22.002Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T10:05:22.002Z INFO  gresse::http_server] http server shutdown complete
+Error: JoinError::Panic(Id(22), "Failed to create replica descriptor: S3 error: The operation lacked the necessary privileges to complete for path throughput-vs-replicas/replicas_6/membership/2,127.0.0.1:19682,0: Error performing PUT https://s3.eu-north-1.amazonaws.com/gresse/throughput-vs-replicas/replicas_6/membership/2%2C127.0.0.1%3A19682%2C0 in 47.618394ms - Server returned non-2xx status code: 403 Forbidden: <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Error><Code>AccessDenied</Code><Message>User: arn:aws:iam::035351467464:user/gresse is not authorized to perform: s3:PutObject on resource: \"arn:aws:s3:::gresse/throughput-vs-replicas/replicas_6/membership/2,127.0.0.1:19682,0\" because no identity-based policy allows the s3:PutObject action</Message><RequestId>KXGMMM6C5S0Y5AAH</RequestId><HostId>O6M/gSkt1JBx3SkGHQF71SFf3+4E5o+4UC7nX7N0hBBVne4cy8Cq1KOSu6N/0niiKxrrgOVC9xL+orqIcycn8at/pT5xjQZC</HostId></Error>", ...)
