@@ -1,0 +1,18 @@
+[2026-04-30T12:57:38.343Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T12:57:38.343Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18382
+[2026-04-30T12:57:38.353Z INFO  gresse::replica] replica 2 initiating runtime at http=127.0.0.1:18382 internal=127.0.0.1:19382
+[2026-04-30T12:57:38.412Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/replicas_3/membership/2,127.0.0.1:19382,0
+[2026-04-30T12:57:38.520Z INFO  gresse::replica] replica 2 discovered 2 membership descriptors during init
+[2026-04-30T12:57:38.520Z INFO  gresse::replica] replica 2 startup completed
+[2026-04-30T12:57:39.183Z INFO  gresse::network] replica 2 completed network handshake with replica 1
+[2026-04-30T12:57:39.183Z INFO  gresse::network] replica 2 registered bidirectional network channel for replica 1
+[2026-04-30T12:57:39.183Z INFO  gresse::replica] replica 2 established peer replication connection with replica 1
+[2026-04-30T12:57:40.408Z INFO  gresse::network] replica 2 discovered network member NetworkMember { pid: 3, address: 127.0.0.1:19383, final_counter: None }
+[2026-04-30T12:57:40.409Z INFO  gresse::network] replica 2 completed network handshake with replica 3
+[2026-04-30T12:57:40.409Z INFO  gresse::network] replica 2 registered bidirectional network channel for replica 3
+[2026-04-30T12:57:40.409Z INFO  gresse::replica] replica 2 established peer replication connection with replica 3
+[2026-04-30T12:59:10.199Z INFO  gresse::replica] shutdown signal received for replica 2
+[2026-04-30T12:59:10.199Z INFO  gresse::replica] replica 2 shutting down with 2 connected writers
+[2026-04-30T12:59:10.331Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T12:59:10.331Z INFO  gresse::http_server] http server shutdown complete
+[2026-04-30T12:59:10.331Z INFO  gresse::network] network manager for replica 2 shutdown complete

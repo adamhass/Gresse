@@ -1,0 +1,39 @@
+[2026-04-30T13:06:02.235Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T13:06:02.235Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18881
+[2026-04-30T13:06:02.249Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18881 internal=127.0.0.1:19881
+[2026-04-30T13:06:02.309Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/replicas_8/membership/1,127.0.0.1:19881,0
+[2026-04-30T13:06:02.471Z INFO  gresse::replica] replica 1 discovered 1 membership descriptors during init
+[2026-04-30T13:06:02.471Z INFO  gresse::replica] replica 1 startup completed
+[2026-04-30T13:06:04.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 2, address: 127.0.0.1:19882, final_counter: None }
+[2026-04-30T13:06:04.305Z INFO  gresse::network] replica 1 completed network handshake with replica 2
+[2026-04-30T13:06:04.305Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 2
+[2026-04-30T13:06:04.305Z INFO  gresse::replica] replica 1 established peer replication connection with replica 2
+[2026-04-30T13:06:05.304Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 3, address: 127.0.0.1:19883, final_counter: None }
+[2026-04-30T13:06:05.305Z INFO  gresse::network] replica 1 completed network handshake with replica 3
+[2026-04-30T13:06:05.305Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 3
+[2026-04-30T13:06:05.305Z INFO  gresse::replica] replica 1 established peer replication connection with replica 3
+[2026-04-30T13:06:06.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 4, address: 127.0.0.1:19884, final_counter: None }
+[2026-04-30T13:06:06.306Z INFO  gresse::network] replica 1 completed network handshake with replica 4
+[2026-04-30T13:06:06.306Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 4
+[2026-04-30T13:06:06.306Z INFO  gresse::replica] replica 1 established peer replication connection with replica 4
+[2026-04-30T13:06:07.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 5, address: 127.0.0.1:19885, final_counter: None }
+[2026-04-30T13:06:07.306Z INFO  gresse::network] replica 1 completed network handshake with replica 5
+[2026-04-30T13:06:07.306Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 5
+[2026-04-30T13:06:07.306Z INFO  gresse::replica] replica 1 established peer replication connection with replica 5
+[2026-04-30T13:06:09.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 6, address: 127.0.0.1:19886, final_counter: None }
+[2026-04-30T13:06:09.305Z INFO  gresse::network] replica 1 completed network handshake with replica 6
+[2026-04-30T13:06:09.305Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 6
+[2026-04-30T13:06:09.306Z INFO  gresse::replica] replica 1 established peer replication connection with replica 6
+[2026-04-30T13:06:10.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 7, address: 127.0.0.1:19887, final_counter: None }
+[2026-04-30T13:06:10.306Z INFO  gresse::network] replica 1 completed network handshake with replica 7
+[2026-04-30T13:06:10.306Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 7
+[2026-04-30T13:06:10.307Z INFO  gresse::replica] replica 1 established peer replication connection with replica 7
+[2026-04-30T13:06:11.305Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 8, address: 127.0.0.1:19888, final_counter: None }
+[2026-04-30T13:06:11.305Z INFO  gresse::network] replica 1 completed network handshake with replica 8
+[2026-04-30T13:06:11.305Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 8
+[2026-04-30T13:06:11.307Z INFO  gresse::replica] replica 1 established peer replication connection with replica 8
+[2026-04-30T13:07:41.409Z INFO  gresse::replica] shutdown signal received for replica 1
+[2026-04-30T13:07:41.409Z INFO  gresse::replica] replica 1 shutting down with 7 connected writers
+[2026-04-30T13:07:41.557Z INFO  gresse::network] network manager for replica 1 shutdown complete
+[2026-04-30T13:07:41.557Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T13:07:41.557Z INFO  gresse::http_server] http server shutdown complete
