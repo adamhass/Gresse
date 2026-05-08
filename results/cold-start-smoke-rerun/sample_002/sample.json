@@ -1,0 +1,20 @@
+{
+  "sample_index": 2,
+  "peer_replicas": 1,
+  "network_latency_ms": 0,
+  "network_latency_jitter_ms": 0,
+  "process_start_us": 1778230143804793,
+  "replica_init_start_us": 1778230144355572,
+  "persistent_state_fetch_completed_us": 1778230144424568,
+  "membership_descriptor_write_completed_us": 1778230144427793,
+  "membership_directory_read_completed_us": 1778230144530051,
+  "replica_init_completed_us": 1778230144530284,
+  "replica_init_start_delta_us": 550779,
+  "persistent_state_fetch_completed_delta_us": 619775,
+  "membership_descriptor_write_completed_delta_us": 623000,
+  "membership_directory_read_completed_delta_us": 725258,
+  "replica_init_completed_delta_us": 725491,
+  "sample_dir": "/Users/adam/Dev/Gresse/results/cold-start-smoke-rerun/sample_002",
+  "persistent_path": "cold-start/persistent.json",
+  "membership_path": "cold-start/membership"
+}

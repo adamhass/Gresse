@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::fs::{self, OpenOptions};
+use std::future::Future;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -39,6 +40,45 @@ struct CRDTWrapper {
 struct PersistentReplica<T> {
     local_state: T,
     crdt_wrapper: CRDTWrapper,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartupMetrics {
+    pub crdt_pid_set_us: u128,
+    pub http_server_ready_us: u128,
+    pub network_manager_ready_us: u128,
+    pub metric_writer_ready_us: u128,
+    pub object_storage_client_start_us: u128,
+    pub object_storage_client_ready_us: u128,
+    pub replica_run_start_us: u128,
+    pub replica_init_start_us: u128,
+    pub persistent_state_fetch_completed_us: u128,
+    pub membership_descriptor_write_completed_us: u128,
+    pub membership_directory_read_completed_us: u128,
+    pub replica_init_completed_us: u128,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StartupConstructionMetrics {
+    crdt_pid_set_us: u128,
+    http_server_ready_us: u128,
+    network_manager_ready_us: u128,
+    metric_writer_ready_us: u128,
+    object_storage_client_start_us: u128,
+    object_storage_client_ready_us: u128,
+}
+
+struct TimedResult<T> {
+    value: T,
+    start_us: u128,
+    end_us: u128,
+    detail: String,
+}
+
+struct MembershipInitResult {
+    descriptor_write: TimedResult<()>,
+    membership_list: TimedResult<()>,
+    members: Vec<ReplicaDescriptor>,
 }
 
 #[derive(Debug, Serialize)]
@@ -219,6 +259,9 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     object_storage_client: ObjectStorageClient,
     durability_journal: Option<DurabilityJournal>,
     recovered_from_durability: bool,
+    startup_construction_metrics: StartupConstructionMetrics,
+    replica_run_start_us: Option<u128>,
+    startup_metrics_sender: Option<oneshot::Sender<StartupMetrics>>,
     // Shutdown channel
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     http_shutdown_sender: Option<oneshot::Sender<()>>,
@@ -310,10 +353,12 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         recovered_replica: Option<PersistentReplica<T>>,
     ) -> (Self, oneshot::Sender<()>) {
         crdt.write().await.set_pid(pid);
+        let crdt_pid_set_us = now_micros();
 
         // Launch HTTP server with shutdown capability
         let (client_request_receiver, http_shutdown_sender) =
             launch_http_server::<T>(&config.address, crdt.clone()).await;
+        let http_server_ready_us = now_micros();
 
         // Launch NetworkManager with shutdown capability
         let (
@@ -322,6 +367,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             network_member_sender,
             network_shutdown_sender,
         ) = NetworkManager::<ReplicaMessage<T>>::launch_network_manager(config.address, pid).await;
+        let network_manager_ready_us = now_micros();
 
         // Initialize metric writer
         let mut result_path = config.result_dir_path.clone();
@@ -333,9 +379,12 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let result_file = std::fs::File::create(result_path.clone())
             .unwrap_or_else(|_| panic!("Failed to create result file {:?}", result_path));
         let metric_writer = WriterBuilder::new().flexible(true).from_writer(result_file);
+        let metric_writer_ready_us = now_micros();
         let membership_poll_period = config.object_storage_config.discovery_interval;
+        let object_storage_client_start_us = now_micros();
         let object_storage_client = ObjectStorageClient::new(config.object_storage_config)
             .unwrap_or_else(|error| panic!("Failed to initialize object storage client: {error}"));
+        let object_storage_client_ready_us = now_micros();
 
         // Create shutdown channel for the CRDT server itself
         let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
@@ -365,12 +414,24 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 object_storage_client,
                 durability_journal,
                 recovered_from_durability: recovered_replica.is_some(),
+                startup_construction_metrics: StartupConstructionMetrics {
+                    crdt_pid_set_us,
+                    http_server_ready_us,
+                    network_manager_ready_us,
+                    metric_writer_ready_us,
+                    object_storage_client_start_us,
+                    object_storage_client_ready_us,
+                },
+                replica_run_start_us: None,
+                startup_metrics_sender: None,
             },
             shutdown_sender,
         )
     }
 
     pub async fn run(&mut self) {
+        let replica_run_start_us = now_micros();
+        self.replica_run_start_us = Some(replica_run_start_us);
         info!(
             "replica {} initiating runtime at http={} internal={}",
             self.pid,
@@ -446,23 +507,65 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
     async fn init(&mut self) {
         debug!("replica {} initiating bootstrap", self.pid);
-        self.metric_instant("replica_init", "start", None, None, None);
-        self.push_replica_descriptor(None).await;
+        let replica_init_start_us = self.metric_instant("replica_init", "start", None, None, None);
+        let descriptor = self.replica_descriptor().await;
+        let membership_init;
+        let persistent_state_fetch_completed_us;
 
         if self.recovered_from_durability {
+            membership_init =
+                Self::register_and_list_members_during_init(&self.object_storage_client, descriptor)
+                    .await;
+            self.record_membership_init_metrics(&membership_init);
             info!(
                 "replica {} restored local state from durability journal before startup",
                 self.pid
             );
-            self.metric_instant(
+            persistent_state_fetch_completed_us = self.metric_instant(
                 "persistent_state_fetch",
                 "completed",
                 None,
                 None,
                 Some("recovered_from_durability_journal".to_string()),
             );
+            info!(
+                "replica {} discovered {} membership descriptors during init",
+                self.pid,
+                membership_init.members.len()
+            );
+            self.enqueue_network_members(&membership_init.members).await;
         } else {
-            match self.read_persistent_replica().await {
+            let (persistent_replica_result, concurrent_membership_init) = tokio::join!(
+                Self::timed_storage_operation(
+                    Self::read_persistent_replica_from_storage(&self.object_storage_client),
+                    |result| {
+                        if result.is_some() {
+                            "restored_existing_snapshot".to_string()
+                        } else {
+                            "persistent_snapshot_missing".to_string()
+                        }
+                    }
+                ),
+                Self::register_and_list_members_during_init(&self.object_storage_client, descriptor)
+            );
+
+            self.metric_span(
+                "persistent_state_fetch",
+                "completed",
+                None,
+                None,
+                persistent_replica_result.start_us,
+                persistent_replica_result.end_us,
+                None,
+                None,
+                None,
+                Some(persistent_replica_result.detail),
+            );
+            persistent_state_fetch_completed_us = persistent_replica_result.end_us;
+            membership_init = concurrent_membership_init;
+            self.record_membership_init_metrics(&membership_init);
+
+            match persistent_replica_result.value {
                 Some(mut persistent_replica) => {
                     debug!("replica {} restoring persistent replica state", self.pid);
                     persistent_replica.local_state.set_pid(self.pid);
@@ -484,19 +587,134 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     );
                 }
             }
+            info!(
+                "replica {} discovered {} membership descriptors during init",
+                self.pid,
+                membership_init.members.len()
+            );
+            self.enqueue_network_members(&membership_init.members).await;
         }
 
-        let members = self.list_members("init", None).await;
-        info!(
-            "replica {} discovered {} membership descriptors during init",
-            self.pid,
-            members.len()
-        );
-
-        self.enqueue_network_members(&members).await;
-
         self.persist_durable_snapshot().await;
-        self.metric_instant("replica_init", "completed", None, None, None);
+        let replica_init_completed_us =
+            self.metric_instant("replica_init", "completed", None, None, None);
+        if let Some(startup_metrics_sender) = self.startup_metrics_sender.take() {
+            let _ = startup_metrics_sender.send(StartupMetrics {
+                crdt_pid_set_us: self.startup_construction_metrics.crdt_pid_set_us,
+                http_server_ready_us: self.startup_construction_metrics.http_server_ready_us,
+                network_manager_ready_us: self.startup_construction_metrics.network_manager_ready_us,
+                metric_writer_ready_us: self.startup_construction_metrics.metric_writer_ready_us,
+                object_storage_client_start_us: self
+                    .startup_construction_metrics
+                    .object_storage_client_start_us,
+                object_storage_client_ready_us: self
+                    .startup_construction_metrics
+                    .object_storage_client_ready_us,
+                replica_run_start_us: self
+                    .replica_run_start_us
+                    .expect("replica_run_start_us should be set before init"),
+                replica_init_start_us,
+                persistent_state_fetch_completed_us,
+                membership_descriptor_write_completed_us: membership_init
+                    .descriptor_write
+                    .end_us,
+                membership_directory_read_completed_us: membership_init.membership_list.end_us,
+                replica_init_completed_us,
+            });
+        }
+    }
+
+    async fn timed_storage_operation<F, R, D>(future: F, detail_fn: D) -> TimedResult<R>
+    where
+        F: Future<Output = R>,
+        D: FnOnce(&R) -> String,
+    {
+        let start_us = now_micros();
+        let value = future.await;
+        let end_us = now_micros();
+        let detail = detail_fn(&value);
+        TimedResult {
+            value,
+            start_us,
+            end_us,
+            detail,
+        }
+    }
+
+    async fn read_persistent_replica_from_storage(
+        object_storage_client: &ObjectStorageClient,
+    ) -> Option<PersistentReplica<T>> {
+        object_storage_client
+            .read_persistent_replica()
+            .await
+            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"))
+    }
+
+    async fn register_and_list_members_during_init(
+        object_storage_client: &ObjectStorageClient,
+        descriptor: ReplicaDescriptor,
+    ) -> MembershipInitResult {
+        let descriptor_write = Self::timed_storage_operation(
+            object_storage_client.write_membership_descriptor(descriptor),
+            |_| descriptor.to_string(),
+        )
+        .await;
+        descriptor_write
+            .value
+            .unwrap_or_else(|error| panic!("Failed to create replica descriptor: {error}"));
+        let descriptor_write = TimedResult {
+            value: (),
+            start_us: descriptor_write.start_us,
+            end_us: descriptor_write.end_us,
+            detail: descriptor_write.detail,
+        };
+
+        let members = Self::timed_storage_operation(
+            object_storage_client.list_membership_descriptors(),
+            |members| format!("init:{} descriptors", members.as_ref().map(Vec::len).unwrap_or(0)),
+        )
+        .await;
+        let descriptors = members
+            .value
+            .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"));
+
+        MembershipInitResult {
+            descriptor_write,
+            membership_list: TimedResult {
+                value: (),
+                start_us: members.start_us,
+                end_us: members.end_us,
+                detail: members.detail,
+            },
+            members: descriptors,
+        }
+    }
+
+    fn record_membership_init_metrics(&mut self, membership_init: &MembershipInitResult) {
+        self.metric_span(
+            "membership_descriptor_write",
+            "completed",
+            None,
+            None,
+            membership_init.descriptor_write.start_us,
+            membership_init.descriptor_write.end_us,
+            None,
+            None,
+            None,
+            Some(membership_init.descriptor_write.detail.clone()),
+        );
+        self.metric_span(
+            "membership_directory_read",
+            "completed",
+            None,
+            None,
+            membership_init.membership_list.start_us,
+            membership_init.membership_list.end_us,
+            None,
+            None,
+            None,
+            Some(membership_init.membership_list.detail.clone()),
+        );
     }
 
     async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
@@ -532,34 +750,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn read_persistent_replica(&mut self) -> Option<PersistentReplica<T>> {
-        let start = now_micros();
-        let result = self
-            .object_storage_client
-            .read_persistent_replica()
-            .await
-            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"));
-        let end = now_micros();
-        let detail = if result.is_some() {
-            "restored_existing_snapshot".to_string()
-        } else {
-            "persistent_snapshot_missing".to_string()
-        };
-        self.metric_span(
-            "persistent_state_fetch",
-            "completed",
-            None,
-            None,
-            start,
-            end,
-            None,
-            None,
-            None,
-            Some(detail),
-        );
-        result
-    }
-
     async fn write_initial_persistent_replica(&mut self) {
         let persistent_replica = PersistentReplica {
             local_state: self.crdt.read().await.clone(),
@@ -584,28 +774,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             None,
             None,
             Some("initial_snapshot".to_string()),
-        );
-    }
-
-    async fn push_replica_descriptor(&mut self, gc_marker: Option<Counter>) {
-        let descriptor = self.replica_descriptor().await;
-        let start = now_micros();
-        self.object_storage_client
-            .write_membership_descriptor(descriptor)
-            .await
-            .unwrap_or_else(|error| panic!("Failed to create replica descriptor: {error}"));
-        let end = now_micros();
-        self.metric_span(
-            "membership_descriptor_write",
-            "completed",
-            None,
-            gc_marker,
-            start,
-            end,
-            None,
-            None,
-            None,
-            Some(descriptor.to_string()),
         );
     }
 
@@ -1224,6 +1392,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         shutdown_sender
     }
 
+    pub fn take_startup_metrics_receiver(&mut self) -> oneshot::Receiver<StartupMetrics> {
+        let (startup_metrics_sender, startup_metrics_receiver) =
+            oneshot::channel::<StartupMetrics>();
+        self.startup_metrics_sender = Some(startup_metrics_sender);
+        startup_metrics_receiver
+    }
+
     async fn persist_durable_snapshot(&self) {
         let snapshot = PersistentReplica {
             local_state: self.crdt.read().await.clone(),
@@ -1257,7 +1432,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         peer_pid: Option<Pid>,
         gc_marker: Option<Counter>,
         detail: Option<String>,
-    ) {
+    ) -> u128 {
         let timestamp_us = now_micros();
         self.write_metric(MetricRecord {
             source: "server".to_string(),
@@ -1280,6 +1455,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             status_code: None,
             latency_us: None,
         });
+        timestamp_us
     }
 
     fn metric_span(

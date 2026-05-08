@@ -1,0 +1,7 @@
+source,event,phase,timestamp_us,replica_pid,peer_pid,gc_marker,sent_us,received_us,start_us,end_us,insert_count,delete_count,detail,client_id,operation,value,status_code,latency_us
+server,replica_init,start,1778233457368715,1,,,,,,,,,,,,,,
+server,persistent_state_fetch,completed,1778233457428961,1,,,,,1778233457368734,1778233457428961,,,restored_existing_snapshot,,,,,60227
+server,membership_descriptor_write,completed,1778233457436379,1,,,,,1778233457369018,1778233457436379,,,"1,127.0.0.1:19081,0",,,,,67361
+server,membership_directory_read,completed,1778233457459665,1,,,,,1778233457436386,1778233457459665,,,init:1 descriptors,,,,,23279
+server,replica_init,completed,1778233457459742,1,,,,,,,,,,,,,,
+server,membership_directory_read,completed,1778233458388138,1,,,,,1778233458369771,1778233458388138,,,poll:1 descriptors,,,,,18367

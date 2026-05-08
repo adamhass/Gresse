@@ -1,0 +1,11 @@
+[2026-05-08T08:57:30.992Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-05-08T08:57:30.992Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18082
+[2026-05-08T08:57:31.328Z INFO  gresse::replica] replica 2 initiating runtime at http=127.0.0.1:18082 internal=127.0.0.1:19082
+[2026-05-08T08:57:31.389Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=get, object_path=cold-start/persistent.json
+[2026-05-08T08:57:31.447Z INFO  gresse::replica] replica 2 discovered 2 membership descriptors during init
+[2026-05-08T08:57:31.447Z INFO  gresse::replica] replica 2 startup completed
+[2026-05-08T08:57:31.447Z INFO  gresse::replica] shutdown signal received for replica 2
+[2026-05-08T08:57:31.447Z INFO  gresse::replica] replica 2 shutting down with 0 connected writers
+[2026-05-08T08:57:31.503Z INFO  gresse::http_server] http server received shutdown signal
+[2026-05-08T08:57:31.503Z INFO  gresse::http_server] http server shutdown complete
+[2026-05-08T08:57:31.503Z INFO  gresse::network] network manager for replica 2 shutdown complete

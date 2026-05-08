@@ -292,9 +292,18 @@ impl ObjectStorageClient {
 }
 
 fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageError> {
-    let mut builder = AmazonS3Builder::from_env()
-        .with_region(config.region.clone())
-        .with_bucket_name(config.bucket.clone());
+    let use_explicit_static_credentials = config.access_key.is_some() && config.secret_key.is_some();
+
+    // Fast path for MinIO/S3-compatible benchmarks: when the caller already provides
+    // endpoint + static credentials explicitly, avoid scanning the full AWS env/provider
+    // chain during client construction. Keep the generic AWS path intact for later S3 runs.
+    let mut builder = if use_explicit_static_credentials {
+        AmazonS3Builder::new()
+    } else {
+        AmazonS3Builder::from_env()
+    }
+    .with_region(config.region.clone())
+    .with_bucket_name(config.bucket.clone());
 
     if let Some(endpoint) = config
         .url
@@ -306,17 +315,20 @@ fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageE
             .with_allow_http(endpoint.starts_with("http://"));
     }
 
-    if let Some(profile_credentials) = resolve_profile_credentials(config)? {
-        builder = builder
-            .with_access_key_id(profile_credentials.access_key_id)
-            .with_secret_access_key(profile_credentials.secret_access_key);
-        if let Some(session_token) = profile_credentials.session_token {
-            builder = builder.with_token(session_token);
+    if !use_explicit_static_credentials {
+        if let Some(profile_credentials) = resolve_profile_credentials(config)? {
+            builder = builder
+                .with_access_key_id(profile_credentials.access_key_id)
+                .with_secret_access_key(profile_credentials.secret_access_key);
+            if let Some(session_token) = profile_credentials.session_token {
+                builder = builder.with_token(session_token);
+            }
         }
     }
 
     if let Some(access_key) = config.access_key.clone() {
-        builder = builder.with_access_key_id(access_key);
+        builder = builder
+            .with_access_key_id(access_key);
     }
     if let Some(secret_key) = config.secret_key.clone() {
         builder = builder.with_secret_access_key(secret_key);

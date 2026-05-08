@@ -444,12 +444,12 @@ class BenchmarkRun:
             self.start_replica_ids(start_ids)
 
 
-def build_binary(cargo_profile: str) -> Path:
-    command = ["cargo", "build", "--bin", "orset_bench_replica"]
+def build_binary(cargo_profile: str, binary_name: str = "orset_bench_replica") -> Path:
+    command = ["cargo", "build", "--bin", binary_name]
     if cargo_profile == "release":
         command.append("--release")
     subprocess.run(command, check=True)
-    return (Path("target") / cargo_profile / "orset_bench_replica").resolve()
+    return (Path("target") / cargo_profile / binary_name).resolve()
 
 
 def prepare_result_dir(result_dir: Path) -> None:
@@ -493,6 +493,40 @@ def reset_s3_prefixes(config: BenchmarkConfig) -> None:
         stderr=subprocess.DEVNULL,
         env=env,
     )
+    subprocess.run(
+        membership_command,
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+
+
+def reset_membership_prefix(config: BenchmarkConfig) -> None:
+    membership_uri = f"s3://{config.bucket}/{config.membership_path}"
+    aws_base_command = ["aws"]
+    if config.object_storage_url:
+        aws_base_command.extend(["--endpoint-url", config.object_storage_url])
+
+    env = os.environ.copy()
+    if config.object_storage_access_key:
+        env["AWS_ACCESS_KEY_ID"] = config.object_storage_access_key
+    if config.object_storage_secret_key:
+        env["AWS_SECRET_ACCESS_KEY"] = config.object_storage_secret_key
+    if config.object_storage_session_token:
+        env["AWS_SESSION_TOKEN"] = config.object_storage_session_token
+
+    membership_command = aws_base_command + [
+        "s3",
+        "rm",
+        membership_uri,
+        "--recursive",
+        "--region",
+        config.region,
+    ]
+    if not config.object_storage_url:
+        membership_command.extend(["--profile", config.aws_profile])
+
     subprocess.run(
         membership_command,
         check=False,
