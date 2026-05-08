@@ -1,0 +1,25 @@
+[2026-04-30T14:40:54.192Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T14:40:54.193Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18481
+[2026-04-30T14:40:54.201Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18481 internal=127.0.0.1:19481
+[2026-04-30T14:40:54.262Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/run_01/replicas_4/membership/1,127.0.0.1:19481,0
+[2026-04-30T14:40:54.425Z INFO  gresse::replica] replica 1 discovered 1 membership descriptors during init
+[2026-04-30T14:40:54.425Z INFO  gresse::replica] replica 1 startup completed
+[2026-04-30T14:40:56.257Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 2, address: 127.0.0.1:19482, final_counter: None }
+[2026-04-30T14:40:56.258Z INFO  gresse::network] replica 1 completed network handshake with replica 2
+[2026-04-30T14:40:56.258Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 2
+[2026-04-30T14:40:56.258Z INFO  gresse::replica] replica 1 established peer replication connection with replica 2
+[2026-04-30T14:40:57.257Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 3, address: 127.0.0.1:19483, final_counter: None }
+[2026-04-30T14:40:57.257Z INFO  gresse::network] replica 1 completed network handshake with replica 3
+[2026-04-30T14:40:57.257Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 3
+[2026-04-30T14:40:57.258Z INFO  gresse::replica] replica 1 established peer replication connection with replica 3
+[2026-04-30T14:40:58.257Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 4, address: 127.0.0.1:19484, final_counter: None }
+[2026-04-30T14:40:58.257Z INFO  gresse::network] replica 1 completed network handshake with replica 4
+[2026-04-30T14:40:58.257Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 4
+[2026-04-30T14:40:58.259Z INFO  gresse::replica] replica 1 established peer replication connection with replica 4
+[2026-04-30T14:42:06.500Z INFO  gresse::replica] replica 1 gc departed_pids=None updated_stable=DotSet { set: {2: 13257, 4: 12126, 3: 15904, 1: 15515} }
+[2026-04-30T14:42:06.607Z INFO  gresse::replica] replica 1 completed gc round
+[2026-04-30T14:42:28.353Z INFO  gresse::replica] shutdown signal received for replica 1
+[2026-04-30T14:42:28.353Z INFO  gresse::replica] replica 1 shutting down with 3 connected writers
+[2026-04-30T14:42:28.484Z INFO  gresse::network] network manager for replica 1 shutdown complete
+[2026-04-30T14:42:28.484Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T14:42:28.484Z INFO  gresse::http_server] http server shutdown complete

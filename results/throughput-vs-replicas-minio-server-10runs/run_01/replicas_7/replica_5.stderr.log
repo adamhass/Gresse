@@ -1,0 +1,39 @@
+[2026-04-30T14:46:01.369Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T14:46:01.369Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18785
+[2026-04-30T14:46:01.377Z INFO  gresse::replica] replica 5 initiating runtime at http=127.0.0.1:18785 internal=127.0.0.1:19785
+[2026-04-30T14:46:01.437Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/run_01/replicas_7/membership/5,127.0.0.1:19785,0
+[2026-04-30T14:46:01.514Z INFO  gresse::network] replica 5 completed network handshake with replica 2
+[2026-04-30T14:46:01.514Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 2
+[2026-04-30T14:46:01.546Z INFO  gresse::replica] replica 5 discovered 5 membership descriptors during init
+[2026-04-30T14:46:01.546Z INFO  gresse::replica] replica 5 startup completed
+[2026-04-30T14:46:01.546Z INFO  gresse::replica] replica 5 established peer replication connection with replica 2
+[2026-04-30T14:46:01.793Z INFO  gresse::network] replica 5 completed network handshake with replica 3
+[2026-04-30T14:46:01.793Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 3
+[2026-04-30T14:46:01.793Z INFO  gresse::replica] replica 5 established peer replication connection with replica 3
+[2026-04-30T14:46:02.081Z INFO  gresse::network] replica 5 completed network handshake with replica 4
+[2026-04-30T14:46:02.081Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 4
+[2026-04-30T14:46:02.081Z INFO  gresse::replica] replica 5 established peer replication connection with replica 4
+[2026-04-30T14:46:02.289Z INFO  gresse::network] replica 5 completed network handshake with replica 1
+[2026-04-30T14:46:02.289Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 1
+[2026-04-30T14:46:02.289Z INFO  gresse::replica] replica 5 established peer replication connection with replica 1
+[2026-04-30T14:46:03.434Z INFO  gresse::network] replica 5 discovered network member NetworkMember { pid: 6, address: 127.0.0.1:19786, final_counter: None }
+[2026-04-30T14:46:03.434Z INFO  gresse::network] replica 5 completed network handshake with replica 6
+[2026-04-30T14:46:03.434Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 6
+[2026-04-30T14:46:03.435Z INFO  gresse::replica] replica 5 established peer replication connection with replica 6
+[2026-04-30T14:46:04.433Z INFO  gresse::network] replica 5 discovered network member NetworkMember { pid: 7, address: 127.0.0.1:19787, final_counter: None }
+[2026-04-30T14:46:04.434Z INFO  gresse::network] replica 5 completed network handshake with replica 7
+[2026-04-30T14:46:04.434Z INFO  gresse::network] replica 5 registered bidirectional network channel for replica 7
+[2026-04-30T14:46:04.435Z INFO  gresse::replica] replica 5 established peer replication connection with replica 7
+[2026-04-30T14:47:34.443Z INFO  gresse::replica] replica 5 observed shutdown descriptor for replica 1 with final counter Some(15554)
+[2026-04-30T14:47:35.436Z INFO  gresse::replica] replica 5 observed shutdown descriptor for replica 1 with final counter Some(15554)
+[2026-04-30T14:47:35.561Z INFO  gresse::replica] replica 5 observed shutdown descriptor for replica 2 with final counter Some(13346)
+[2026-04-30T14:47:35.713Z INFO  gresse::replica] replica 5 observed shutdown descriptor for replica 3 with final counter Some(13047)
+
+thread 'tokio-rt-worker' (75002) panicked at /home/adamhass/Gresse/src/network.rs:261:22:
+Failed to send message: Os { code: 32, kind: BrokenPipe, message: "Broken pipe" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[2026-04-30T14:47:35.921Z INFO  gresse::replica] shutdown signal received for replica 5
+[2026-04-30T14:47:35.921Z INFO  gresse::replica] replica 5 shutting down with 3 connected writers
+[2026-04-30T14:47:36.067Z INFO  gresse::network] network manager for replica 5 shutdown complete
+[2026-04-30T14:47:36.067Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T14:47:36.067Z INFO  gresse::http_server] http server shutdown complete

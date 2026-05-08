@@ -1,0 +1,13 @@
+[2026-04-30T14:36:08.292Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T14:36:08.292Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18181
+[2026-04-30T14:36:08.306Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18181 internal=127.0.0.1:19181
+[2026-04-30T14:36:08.365Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/run_01/replicas_1/membership/1,127.0.0.1:19181,0
+[2026-04-30T14:36:08.528Z INFO  gresse::replica] replica 1 discovered 1 membership descriptors during init
+[2026-04-30T14:36:08.528Z INFO  gresse::replica] replica 1 startup completed
+[2026-04-30T14:36:21.685Z INFO  gresse::replica] replica 1 gc departed_pids=None updated_stable=DotSet { set: {} }
+[2026-04-30T14:36:21.781Z INFO  gresse::replica] replica 1 completed gc round
+[2026-04-30T14:37:38.544Z INFO  gresse::replica] shutdown signal received for replica 1
+[2026-04-30T14:37:38.544Z INFO  gresse::replica] replica 1 shutting down with 0 connected writers
+[2026-04-30T14:37:38.678Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T14:37:38.678Z INFO  gresse::http_server] http server shutdown complete
+[2026-04-30T14:37:38.679Z INFO  gresse::network] network manager for replica 1 shutdown complete

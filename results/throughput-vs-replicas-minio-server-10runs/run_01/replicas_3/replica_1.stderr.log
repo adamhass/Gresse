@@ -1,0 +1,19 @@
+[2026-04-30T14:39:16.950Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-04-30T14:39:16.950Z INFO  gresse::http_server] listening for HTTP on 127.0.0.1:18381
+[2026-04-30T14:39:16.960Z INFO  gresse::replica] replica 1 initiating runtime at http=127.0.0.1:18381 internal=127.0.0.1:19381
+[2026-04-30T14:39:17.020Z INFO  gresse::object_storage] object storage connection established: bucket=gresse, region=us-east-1, endpoint=http://127.0.0.1:9000, first_operation=put-create, object_path=experiment1/run_01/replicas_3/membership/1,127.0.0.1:19381,0
+[2026-04-30T14:39:17.183Z INFO  gresse::replica] replica 1 discovered 1 membership descriptors during init
+[2026-04-30T14:39:17.183Z INFO  gresse::replica] replica 1 startup completed
+[2026-04-30T14:39:19.015Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 2, address: 127.0.0.1:19382, final_counter: None }
+[2026-04-30T14:39:19.016Z INFO  gresse::network] replica 1 completed network handshake with replica 2
+[2026-04-30T14:39:19.016Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 2
+[2026-04-30T14:39:19.016Z INFO  gresse::replica] replica 1 established peer replication connection with replica 2
+[2026-04-30T14:39:20.016Z INFO  gresse::network] replica 1 discovered network member NetworkMember { pid: 3, address: 127.0.0.1:19383, final_counter: None }
+[2026-04-30T14:39:20.016Z INFO  gresse::network] replica 1 completed network handshake with replica 3
+[2026-04-30T14:39:20.016Z INFO  gresse::network] replica 1 registered bidirectional network channel for replica 3
+[2026-04-30T14:39:20.017Z INFO  gresse::replica] replica 1 established peer replication connection with replica 3
+[2026-04-30T14:40:49.828Z INFO  gresse::replica] shutdown signal received for replica 1
+[2026-04-30T14:40:49.828Z INFO  gresse::replica] replica 1 shutting down with 2 connected writers
+[2026-04-30T14:40:49.936Z INFO  gresse::network] network manager for replica 1 shutdown complete
+[2026-04-30T14:40:49.936Z INFO  gresse::http_server] http server received shutdown signal
+[2026-04-30T14:40:49.936Z INFO  gresse::http_server] http server shutdown complete
