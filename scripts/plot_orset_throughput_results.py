@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 POINTS_PER_INCH = 72.0
 FIGURE_WIDTH_IN = 252.0 / POINTS_PER_INCH
-FIGURE_HEIGHT_IN = 180.0 / POINTS_PER_INCH
+FIGURE_HEIGHT_IN = 120.0 / POINTS_PER_INCH
 DEFAULT_RESULT_ROOT = Path("results/throughput-vs-replicas-minio-server")
 DEFAULT_OUTPUT_DIR = Path("results/plots")
 
@@ -265,8 +265,17 @@ def write_sample_csvs(
 def plot_throughput_vs_replicas_summary(
     output_path: Path,
     summary_rows: list[dict[str, object]],
+    aggregate_summary_rows: list[dict[str, object]],
 ) -> None:
     configure_matplotlib()
+
+    # Build CI lookup from windowed aggregate data.
+    ci_by_series: dict[str, dict[int, float]] = {}
+    for row in aggregate_summary_rows:
+        ci_by_series.setdefault(str(row["series"]), {})[int(row["replica_count"])] = float(
+            row["ci95"]
+        )
+
     x_values = [int(row["replicas"]) for row in summary_rows]
     combined_values = [
         float(row["combined_stable_throughput_ops_per_sec"]) for row in summary_rows
@@ -274,25 +283,33 @@ def plot_throughput_vs_replicas_summary(
     average_values = [
         float(row["average_replica_stable_throughput_ops_per_sec"]) for row in summary_rows
     ]
+    combined_ci = [ci_by_series.get("Combined throughput", {}).get(x, 0.0) for x in x_values]
+    per_replica_ci = [
+        ci_by_series.get("Per-replica throughput", {}).get(x, 0.0) for x in x_values
+    ]
 
     fig, ax = plt.subplots(figsize=(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN))
     fig.subplots_adjust(left=0.22, right=0.98, bottom=0.23, top=0.97)
-    ax.plot(
+    ax.errorbar(
         x_values,
         combined_values,
+        yerr=combined_ci,
         color="#0f766e",
         marker="o",
         linewidth=1.5,
         markersize=3.5,
+        capsize=2.5,
         label="Combined",
     )
-    ax.plot(
+    ax.errorbar(
         x_values,
         average_values,
+        yerr=per_replica_ci,
         color="#b45309",
         marker="o",
         linewidth=1.5,
         markersize=3.5,
+        capsize=2.5,
         label="Per replica",
     )
     ax.set_xlabel("Replica count")
@@ -412,7 +429,7 @@ def generate_plots(
     )
 
     summary_plot_pdf = output_dir / f"{dataset_name}_throughput_vs_replicas.pdf"
-    plot_throughput_vs_replicas_summary(summary_plot_pdf, summary_rows)
+    plot_throughput_vs_replicas_summary(summary_plot_pdf, summary_rows, aggregate_summary_rows)
 
     error_bar_plot_pdf = output_dir / f"{dataset_name}_throughput_vs_replicas_error_bars.pdf"
     plot_error_bars(error_bar_plot_pdf, aggregate_summary_rows)
