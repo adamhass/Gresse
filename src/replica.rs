@@ -882,7 +882,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         };
 
         let local_version_vector = { self.crdt.read().await.get_version_vector().clone() };
-        let (delta, _, _) = shutdown_state.get_delta(&local_version_vector);
+        let delta = shutdown_state.get_delta(&local_version_vector);
         if delta.list.is_empty() {
             let current_version_vector = { self.crdt.read().await.get_version_vector().clone() };
             self.crdt_wrapper
@@ -921,7 +921,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             let version_vector_before = writable.get_version_vector().clone();
             let mut candidate = writable.clone();
             let response = candidate.mutate(mutation);
-            let (delta_group, _, _) = candidate.get_delta(&version_vector_before);
+            let delta_group = candidate.get_delta(&version_vector_before);
             self.persist_delta_before_apply(&delta_group);
             let start = now_micros();
             writable.merge_delta_group(delta_group);
@@ -955,10 +955,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 }
                 let delta_len = delta.list.len();
                 self.persist_delta_before_apply(&delta);
-                let (start, (insert_count, delete_count)) = {
+                let start = now_micros();
+                {
                     let mut writable = self.crdt.write().await;
-                    let start = now_micros();
-                    (start, writable.merge_delta_group(delta))
+                    writable.merge_delta_group(delta);
                 };
                 debug!(
                     "replica {} merging remote delta group with {} entries",
@@ -972,15 +972,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     gc_marker,
                     start,
                     end,
-                    Some(insert_count),
-                    Some(delete_count),
+                    None,
+                    None,
                     Some(received),
                     Some(format!("delta_len={delta_len},sent_us={sent}")),
                 );
             }
             ReplicaMessage::<T>::VersionVector(pid, vv, sent) => {
                 self.crdt_wrapper.version_matrix.update(pid, vv.clone());
-                let (start, (delta, insert_count, delete_count)) = {
+                let (start, delta) = {
                     let readable = self.crdt.read().await;
                     let start = now_micros();
                     (start, readable.get_delta(&vv))
@@ -1006,8 +1006,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     gc_marker,
                     start,
                     end,
-                    Some(insert_count),
-                    Some(delete_count),
+                    None,
+                    None,
                     Some(received),
                     Some(format!("delta_len={delta_len},sent_us={sent}")),
                 );
@@ -1537,7 +1537,7 @@ mod tests {
         candidate
             .mutate(OrSetMutation::Insert("banana".into()))
             .unwrap();
-        let (delta_group, _, _) = candidate.get_delta(&version_vector_before);
+        let delta_group = candidate.get_delta(&version_vector_before);
 
         journal
             .append_delta_group::<ORSet<String>>(&delta_group)

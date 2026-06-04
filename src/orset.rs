@@ -202,27 +202,19 @@ where
         &self.version_vector
     }
 
-    fn get_delta(&self, version_vector: &DotSet) -> (DeltaGroup<Self::Delta>, u16, u16) {
+    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta> {
         let list = self
             .delta_log
             .get_all_greater_iter(version_vector)
             .map(|(_, delta)| delta.clone())
             .collect::<Vec<_>>();
-        let change_count = list.len() as u16;
-        (
-            DeltaGroup {
-                list,
-                version_vector: self.version_vector.clone(),
-            },
-            change_count,
-            0,
-        )
+        DeltaGroup {
+            list,
+            version_vector: self.version_vector.clone(),
+        }
     }
 
-    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta>) -> (u16, u16) {
-        let mut insertions = 0;
-        let mut removals = 0;
-
+    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta>) {
         for delta in delta.list {
             if self.version_vector.contains(&delta.dot) {
                 continue;
@@ -232,20 +224,16 @@ where
             match &delta.change {
                 OrSetChange::Insert { element } => {
                     self.insert_dot(element.clone(), delta.dot);
-                    insertions += 1;
                 }
                 OrSetChange::Remove {
                     element,
                     removed_dots,
                 } => {
                     self.remove_dots(element, removed_dots);
-                    removals += removed_dots.len() as u16;
                 }
             }
             self.delta_log.insert(delta.dot, delta);
         }
-
-        (insertions, removals)
     }
 
     fn gc(&mut self, version_vector: DotSet, departed_pids: Option<Vec<Pid>>) {
