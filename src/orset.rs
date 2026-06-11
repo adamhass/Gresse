@@ -150,6 +150,7 @@ where
     type Query = OrSetQuery<T>;
     type Mutation = OrSetMutation<T>;
     type ClientResponse = Result<OrSetResponse<T>, OrSetError>;
+    type SideEffects = ();
     type Error = OrSetError;
 
     fn query(&self, query: Self::Query) -> Self::ClientResponse {
@@ -202,7 +203,7 @@ where
         &self.version_vector
     }
 
-    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta> {
+    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta, ()> {
         let list = self
             .delta_log
             .get_all_greater_iter(version_vector)
@@ -211,10 +212,11 @@ where
         DeltaGroup {
             list,
             version_vector: self.version_vector.clone(),
+            side_effects: None,
         }
     }
 
-    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta>) {
+    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta, ()>) {
         for delta in delta.list {
             if self.version_vector.contains(&delta.dot) {
                 continue;
@@ -318,6 +320,7 @@ mod tests {
         set.merge_delta_group(DeltaGroup {
             list: vec![replica_two_delta],
             version_vector: DotSet::new(),
+            side_efects: None,
         });
 
         let mut stable = DotSet::new();

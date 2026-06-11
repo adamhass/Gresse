@@ -172,7 +172,7 @@ impl DurabilityJournal {
 
     fn append_delta_group<T: CRDT + Debug + Clone>(
         &self,
-        delta_group: &DeltaGroup<T::Delta>,
+        delta_group: &DeltaGroup<T::Delta, T::SideEffects>,
     ) -> Result<(), DurabilityError> {
         self.append_record(&RawDurabilityRecord {
             record_type: "delta_group".to_string(),
@@ -1416,7 +1416,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .unwrap_or_else(|error| panic!("Failed to append durable snapshot: {error}"));
     }
 
-    fn persist_delta_before_apply(&self, delta_group: &DeltaGroup<T::Delta>) {
+    fn persist_delta_before_apply(&self, delta_group: &DeltaGroup<T::Delta, T::SideEffects>) {
         let Some(journal) = &self.durability_journal else {
             return;
         };

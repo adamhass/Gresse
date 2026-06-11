@@ -18,6 +18,7 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
     type Mutation: CRDTData;
     type ClientResponse: CRDTData;
     type Error: CRDTData + Error;
+    type SideEffects: CRDTData;
 
     /// Queries the state
     fn query(&self, query: Self::Query) -> Self::ClientResponse;
@@ -26,7 +27,7 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
     ///
     /// CRDTs that include the local PID in their dots should store this value.
     /// CRDTs that do not need a local PID can use the default no-op implementation.
-    fn set_pid(&mut self, _pid: Pid);
+    fn set_pid(&mut self, _pid: Pid) {}
 
     /// Mutates the state, records the delta and returns the client response
     fn mutate(&mut self, mutation: Self::Mutation) -> Self::ClientResponse;
@@ -37,24 +38,26 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
     /// Returns the deltas between the current state and the state represented by the given version vector
     /// together with the number of insertions and removals in this delta
     /// Only needs to be implemented for pull_based_delta_mutation
-    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta>;
+    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta, Self::SideEffects>;
 
     /// Applies the remote delta to the local state
     /// Returns number of insertions and number of removals
-    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta>);
+    fn merge_delta_group(&mut self, delta: DeltaGroup<Self::Delta, Self::SideEffects>);
 
     /// Garbage-collects local metadata covered by the supplied version vector.
     ///
     /// CRDTs that keep causal histories can override this to drop deltas that
     /// are known to be durable or observed. CRDTs that do not need garbage
     /// collection can use the default no-op implementation.
-    fn gc(&mut self, _version_vector: DotSet, _departed_pids: Option<Vec<Pid>>);
+    fn gc(&mut self, _version_vector: DotSet, _departed_pids: Option<Vec<Pid>>) {}
 }
 
 /// Delta group is a set of Deltas that are causally ordered
+/// 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeltaGroup<D> {
+pub struct DeltaGroup<D, E> {
     pub list: Vec<D>,
+    pub side_effects: Option<E>,
     pub version_vector: DotSet,
 }
 
@@ -66,7 +69,7 @@ pub struct GcMarker {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReplicaMessage<T: CRDT + Debug + Clone> {
-    DeltaGroup(DeltaGroup<T::Delta>, Option<GcMarker>, u128),
+    DeltaGroup(DeltaGroup<T::Delta, T::SideEffects>, Option<GcMarker>, u128),
     VersionVector(Pid, DotSet, u128),
 }
 
