@@ -320,7 +320,7 @@ mod tests {
         set.merge_delta_group(DeltaGroup {
             list: vec![replica_two_delta],
             version_vector: DotSet::new(),
-            side_efects: None,
+            side_effects: None,
         });
 
         let mut stable = DotSet::new();

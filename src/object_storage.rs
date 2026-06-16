@@ -1,6 +1,7 @@
 use futures::future::try_join_all;
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
+use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::{Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, UpdateVersion};
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
@@ -16,10 +18,8 @@ use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
 
 pub struct ObjectStorageClient {
-    bucket: AmazonS3,
-    bucket_name: String,
-    region: String,
-    endpoint_url: Option<String>,
+    store: Arc<dyn ObjectStore>,
+    backend: StorageBackend,
     persistent_replica_path: String,
     membership_directory_path: String,
     membership_descriptors: RwLock<Vec<ReplicaDescriptor>>,
@@ -28,13 +28,11 @@ pub struct ObjectStorageClient {
 
 impl ObjectStorageClient {
     pub fn new(config: ObjectStorageConfig) -> Result<Self, ObjectStorageError> {
-        let bucket = build_bucket(&config)?;
+        let backend = StorageBackend::from_config(&config)?;
 
         Ok(ObjectStorageClient {
-            bucket,
-            bucket_name: config.bucket,
-            region: config.region,
-            endpoint_url: config.url,
+            store: backend.store(),
+            backend,
             persistent_replica_path: config.persistent_replica_path,
             membership_directory_path: config.membership_directory_path,
             membership_descriptors: RwLock::new(Vec::new()),
@@ -145,10 +143,10 @@ impl ObjectStorageClient {
 
     pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, ObjectStorageError> {
         let prefix_path = Path::from(prefix);
-        let mut list_stream = self.bucket.list(Some(&prefix_path));
+        let mut list_stream = self.store.list(Some(&prefix_path));
         let mut file_names = Vec::new();
         while let Some(meta) = list_stream.next().await.transpose()? {
-            file_names.push(meta.location.to_string())
+            file_names.push(meta.location.to_string());
         }
         self.log_connection_established_once("list", prefix);
 
@@ -163,10 +161,7 @@ impl ObjectStorageClient {
         let serialized_data = serde_json::to_string(data)?;
         let path = Path::from(file_path);
         let payload = PutPayload::from(serialized_data);
-        let result = self.bucket.put(&path, payload).await;
-        if let Err(content) = result {
-            return Err(ObjectStorageError::S3Error(content));
-        }
+        self.store.put(&path, payload).await?;
         self.log_connection_established_once("put", file_path);
         Ok(())
     }
@@ -176,14 +171,14 @@ impl ObjectStorageClient {
         file_path: &str,
     ) -> Result<(T, UpdateVersion), ObjectStorageError> {
         let path = Path::from(file_path);
-        let result = self.bucket.get(&path).await;
+        let result = self.store.get(&path).await;
         if let Err(error) = result {
             return match error {
-                Error::NotFound { path: _, source: _ } => {
+                Error::NotFound { .. } => {
                     self.log_connection_established_once("get", file_path);
                     Err(ObjectStorageError::FileNotFound)
                 }
-                _ => Err(ObjectStorageError::S3Error(error)),
+                _ => Err(ObjectStorageError::StoreError(error)),
             };
         }
         let response = result?;
@@ -202,10 +197,7 @@ impl ObjectStorageClient {
     #[allow(unused)]
     pub async fn delete_data(&self, file_path: &str) -> Result<(), ObjectStorageError> {
         let path = Path::from(file_path);
-        let result = self.bucket.delete(&path).await;
-        if let Err(content) = result {
-            return Err(ObjectStorageError::S3Error(content));
-        }
+        self.store.delete(&path).await?;
         self.log_connection_established_once("delete", file_path);
         Ok(())
     }
@@ -217,7 +209,7 @@ impl ObjectStorageClient {
         let path = Path::from(file_path);
         let payload = PutPayload::from(Vec::new());
         let result = self
-            .bucket
+            .store
             .put_opts(&path, payload, PutMode::Create.into())
             .await;
         match result {
@@ -225,15 +217,11 @@ impl ObjectStorageClient {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(true)
             }
-            Err(Error::AlreadyExists { .. }) => {
+            Err(Error::AlreadyExists { .. }) | Err(Error::Precondition { .. }) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(false)
             }
-            Err(Error::Precondition { .. }) => {
-                self.log_connection_established_once("put-create", file_path);
-                Ok(false)
-            }
-            Err(error) => Err(ObjectStorageError::S3Error(error)),
+            Err(error) => Err(ObjectStorageError::StoreError(error)),
         }
     }
 
@@ -246,7 +234,7 @@ impl ObjectStorageClient {
         let serialized_data = serde_json::to_string(data)?;
         let payload = PutPayload::from(serialized_data);
         let result = self
-            .bucket
+            .store
             .put_opts(&path, payload, PutMode::Create.into())
             .await;
         match result {
@@ -254,15 +242,11 @@ impl ObjectStorageClient {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(true)
             }
-            Err(Error::AlreadyExists { .. }) => {
+            Err(Error::AlreadyExists { .. }) | Err(Error::Precondition { .. }) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(false)
             }
-            Err(Error::Precondition { .. }) => {
-                self.log_connection_established_once("put-create", file_path);
-                Ok(false)
-            }
-            Err(error) => Err(ObjectStorageError::S3Error(error)),
+            Err(error) => Err(ObjectStorageError::StoreError(error)),
         }
     }
 
@@ -272,27 +256,86 @@ impl ObjectStorageClient {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
         {
-            let endpoint = self
-                .endpoint_url
-                .as_deref()
-                .unwrap_or("AWS default endpoint resolution");
-            log::info!(
-                "object storage connection established: bucket={}, region={}, endpoint={}, first_operation={}, object_path={}",
-                self.bucket_name,
-                self.region,
-                endpoint,
-                operation,
-                object_path,
-            );
+            match &self.backend {
+                StorageBackend::S3 {
+                    bucket_name,
+                    region,
+                    endpoint_url,
+                    ..
+                } => {
+                    let endpoint = endpoint_url
+                        .as_deref()
+                        .unwrap_or("AWS default endpoint resolution");
+                    log::info!(
+                        "object storage connection established: backend=s3, bucket={}, region={}, endpoint={}, first_operation={}, object_path={}",
+                        bucket_name,
+                        region,
+                        endpoint,
+                        operation,
+                        object_path,
+                    );
+                }
+                StorageBackend::Local { root_dir, .. } => {
+                    log::info!(
+                        "object storage connection established: backend=local_fs, root_dir={}, first_operation={}, object_path={}",
+                        root_dir.display(),
+                        operation,
+                        object_path,
+                    );
+                }
+            }
         }
     }
 
-    // Optimization: Implement download_metadata with bucket.head()
+    // Optimization: Implement download_metadata with head()
     // Optimization: Cache implementation? (https://docs.rs/object_store/latest/object_store/#conditional-fetch)
 }
 
+enum StorageBackend {
+    S3 {
+        store: Arc<AmazonS3>,
+        bucket_name: String,
+        region: String,
+        endpoint_url: Option<String>,
+    },
+    Local {
+        store: Arc<LocalFileSystem>,
+        root_dir: PathBuf,
+    },
+}
+
+impl StorageBackend {
+    fn from_config(config: &ObjectStorageConfig) -> Result<Self, ObjectStorageError> {
+        if let Some(root_dir) = config.local_dir.clone() {
+            fs::create_dir_all(&root_dir)?;
+            let store = LocalFileSystem::new_with_prefix(&root_dir)
+                .map_err(|error| ObjectStorageError::ConfigurationError(error.to_string()))?;
+            return Ok(Self::Local {
+                store: Arc::new(store),
+                root_dir,
+            });
+        }
+
+        let store = Arc::new(build_bucket(config)?);
+        Ok(Self::S3 {
+            store,
+            bucket_name: config.bucket.clone(),
+            region: config.region.clone(),
+            endpoint_url: config.url.clone(),
+        })
+    }
+
+    fn store(&self) -> Arc<dyn ObjectStore> {
+        match self {
+            Self::S3 { store, .. } => store.clone(),
+            Self::Local { store, .. } => store.clone(),
+        }
+    }
+}
+
 fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageError> {
-    let use_explicit_static_credentials = config.access_key.is_some() && config.secret_key.is_some();
+    let use_explicit_static_credentials =
+        config.access_key.is_some() && config.secret_key.is_some();
 
     // Fast path for MinIO/S3-compatible benchmarks: when the caller already provides
     // endpoint + static credentials explicitly, avoid scanning the full AWS env/provider
@@ -327,8 +370,7 @@ fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageE
     }
 
     if let Some(access_key) = config.access_key.clone() {
-        builder = builder
-            .with_access_key_id(access_key);
+        builder = builder.with_access_key_id(access_key);
     }
     if let Some(secret_key) = config.secret_key.clone() {
         builder = builder.with_secret_access_key(secret_key);
@@ -454,8 +496,8 @@ pub enum ObjectStorageError {
     FileNotFound,
     #[error("Object storage configuration error: {0}")]
     ConfigurationError(String),
-    #[error("S3 error: {0}")]
-    S3Error(#[from] Error),
+    #[error("Object store error: {0}")]
+    StoreError(#[from] Error),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
     #[error("IO error: {0}")]
@@ -464,9 +506,12 @@ pub enum ObjectStorageError {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_profile_file, resolve_profile_credentials, SharedProfileCredentials};
+    use super::{
+        parse_profile_file, resolve_profile_credentials, SharedProfileCredentials, StorageBackend,
+    };
     use crate::prelude::ObjectStorageConfig;
     use std::fs;
+    use std::path::Path;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     fn temp_file_path(name: &str) -> std::path::PathBuf {
@@ -479,6 +524,7 @@ mod tests {
 
     fn test_config() -> ObjectStorageConfig {
         ObjectStorageConfig {
+            local_dir: None,
             url: None,
             region: "eu-north-1".to_string(),
             bucket: "gresse".to_string(),
@@ -552,5 +598,30 @@ mod tests {
         }
         fs::remove_file(credentials_path).expect("failed to clean up shared credentials");
         fs::remove_file(config_path).expect("failed to clean up shared config");
+    }
+
+    #[test]
+    fn creates_local_backend_from_config() {
+        let root = std::env::temp_dir().join(format!(
+            "gresse-local-store-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock drifted before unix epoch")
+                .as_nanos()
+        ));
+        let config = ObjectStorageConfig {
+            local_dir: Some(root.clone()),
+            ..test_config()
+        };
+
+        let backend = StorageBackend::from_config(&config).expect("failed to create local backend");
+        assert!(matches!(
+            backend,
+            StorageBackend::Local { root_dir, .. } if root_dir == root
+        ));
+
+        if Path::new(&root).exists() {
+            fs::remove_dir_all(root).expect("failed to clean up local backend root");
+        }
     }
 }

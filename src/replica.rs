@@ -283,12 +283,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     /// - `GRESSE_HTTP_PORT`
     /// - `GRESSE_INTERNAL_PORT`
     /// - `GRESSE_RESULT_DIR_PATH`
-    /// - `GRESSE_OBJECT_STORAGE_REGION`
-    /// - `GRESSE_OBJECT_STORAGE_BUCKET`
     /// - `GRESSE_PERSISTENT_REPLICA_PATH`
     /// - `GRESSE_MEMBERSHIP_DIRECTORY_PATH`
     ///
     /// Optional:
+    /// - `GRESSE_OBJECT_STORAGE_LOCAL_DIR`, to use a shared local directory instead of S3/MinIO.
+    /// - `GRESSE_OBJECT_STORAGE_REGION`, required for S3/MinIO and defaults to `us-east-1`.
+    /// - `GRESSE_OBJECT_STORAGE_BUCKET`, required for S3/MinIO and defaults to `gresse`.
     /// - `GRESSE_OBJECT_STORAGE_URL`, for S3-compatible custom endpoints such as MinIO.
     /// - `GRESSE_OBJECT_STORAGE_ACCESS_KEY`
     /// - `GRESSE_OBJECT_STORAGE_SECRET_KEY`
@@ -513,9 +514,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let persistent_state_fetch_completed_us;
 
         if self.recovered_from_durability {
-            membership_init =
-                Self::register_and_list_members_during_init(&self.object_storage_client, descriptor)
-                    .await;
+            membership_init = Self::register_and_list_members_during_init(
+                &self.object_storage_client,
+                descriptor,
+            )
+            .await;
             self.record_membership_init_metrics(&membership_init);
             info!(
                 "replica {} restored local state from durability journal before startup",
@@ -546,7 +549,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                         }
                     }
                 ),
-                Self::register_and_list_members_during_init(&self.object_storage_client, descriptor)
+                Self::register_and_list_members_during_init(
+                    &self.object_storage_client,
+                    descriptor
+                )
             );
 
             self.metric_span(
@@ -602,7 +608,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             let _ = startup_metrics_sender.send(StartupMetrics {
                 crdt_pid_set_us: self.startup_construction_metrics.crdt_pid_set_us,
                 http_server_ready_us: self.startup_construction_metrics.http_server_ready_us,
-                network_manager_ready_us: self.startup_construction_metrics.network_manager_ready_us,
+                network_manager_ready_us: self
+                    .startup_construction_metrics
+                    .network_manager_ready_us,
                 metric_writer_ready_us: self.startup_construction_metrics.metric_writer_ready_us,
                 object_storage_client_start_us: self
                     .startup_construction_metrics
@@ -615,9 +623,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     .expect("replica_run_start_us should be set before init"),
                 replica_init_start_us,
                 persistent_state_fetch_completed_us,
-                membership_descriptor_write_completed_us: membership_init
-                    .descriptor_write
-                    .end_us,
+                membership_descriptor_write_completed_us: membership_init.descriptor_write.end_us,
                 membership_directory_read_completed_us: membership_init.membership_list.end_us,
                 replica_init_completed_us,
             });
@@ -671,7 +677,12 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         let members = Self::timed_storage_operation(
             object_storage_client.list_membership_descriptors(),
-            |members| format!("init:{} descriptors", members.as_ref().map(Vec::len).unwrap_or(0)),
+            |members| {
+                format!(
+                    "init:{} descriptors",
+                    members.as_ref().map(Vec::len).unwrap_or(0)
+                )
+            },
         )
         .await;
         let descriptors = members

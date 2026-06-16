@@ -7,6 +7,7 @@ use gresse::replica::Replica;
 use gresse::replica_helpers::ReplicaConfig;
 use gresse::replica_helpers::ReplicaDescriptor;
 use object_store::aws::AmazonS3Builder;
+use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use object_store::ObjectStoreExt;
@@ -22,6 +23,13 @@ const DEFAULT_MINIO_REGION: &str = "us-east-1";
 const DEFAULT_MINIO_BUCKET: &str = "gresse-integration";
 const DEFAULT_MINIO_ACCESS_KEY: &str = "minioadmin";
 const DEFAULT_MINIO_SECRET_KEY: &str = "minioadmin";
+
+pub struct FilesystemHarness {
+    root_dir: PathBuf,
+    persistent_replica_path: String,
+    membership_directory_path: String,
+    result_dir: PathBuf,
+}
 
 pub struct MinioHarness {
     bucket: String,
@@ -49,9 +57,11 @@ impl Default for ReplicaTimingConfig {
 }
 
 impl MinioHarness {
-    pub async fn new() -> Self {
+    pub async fn new() -> Option<Self> {
         logging::init_for_tests();
-        ensure_minio_available().await;
+        if !minio_is_available().await {
+            return None;
+        }
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock drifted before unix epoch")
@@ -59,14 +69,14 @@ impl MinioHarness {
         let result_dir = std::env::temp_dir().join(format!("gresse-minio-test-{unique}"));
         fs::create_dir_all(&result_dir).expect("failed to create test result directory");
 
-        Self {
+        Some(Self {
             bucket: std::env::var("GRESSE_TEST_MINIO_BUCKET")
                 .unwrap_or_else(|_| DEFAULT_MINIO_BUCKET.to_string()),
             run_prefix: format!("test-runs/{unique}"),
             persistent_replica_path: format!("test-runs/{unique}/persistent.json"),
             membership_directory_path: format!("test-runs/{unique}/membership"),
             result_dir,
-        }
+        })
     }
 
     pub async fn spawn_replica<T>(
@@ -192,6 +202,7 @@ impl MinioHarness {
 
     fn object_storage_config(&self, discovery_interval: Duration) -> ObjectStorageConfig {
         ObjectStorageConfig {
+            local_dir: None,
             url: Some(env_or_default("GRESSE_TEST_MINIO_URL", DEFAULT_MINIO_URL)),
             region: env_or_default("GRESSE_TEST_MINIO_REGION", DEFAULT_MINIO_REGION),
             bucket: self.bucket.clone(),
@@ -256,6 +267,174 @@ impl MinioHarness {
     }
 }
 
+impl FilesystemHarness {
+    pub async fn new() -> Self {
+        logging::init_for_tests();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock drifted before unix epoch")
+            .as_nanos();
+        let test_root = repo_local_test_root();
+        let root_dir = test_root.join(format!("filesystem-store-{unique}"));
+        let result_dir = test_root.join(format!("filesystem-results-{unique}"));
+        fs::create_dir_all(&root_dir).expect("failed to create filesystem store root");
+        fs::create_dir_all(&result_dir).expect("failed to create test result directory");
+
+        Self {
+            root_dir,
+            persistent_replica_path: "persistent.json".to_string(),
+            membership_directory_path: "membership".to_string(),
+            result_dir,
+        }
+    }
+
+    pub async fn spawn_replica<T>(
+        &self,
+        pid: u128,
+        address: ServerAddr,
+        crdt: T,
+    ) -> TestReplicaHandle<T>
+    where
+        T: CRDT + Send + Sync + Debug + Clone + 'static,
+    {
+        self.spawn_replica_with_timing(pid, address, crdt, ReplicaTimingConfig::default())
+            .await
+    }
+
+    pub async fn spawn_replica_with_timing<T>(
+        &self,
+        pid: u128,
+        address: ServerAddr,
+        crdt: T,
+        timing: ReplicaTimingConfig,
+    ) -> TestReplicaHandle<T>
+    where
+        T: CRDT + Send + Sync + Debug + Clone + 'static,
+    {
+        let config = ReplicaConfig {
+            address,
+            sync_interval: timing.sync_interval,
+            result_dir_path: self.result_dir.clone(),
+            durability_path: None,
+            object_storage_config: self.object_storage_config(timing.discovery_interval),
+        };
+
+        let (mut replica, shutdown_sender) = Replica::with_config(pid, crdt, config).await;
+        replica.set_gc_interval(timing.gc_interval);
+        let join_handle = tokio::spawn(async move {
+            replica.run().await;
+        });
+
+        TestReplicaHandle {
+            address,
+            shutdown_sender,
+            join_handle,
+            _crdt: std::marker::PhantomData,
+        }
+    }
+
+    pub async fn wait_for_bootstrap(&self, max_wait: Duration) {
+        let store = self.verification_store();
+
+        timeout(max_wait, async {
+            loop {
+                let persistent_exists = store
+                    .get(&Path::from(self.persistent_replica_path.as_str()))
+                    .await
+                    .is_ok();
+                let membership_count = self.membership_count(&store).await;
+                if persistent_exists && membership_count > 0 {
+                    return;
+                }
+                sleep(Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for replica bootstrap artifacts");
+    }
+
+    pub async fn wait_for_membership_count(&self, expected: usize, max_wait: Duration) {
+        let store = self.verification_store();
+
+        timeout(max_wait, async {
+            loop {
+                if self.membership_count(&store).await >= expected {
+                    return;
+                }
+                sleep(Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for replica membership descriptors");
+    }
+
+    pub async fn wait_for_pid_removal(&self, pid: u128, max_wait: Duration) {
+        let store = self.verification_store();
+
+        timeout(max_wait, async {
+            loop {
+                let descriptors = self.membership_descriptors(&store).await;
+                if descriptors.iter().all(|descriptor| descriptor.pid != pid) {
+                    return;
+                }
+                sleep(Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for replica membership descriptor removal");
+    }
+
+    pub async fn cleanup(&self) {
+        if FsPath::new(&self.root_dir).exists() {
+            fs::remove_dir_all(&self.root_dir).expect("failed to remove filesystem store root");
+        }
+        if FsPath::new(&self.result_dir).exists() {
+            fs::remove_dir_all(&self.result_dir).expect("failed to remove test result directory");
+        }
+    }
+
+    fn object_storage_config(&self, discovery_interval: Duration) -> ObjectStorageConfig {
+        ObjectStorageConfig {
+            local_dir: Some(self.root_dir.clone()),
+            url: None,
+            region: "local".to_string(),
+            bucket: "local".to_string(),
+            access_key: None,
+            secret_key: None,
+            session_token: None,
+            persistent_replica_path: self.persistent_replica_path.clone(),
+            membership_directory_path: self.membership_directory_path.clone(),
+            discovery_interval,
+        }
+    }
+
+    fn verification_store(&self) -> LocalFileSystem {
+        LocalFileSystem::new_with_prefix(&self.root_dir)
+            .expect("failed to create verification object-store client")
+    }
+
+    async fn membership_count(&self, store: &LocalFileSystem) -> usize {
+        self.membership_descriptors(store).await.len()
+    }
+
+    async fn membership_descriptors(&self, store: &LocalFileSystem) -> Vec<ReplicaDescriptor> {
+        let mut membership_entries =
+            store.list(Some(&Path::from(self.membership_directory_path.as_str())));
+        let mut descriptors = Vec::new();
+        while let Some(meta) = membership_entries
+            .next()
+            .await
+            .transpose()
+            .expect("failed to list membership objects")
+        {
+            if let Ok(descriptor) = meta.location.to_string().parse::<ReplicaDescriptor>() {
+                descriptors.push(descriptor);
+            }
+        }
+        descriptors
+    }
+}
+
 pub struct TestReplicaHandle<T> {
     address: ServerAddr,
     shutdown_sender: oneshot::Sender<()>,
@@ -299,7 +478,7 @@ fn env_or_default(name: &str, default: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| default.to_string())
 }
 
-async fn ensure_minio_available() {
+async fn minio_is_available() -> bool {
     let bucket = AmazonS3Builder::new()
         .with_region(env_or_default(
             "GRESSE_TEST_MINIO_REGION",
@@ -328,8 +507,13 @@ async fn ensure_minio_available() {
         .await
         .transpose()
     {
-        panic!(
-            "MinIO integration tests require a reachable local MinIO bucket. Start it with `docker compose -f docker-compose.minio.yml up -d` and rerun `cargo test --test basic_integration -- --nocapture`. Underlying error: {error}"
-        );
+        eprintln!("skipping MinIO-backed integration tests because MinIO is unavailable: {error}");
+        return false;
     }
+
+    true
+}
+
+fn repo_local_test_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".gresse-test-artifacts")
 }

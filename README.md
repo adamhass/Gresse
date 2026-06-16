@@ -102,8 +102,6 @@ Gresse reads runtime configuration from environment variables.
 | `GRESSE_HTTP_PORT` | HTTP port for client query and mutation requests. |
 | `GRESSE_INTERNAL_PORT` | Internal replication port for peer-to-peer replica traffic. |
 | `GRESSE_RESULT_DIR_PATH` | Local directory where replica metrics are written. |
-| `GRESSE_OBJECT_STORAGE_REGION` | Object storage region. |
-| `GRESSE_OBJECT_STORAGE_BUCKET` | Object storage bucket name. |
 | `GRESSE_PERSISTENT_REPLICA_PATH` | Object path for the serialized persistent CRDT state. |
 | `GRESSE_MEMBERSHIP_DIRECTORY_PATH` | Object-storage directory prefix used for replica membership descriptors. |
 
@@ -111,6 +109,9 @@ Optional configuration:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `GRESSE_OBJECT_STORAGE_LOCAL_DIR` | unset | Shared local directory used as the storage backend. When set, Gresse uses the local filesystem instead of S3/MinIO. |
+| `GRESSE_OBJECT_STORAGE_REGION` | `us-east-1` | Object storage region for S3-compatible backends. |
+| `GRESSE_OBJECT_STORAGE_BUCKET` | `gresse` | Object storage bucket name for S3-compatible backends. |
 | `GRESSE_OBJECT_STORAGE_URL` | unset | Custom object-storage endpoint URL. Set this for S3-compatible stores such as MinIO. Leave it unset for AWS S3. |
 | `GRESSE_OBJECT_STORAGE_ACCESS_KEY` | unset | Optional explicit access key. |
 | `GRESSE_OBJECT_STORAGE_SECRET_KEY` | unset | Optional explicit secret key. |
@@ -146,6 +147,21 @@ export GRESSE_OBJECT_STORAGE_SECRET_KEY=minioadmin
 export GRESSE_PERSISTENT_REPLICA_PATH=replicas/app-state.json
 export GRESSE_MEMBERSHIP_DIRECTORY_PATH=membership
 ```
+
+Example for a shared local filesystem directory:
+
+```sh
+export GRESSE_ADDR=0.0.0.0
+export GRESSE_HTTP_PORT=9090
+export GRESSE_INTERNAL_PORT=8080
+export GRESSE_RESULT_DIR_PATH=./results
+
+export GRESSE_OBJECT_STORAGE_LOCAL_DIR=/tmp/gresse-shared-store
+export GRESSE_PERSISTENT_REPLICA_PATH=replicas/app-state.json
+export GRESSE_MEMBERSHIP_DIRECTORY_PATH=membership
+```
+
+Start multiple replicas with the same `GRESSE_OBJECT_STORAGE_LOCAL_DIR`, `GRESSE_PERSISTENT_REPLICA_PATH`, and `GRESSE_MEMBERSHIP_DIRECTORY_PATH` values and they will discover each other through that shared directory just as they would through MinIO.
 
 Example for AWS S3 with a shared AWS profile:
 

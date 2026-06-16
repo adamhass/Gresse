@@ -15,6 +15,7 @@ pub mod prelude {
     use serde::{Deserialize, Serialize};
     use std::net::IpAddr;
     use std::net::SocketAddr;
+    use std::path::PathBuf;
     use std::time::Duration;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -96,6 +97,7 @@ pub mod prelude {
 
     #[derive(Clone, Debug)]
     pub struct ObjectStorageConfig {
+        pub local_dir: Option<PathBuf>,
         pub url: Option<String>,
         pub region: String,
         pub bucket: String,

@@ -148,6 +148,7 @@ impl CRDT for DummyCRDT {
     type Mutation = BenchFunctionMutation;
     type ClientResponse = BenchFunctionClientResponse;
     type Error = BenchFunctionError;
+    type SideEffects = ();
 
     fn query(&self, query: Self::Query) -> Self::ClientResponse {
         let response = match query {
@@ -185,31 +186,23 @@ impl CRDT for DummyCRDT {
         &self.version_vector
     }
 
-    fn get_delta(&self, version_vector: &DotSet) -> (DeltaGroup<Self::Delta>, u16, u16) {
+    fn get_delta(&self, version_vector: &DotSet) -> DeltaGroup<Self::Delta, ()> {
         let list = self
             .delta_log
             .get_all_greater_iter(version_vector)
             .map(|(_, delta)| delta.clone())
             .collect::<Vec<_>>();
-        let count = list.len() as u16;
-        (
-            DeltaGroup {
-                list,
-                version_vector: self.version_vector.clone(),
-            },
-            count,
-            0,
-        )
+        DeltaGroup {
+            list,
+            version_vector: self.version_vector.clone(),
+            side_effects: None,
+        }
     }
 
-    fn merge_delta_group(&mut self, delta_group: DeltaGroup<Self::Delta>) -> (u16, u16) {
-        let mut counts = (0, 0);
+    fn merge_delta_group(&mut self, delta_group: DeltaGroup<Self::Delta, ()>) {
         for delta in delta_group.list {
-            let delta_counts = self.apply_delta(delta);
-            counts.0 += delta_counts.0;
-            counts.1 += delta_counts.1;
+            self.apply_delta(delta);
         }
-        counts
     }
 }
 

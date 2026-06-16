@@ -38,25 +38,34 @@ impl ReplicaConfig {
                     )
                 })
                 .unwrap_or(Duration::from_secs(1)),
-            object_storage_config: ObjectStorageConfig {
-                url: env_optional_string("GRESSE_OBJECT_STORAGE_URL"),
-                region: env_string("GRESSE_OBJECT_STORAGE_REGION"),
-                bucket: env_string("GRESSE_OBJECT_STORAGE_BUCKET"),
-                access_key: env_optional_string("GRESSE_OBJECT_STORAGE_ACCESS_KEY"),
-                secret_key: env_optional_string("GRESSE_OBJECT_STORAGE_SECRET_KEY"),
-                session_token: env_optional_string("GRESSE_OBJECT_STORAGE_SESSION_TOKEN"),
-                persistent_replica_path: env_string("GRESSE_PERSISTENT_REPLICA_PATH"),
-                membership_directory_path: env_string("GRESSE_MEMBERSHIP_DIRECTORY_PATH"),
-                discovery_interval: env::var("GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS")
-                    .ok()
-                    .map(|value| {
-                        Duration::from_millis(value.parse().expect(
-                            "GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS must be an integer",
-                        ))
-                    })
-                    .unwrap_or(Duration::from_secs(1)),
-            },
+            object_storage_config: object_storage_config_from_env(),
         }
+    }
+}
+
+fn object_storage_config_from_env() -> ObjectStorageConfig {
+    let local_dir = env_optional_path("GRESSE_OBJECT_STORAGE_LOCAL_DIR");
+
+    ObjectStorageConfig {
+        local_dir,
+        url: env_optional_string("GRESSE_OBJECT_STORAGE_URL"),
+        region: env_string_or_default("GRESSE_OBJECT_STORAGE_REGION", "us-east-1"),
+        bucket: env_string_or_default("GRESSE_OBJECT_STORAGE_BUCKET", "gresse"),
+        access_key: env_optional_string("GRESSE_OBJECT_STORAGE_ACCESS_KEY"),
+        secret_key: env_optional_string("GRESSE_OBJECT_STORAGE_SECRET_KEY"),
+        session_token: env_optional_string("GRESSE_OBJECT_STORAGE_SESSION_TOKEN"),
+        persistent_replica_path: env_string("GRESSE_PERSISTENT_REPLICA_PATH"),
+        membership_directory_path: env_string("GRESSE_MEMBERSHIP_DIRECTORY_PATH"),
+        discovery_interval: env::var("GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS")
+            .ok()
+            .map(|value| {
+                Duration::from_millis(
+                    value
+                        .parse()
+                        .expect("GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS must be an integer"),
+                )
+            })
+            .unwrap_or(Duration::from_secs(1)),
     }
 }
 
@@ -68,10 +77,22 @@ fn env_optional_string(name: &str) -> Option<String> {
     env::var(name).ok().filter(|value| !value.trim().is_empty())
 }
 
+fn env_string_or_default(name: &str, default: &str) -> String {
+    env::var(name).unwrap_or_else(|_| default.to_string())
+}
+
 fn env_path(name: &str) -> PathBuf {
     env::var(name)
         .map(PathBuf::from)
         .unwrap_or_else(|_| panic!("{name} environment variable is required"))
+}
+
+fn env_optional_path(name: &str) -> Option<PathBuf> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 fn env_bool(name: &str) -> Option<bool> {

@@ -53,7 +53,7 @@ pub trait CRDT: Sized + Serialize + DeserializeOwned {
 }
 
 /// Delta group is a set of Deltas that are causally ordered
-/// 
+///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeltaGroup<D, E> {
     pub list: Vec<D>,
