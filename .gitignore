@@ -28,3 +28,4 @@ target
 
 # Repo-local integration test artifacts
 .gresse-test-artifacts/
+.claude

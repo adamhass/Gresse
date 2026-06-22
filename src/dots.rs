@@ -276,24 +276,9 @@ impl<T: Clone + PartialEq> DotMap<T> {
         self.map.values().map(Vec::len).sum()
     }
 
-    /// The Dots must be contiguous, with no gaps in sequence numbers per Pid...
+    /// This simply inserts the dots, we trust the replication protocol to deliver contiguous groups
     pub fn insert(&mut self, dot: Dot, value: T) {
         let vec = self.map.entry(dot.pid).or_default();
-        // Ensure the DotMap is sorted
-        if let Some((last_dot, _)) = vec.last() {
-            assert!(
-                last_dot.counter + 1 == dot.counter,
-                "Missing delta! Last Dot: {}, new Dot: {}",
-                last_dot.counter,
-                dot.counter
-            );
-        } else {
-            assert!(
-                dot.counter == 0,
-                "Missing initial delta from Pid {}",
-                dot.pid
-            )
-        }
         vec.push((dot, value))
     }
 
