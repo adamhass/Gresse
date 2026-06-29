@@ -106,9 +106,13 @@ impl<K: Eq + Hash + Copy + std::fmt::Display, V: Clone + Default + PartialEq> ZT
         })
     }
 
-    /// Retrieves the value associated with the key, if it exists.
+    /// Retrieves the value associated with the key, if it exists with weight >0
     pub fn get(&self, key: &K) -> Option<&V> {
-        self.shard(key).get(key).map(|(_, value)| value)
+        self.shard(key).get(key).map(|(weight, value)| {
+            if *weight < 1 {
+                None
+            } else {Some(value)}
+        })?
     }
 
     pub fn len(&self) -> usize {
