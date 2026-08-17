@@ -1,0 +1,7 @@
+timestamp_us,event,replica,region,slot,pid,detail,status_code,latency_us,operation,value,expected_live,state_digest,clock_offset_us,rtt_us,binary_sha256
+1786967616042342,collected,,,,,stockholm -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/stockholm,,,,,,,,,
+1786967620711758,collected,,,,,frankfurt -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/frankfurt,,,,,,,,,
+1786967643778936,collected,,,,,virginia -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/virginia,,,,,,,,,
+1786967679310914,collected,,,,,oregon -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/oregon,,,,,,,,,
+1786967733356704,collected,,,,,singapore -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/singapore,,,,,,,,,
+1786967785738121,collected,,,,,tokyo -> results/geo_churn/smoke-recovery-20260817T114745Z/remote_artifacts/tokyo,,,,,,,,,

@@ -1,0 +1,17 @@
+source,event,phase,timestamp_us,replica_pid,peer_pid,gc_marker,sent_us,received_us,start_us,end_us,insert_count,delete_count,detail,client_id,operation,value,status_code,latency_us
+server,replica_init,start,1786967341431121,178696728656977345,,,,,,,,,,,,,,
+server,persistent_state_fetch,completed,1786967341834621,178696728656977345,,,,,1786967341431150,1786967341834621,,,restored_existing_snapshot,,,,,403471
+server,membership_descriptor_write,completed,1786967341829884,178696728656977345,,,,,1786967341431404,1786967341829884,,,"178696728656977345,3.231.214.148:19084,0",,,,,398480
+server,membership_directory_read,completed,1786967341961797,178696728656977345,,,,,1786967341829888,1786967341961797,,,init:15 descriptors,,,,,131909
+server,replica_init,completed,1786967341965164,178696728656977345,,,,,,,,,,,,,,
+server,membership_directory_read,completed,1786967346559873,178696728656977345,,,,,1786967346431147,1786967346559873,,,poll:16 descriptors,,,,,128726
+server,membership_directory_read,completed,1786967351559090,178696728656977345,,,,,1786967351432136,1786967351559090,,,poll:16 descriptors,,,,,126954
+server,membership_directory_read,completed,1786967356560317,178696728656977345,,,,,1786967356431897,1786967356560317,,,poll:17 descriptors,,,,,128420
+server,membership_directory_read,completed,1786967361559213,178696728656977345,,,,,1786967361431680,1786967361559213,,,poll:18 descriptors,,,,,127533
+server,membership_directory_read,completed,1786967366558385,178696728656977345,,,,,1786967366431997,1786967366558385,,,poll:19 descriptors,,,,,126388
+server,gc_init,start,1786967371167893,178696728656977345,,1,,,,,,,previous_gc_marker=0,,,,,
+server,gc_membership_descriptor_write,completed,1786967371302711,178696728656977345,,1,,,,,,,"178696728656977345,3.231.214.148:19084,1",,,,,
+server,membership_directory_read,completed,1786967371431053,178696728656977345,,1,,,1786967371302738,1786967371431053,,,gc_validation:21 descriptors,,,,,128315
+server,gc_init,aborted,1786967371574795,178696728656977345,,1,,,,,,,membership_changed,,,,,
+server,membership_directory_read,completed,1786967371942954,178696728656977345,,1,,,1786967371574827,1786967371942954,,,gc_abort_refresh:20 descriptors,,,,,368127
+server,membership_directory_read,completed,1786967372072225,178696728656977345,,,,,1786967371942983,1786967372072225,,,poll:20 descriptors,,,,,129242

@@ -139,7 +139,16 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
 
         loop {
             tokio::select! {
-                Ok((stream, _)) = self.listener.accept() => {self.handle_new_stream(stream).await},
+                accept_result = self.listener.accept() => {
+                    match accept_result {
+                        Ok((stream, _)) => {
+                            if let Err(error) = self.handle_new_stream(stream).await {
+                                warn!("replica {} ignored failed incoming peer handshake: {}", self.pid, error);
+                            }
+                        }
+                        Err(error) => warn!("replica {} failed to accept peer connection: {}", self.pid, error),
+                    }
+                }
                 Some(member) = self.member_receiver.recv() => {
                     self.handle_new_member(member).await;
                 }
@@ -172,34 +181,40 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             "replica {} discovered network member {:?}",
             self.pid, member
         );
-        let stream = TcpStream::connect(member.address)
-            .await
-            .expect("Failed to connect to new address");
-        self.handle_new_stream(stream).await;
+        let stream = match TcpStream::connect(member.address).await {
+            Ok(stream) => stream,
+            Err(error) => {
+                warn!(
+                    "replica {} could not connect to discovered peer {} at {}: {}",
+                    self.pid, member.pid, member.address, error
+                );
+                return;
+            }
+        };
+        if let Err(error) = self.handle_new_stream(stream).await {
+            warn!(
+                "replica {} ignored failed handshake with peer {} at {}: {}",
+                self.pid, member.pid, member.address, error
+            );
+        }
     }
 
     /// This method can be used both for incoming and outgoing streams
-    async fn handle_new_stream(&mut self, mut stream: TcpStream) {
+    async fn handle_new_stream(&mut self, mut stream: TcpStream) -> io::Result<()> {
         // Tell the stream who we are
-        stream
-            .write_u128(self.pid)
-            .await
-            .expect("Failed to write id");
+        stream.write_u128(self.pid).await?;
         // Find out who it is on the opposite end
-        let pid = stream.read_u128().await.expect("Failed to read id");
+        let pid = stream.read_u128().await?;
         if self.dead_members.contains(&pid) {
-            return;
+            return Ok(());
         }
         info!(
             "replica {} completed network handshake with replica {}",
             self.pid, pid
         );
-        while let Err(e) = stream.ready(Interest::READABLE | Interest::WRITABLE).await {
-            warn!(
-                "failed to initialize stream for replica {}: {:?}, retrying",
-                self.pid, e
-            );
-        }
+        stream
+            .ready(Interest::READABLE | Interest::WRITABLE)
+            .await?;
         let (read_half, stream_writer) = io::split(stream);
         let stream_reader = BufReader::new(read_half).lines();
         let (from_local_sender, from_local_receiver) = channel::<T>(100);
@@ -213,24 +228,46 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             Self::write_loop(stream_writer, from_local_receiver, latency_profile).await;
         });
         self.task_handles.push(handle);
-        self.connection_sender
+        if self
+            .connection_sender
             .send((pid as Pid, from_local_sender))
             .await
-            .expect("Failed to send connection");
+            .is_err()
+        {
+            warn!(
+                "replica {} dropped peer {} because its local connection receiver is closed",
+                self.pid, pid
+            );
+            return Ok(());
+        }
         info!(
             "replica {} registered bidirectional network channel for replica {}",
             self.pid, pid
         );
+        Ok(())
     }
 
     async fn read_loop(mut reader: Lines<BufReader<ReadHalf<TcpStream>>>, sender: Sender<T>) {
-        // println!("Starting read loop");
         loop {
-            // println!("Looping read loop");
-            while let Ok(Some(line)) = reader.next_line().await {
-                let message: T = serde_json::from_str(&line).expect("Failed to parse request");
-                debug!("network read loop received message: {:?}", message);
-                sender.send(message).await.expect("Failed to send request");
+            let line = match reader.next_line().await {
+                Ok(Some(line)) => line,
+                Ok(None) => return,
+                Err(error) => {
+                    warn!("peer connection read failed: {}", error);
+                    return;
+                }
+            };
+            let message: T = match serde_json::from_str(&line) {
+                Ok(message) => message,
+                Err(error) => {
+                    warn!("discarding malformed peer message: {}", error);
+                    continue;
+                }
+            };
+            debug!("network read loop received message: {:?}", message);
+            if sender.send(message).await.is_err() {
+                debug!("peer connection reader stopped because local receiver is closed");
+                return;
             }
         }
     }
@@ -250,15 +287,14 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         mut receiver: Receiver<T>,
         latency_profile: NetworkLatencyProfile,
     ) {
-        loop {
-            while let Some(request) = receiver.recv().await {
-                debug!("network write loop sending message: {:?}", request);
-                if latency_profile.is_enabled() {
-                    tokio::time::sleep(latency_profile.sample_delay()).await;
-                }
-                Self::send_message(&mut writer, &request)
-                    .await
-                    .expect("Failed to send message");
+        while let Some(request) = receiver.recv().await {
+            debug!("network write loop sending message: {:?}", request);
+            if latency_profile.is_enabled() {
+                tokio::time::sleep(latency_profile.sample_delay()).await;
+            }
+            if let Err(error) = Self::send_message(&mut writer, &request).await {
+                warn!("peer connection write failed: {}", error);
+                return;
             }
         }
     }

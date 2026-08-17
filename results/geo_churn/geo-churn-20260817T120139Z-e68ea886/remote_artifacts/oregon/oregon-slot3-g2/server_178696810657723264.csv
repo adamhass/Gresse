@@ -1,0 +1,20 @@
+source,event,phase,timestamp_us,replica_pid,peer_pid,gc_marker,sent_us,received_us,start_us,end_us,insert_count,delete_count,detail,client_id,operation,value,status_code,latency_us
+server,replica_init,start,1786968481781772,178696810657723264,,,,,,,,,,,,,,
+server,membership_descriptor_write,completed,1786968482288556,178696810657723264,,,,,1786968481781799,1786968482288556,,,"178696810657723264,54.201.80.134:19083,0",,,,,506757
+server,membership_directory_read,completed,1786968482462116,178696810657723264,,,,,1786968482288560,1786968482462116,,,init:43 descriptors,,,,,173556
+server,persistent_state_fetch,completed,1786968482462164,178696810657723264,,,,,,,,,recovered_from_durability_journal,,,,,
+server,replica_init,completed,1786968482465321,178696810657723264,,,,,,,,,,,,,,
+server,membership_directory_read,completed,1786968486951046,178696810657723264,,,,,1786968486777083,1786968486951046,,,poll:43 descriptors,,,,,173963
+server,membership_directory_read,completed,1786968491946198,178696810657723264,,,,,1786968491776533,1786968491946198,,,poll:43 descriptors,,,,,169665
+server,gc_init,start,1786968967471585,178696810657723264,,1,,,,,,,previous_gc_marker=0,,,,,
+server,gc_membership_descriptor_write,completed,1786968967961142,178696810657723264,,1,,,,,,,"178696810657723264,54.201.80.134:19083,1",,,,,
+server,membership_directory_read,completed,1786968968130887,178696810657723264,,1,,,1786968967961172,1786968968130887,,,gc_validation:44 descriptors,,,,,169715
+server,gc_init,aborted,1786968968308292,178696810657723264,,1,,,,,,,membership_changed,,,,,
+server,membership_directory_read,completed,1786968968793451,178696810657723264,,1,,,1786968968308318,1786968968793451,,,gc_abort_refresh:44 descriptors,,,,,485133
+server,gc_init,start,1786968968793496,178696810657723264,,1,,,,,,,previous_gc_marker=0,,,,,
+server,gc_membership_descriptor_write,completed,1786968968970388,178696810657723264,,1,,,,,,,"178696810657723264,54.201.80.134:19083,1",,,,,
+server,membership_directory_read,completed,1786968969142158,178696810657723264,,1,,,1786968968970410,1786968969142158,,,gc_validation:44 descriptors,,,,,171748
+server,gc_local_collect,completed,1786968969142207,178696810657723264,,1,,,1786968969142191,1786968969142207,,,departed_pids=None,,,,,16
+server,gc_persistent_state_write,completed,1786968969327566,178696810657723264,,1,,,1786968969142211,1786968969327566,,,,,,,,185355
+server,gc_finalize,completed,1786968969510091,178696810657723264,,1,,,,,,,"178696810657723264,54.201.80.134:19083,0",,,,,
+server,membership_directory_read,completed,1786968969997550,178696810657723264,,,,,1786968969510128,1786968969997550,,,poll:44 descriptors,,,,,487422

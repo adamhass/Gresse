@@ -1,0 +1,84 @@
+{
+  "availability": {
+    "expected_live": {
+      "requests": 593,
+      "successful": 3,
+      "success_rate": 0.00505902192242833
+    },
+    "intentionally_down": {
+      "requests": 7,
+      "successful": 0,
+      "success_rate": 0.0
+    }
+  },
+  "lifecycle_events": {
+    "spawn_requested": 34,
+    "crash_requested": 2,
+    "graceful_stop_requested": 32
+  },
+  "recovery_to_first_success_us": {
+    "samples": 3,
+    "min": 1399539,
+    "median": 7111542,
+    "max": 9740493
+  },
+  "state_snapshots": [
+    {
+      "timestamp_us": 1786963006275708,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786963036995822,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786963066297108,
+      "digest_groups": 1,
+      "replicas": 27
+    },
+    {
+      "timestamp_us": 1786963100279253,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963126021976,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963201119258,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963210572874,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963219826006,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963246202952,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963275921293,
+      "digest_groups": 2,
+      "replicas": 29
+    },
+    {
+      "timestamp_us": 1786963366315549,
+      "digest_groups": 2,
+      "replicas": 29
+    }
+  ],
+  "final_snapshot_converged": false,
+  "note": "GC completion and departed-membership cleanup are in the collected per-replica CSV traces, correlated by gc_marker."
+}

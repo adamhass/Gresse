@@ -1,0 +1,9 @@
+[2026-08-17T13:35:00.428Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T13:35:00.428Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18080
+[2026-08-17T13:35:00.489Z INFO  gresse::replica] replica 178697341754591661 initiating runtime at bind_http=0.0.0.0:18080 bind_internal=0.0.0.0:19080 advertised_internal=16.192.148.144:19080
+[2026-08-17T13:35:00.533Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=put-create, object_path=acm-sec-geo-churn-smoke-20260817T133017Z-83041cbf/membership/178697341754591661,16.192.148.144:19080,2
+[2026-08-17T13:35:00.554Z INFO  gresse::replica] replica 178697341754591661 restored local state from durability journal before startup
+[2026-08-17T13:35:00.554Z INFO  gresse::replica] replica 178697341754591661 discovered 45 membership descriptors during init
+[2026-08-17T13:35:00.554Z INFO  gresse::network] replica 178697341754591661 discovered network member NetworkMember { pid: 178697341754591631, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T13:35:00.558Z INFO  gresse::replica] replica 178697341754591661 startup completed
+[2026-08-17T13:36:39.732Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21418

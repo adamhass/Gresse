@@ -10,7 +10,11 @@ use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct ReplicaConfig {
+    /// Address on which the local HTTP and replication listeners bind.
     pub address: ServerAddr,
+    /// Address published in membership descriptors. This defaults to `address`,
+    /// but may differ when a replica binds `0.0.0.0` behind NAT or a tunnel.
+    pub advertised_address: ServerAddr,
     pub sync_interval: Duration,
     pub result_dir_path: PathBuf,
     pub durability_path: Option<PathBuf>,
@@ -20,8 +24,18 @@ pub struct ReplicaConfig {
 impl ReplicaConfig {
     pub fn from_env() -> Self {
         let durable = env_bool("GRESSE_DURABLE").unwrap_or(false);
+        let address = ServerAddr::from_env();
+        let advertised_address = env_optional_string("GRESSE_ADVERTISE_ADDR")
+            .map(|ip| {
+                address.with_ip(
+                    ip.parse()
+                        .expect("GRESSE_ADVERTISE_ADDR must be an IP address"),
+                )
+            })
+            .unwrap_or(address);
         Self {
-            address: ServerAddr::from_env(),
+            address,
+            advertised_address,
             result_dir_path: env_path("GRESSE_RESULT_DIR_PATH"),
             durability_path: if durable {
                 Some(env_path("GRESSE_DURABILITY_PATH"))

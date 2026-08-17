@@ -10,7 +10,7 @@ use crate::{
     prelude::{new_pid, now_micros, Pid, ServerAddr},
 };
 use csv::WriterBuilder;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -153,6 +153,13 @@ impl DurabilityJournal {
                     let delta_group = serde_json::from_value(record.payload)?;
                     snapshot.local_state.merge_delta_group(delta_group);
                 }
+                "mutation" => {
+                    let Some(snapshot) = recovered.as_mut() else {
+                        return Err(DurabilityError::MissingSnapshot);
+                    };
+                    let mutation = serde_json::from_value(record.payload)?;
+                    snapshot.local_state.mutate(mutation);
+                }
                 other => return Err(DurabilityError::UnknownRecordType(other.to_string())),
             }
         }
@@ -177,6 +184,16 @@ impl DurabilityJournal {
         self.append_record(&RawDurabilityRecord {
             record_type: "delta_group".to_string(),
             payload: serde_json::to_value(delta_group)?,
+        })
+    }
+
+    fn append_mutation<T: CRDT + Debug + Clone>(
+        &self,
+        mutation: &T::Mutation,
+    ) -> Result<(), DurabilityError> {
+        self.append_record(&RawDurabilityRecord {
+            record_type: "mutation".to_string(),
+            payload: serde_json::to_value(mutation)?,
         })
     }
 
@@ -241,7 +258,10 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     crdt_wrapper: CRDTWrapper,
     // Identifiers
     pid: Pid,
+    /// Local listener address.
     address: ServerAddr,
+    /// Routable listener address written to membership descriptors.
+    advertised_address: ServerAddr,
     // Config:
     sync_interval: Duration,
     gc_base_interval: Duration,
@@ -394,6 +414,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             Replica {
                 pid,
                 address: config.address,
+                advertised_address: config.advertised_address,
                 crdt,
                 client_request_receiver,
                 replication_writer_receiver,
@@ -434,10 +455,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let replica_run_start_us = now_micros();
         self.replica_run_start_us = Some(replica_run_start_us);
         info!(
-            "replica {} initiating runtime at http={} internal={}",
+            "replica {} initiating runtime at bind_http={} bind_internal={} advertised_internal={}",
             self.pid,
             self.address.http(),
-            self.address.internal()
+            self.address.internal(),
+            self.advertised_address.internal(),
         );
         self.init().await;
         info!("replica {} startup completed", self.pid);
@@ -451,6 +473,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let mut interval = tokio::time::interval(self.sync_interval);
         loop {
             tokio::select! {
+                // Replication can remain continuously ready in a large,
+                // geographically distributed deployment.  Give externally
+                // admitted mutations precedence so anti-entropy traffic
+                // cannot starve the availability path indefinitely.
+                biased;
                 Some((client_request, responder)) = self.client_request_receiver.recv() => {
                     self.handle_client_request(client_request, responder).await;
                 }
@@ -750,14 +777,19 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid, descriptor.pid, descriptor.address, descriptor.gc_counter
             );
 
-            self.network_member_sender
+            if self
+                .network_member_sender
                 .send(NetworkMember {
                     pid: descriptor.pid,
                     address: descriptor.address,
                     final_counter: descriptor.final_counter,
                 })
                 .await
-                .expect("Failed to send network member");
+                .is_err()
+            {
+                warn!("replica {} network manager is unavailable; membership will be retried on the next discovery poll", self.pid);
+                return;
+            }
         }
     }
 
@@ -791,7 +823,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     async fn replica_descriptor(&self) -> ReplicaDescriptor {
         ReplicaDescriptor {
             pid: self.pid,
-            address: self.address.internal(),
+            address: self.advertised_address.internal(),
             gc_counter: self.crdt_wrapper.current_gc_marker().counter,
             final_counter: None,
         }
@@ -870,14 +902,18 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         // Remove the writers
         let _ = self.writers.remove(&descriptor.pid);
         // Notify the network manager
-        self.network_member_sender
-            .send(NetworkMember {
-                pid: descriptor.pid,
-                address: descriptor.address,
-                final_counter: descriptor.final_counter,
-            })
-            .await
-            .expect("Failed to notify network manager about shutdown replica");
+        if let Err(error) = self.network_member_sender.try_send(NetworkMember {
+            pid: descriptor.pid,
+            address: descriptor.address,
+            final_counter: descriptor.final_counter,
+        }) {
+            // Membership polling will repeat this notification.  Never hold
+            // the replica's event loop behind a congested network manager.
+            warn!(
+                "replica {} deferred shutdown notification for {}: {}",
+                self.pid, descriptor.pid, error
+            );
+        }
     }
 
     async fn merge_shutdown_payload(&mut self, descriptor: ReplicaDescriptor) {
@@ -928,14 +964,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         debug!("replica {} handling client mutation", self.pid);
         let received = now_micros();
         let (start, response) = {
-            let mut writable = self.crdt.write().await;
-            let version_vector_before = writable.get_version_vector().clone();
-            let mut candidate = writable.clone();
-            let response = candidate.mutate(mutation);
-            let delta_group = candidate.get_delta(&version_vector_before);
-            self.persist_delta_before_apply(&delta_group);
             let start = now_micros();
-            writable.merge_delta_group(delta_group);
+            let mut writable = self.crdt.write().await;
+            // let version_vector_before = writable.get_version_vector().clone();
+            self.persist_mutation(&mutation);
+            let response = writable.mutate(mutation);
             (start, response)
         };
         let end = now_micros();
@@ -951,9 +984,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             Some(received),
             None,
         );
-        responder
-            .send(Ok(response))
-            .expect("failed to send confirmation");
+        // The external HTTP client may have timed out or disconnected while a
+        // mutation was waiting behind replication work.  The mutation has
+        // already been applied durably, so a dropped response must not turn a
+        // client timeout into a replica crash.
+        if responder.send(Ok(response)).is_err() {
+            debug!(
+                "client disconnected before replica {} could send its mutation response",
+                self.pid
+            );
+        }
     }
 
     async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
@@ -1004,12 +1044,29 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 let end = now_micros();
                 let gc_metadata = self.gc_metadata();
                 let gc_marker = gc_metadata.as_ref().map(|marker| marker.marker.counter);
-                self.writers
-                    .get(&pid)
-                    .expect("Failed to get writer")
-                    .send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, end))
-                    .await
-                    .expect("Failed to send delta");
+                let send_result = self.writers.get(&pid).map(|writer| {
+                    writer.try_send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata, end))
+                });
+                match send_result {
+                    Some(Ok(())) => {}
+                    Some(Err(error)) => {
+                        if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
+                            self.writers.remove(&pid);
+                        }
+                        // Anti-entropy is periodic: dropping one response when
+                        // a peer's bounded queue is full is preferable to
+                        // blocking every client request behind that peer.
+                        warn!(
+                            "replica {} deferred delta response to peer {}: {}",
+                            self.pid, pid, error
+                        );
+                        return;
+                    }
+                    None => {
+                        debug!("replica {} has no writer for peer {}; response will be retried by anti-entropy", self.pid, pid);
+                        return;
+                    }
+                }
                 self.metric_span(
                     "peer_replication_get_delta",
                     "completed",
@@ -1032,7 +1089,12 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
         // Select a random writer from self.writers
         let n = rand::rng().random_range(0..self.writers.len());
-        if let Some(writer) = self.writers.values().nth(n).cloned() {
+        if let Some((pid, writer)) = self
+            .writers
+            .iter()
+            .nth(n)
+            .map(|(pid, writer)| (*pid, writer.clone()))
+        {
             let vv = { self.crdt.read().await.get_version_vector().clone() };
             self.crdt_wrapper
                 .version_matrix
@@ -1042,14 +1104,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid,
                 self.writers.len()
             );
-            writer
-                .send(ReplicaMessage::<T>::VersionVector(
-                    self.pid,
-                    vv,
-                    now_micros(),
-                ))
-                .await
-                .expect("Failed to send pull request");
+            if let Err(error) = writer.try_send(ReplicaMessage::<T>::VersionVector(
+                self.pid,
+                vv,
+                now_micros(),
+            )) {
+                if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
+                    self.writers.remove(&pid);
+                }
+                warn!(
+                    "replica {} deferred pull request to peer {}: {}",
+                    self.pid, pid, error
+                );
+                return;
+            }
             self.metric_instant(
                 "peer_replication_pull_request",
                 "sent",
@@ -1226,7 +1294,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     async fn change_own_gc_counter(&mut self, gc_counter: Counter) -> ReplicaDescriptor {
         let descriptor = ReplicaDescriptor {
             pid: self.pid,
-            address: self.address.internal(),
+            address: self.advertised_address.internal(),
             gc_counter,
             final_counter: None,
         };
@@ -1348,7 +1416,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .unwrap_or(-1);
         let descriptor = ReplicaDescriptor {
             pid: self.pid,
-            address: self.address.internal(),
+            address: self.advertised_address.internal(),
             gc_counter: self.crdt_wrapper.current_gc_marker().counter,
             final_counter: Some(final_counter),
         };
@@ -1436,6 +1504,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
     }
 
+    fn persist_mutation(&self, mutation: &T::Mutation) {
+        let Some(journal) = &self.durability_journal else {
+            return;
+        };
+        journal
+            .append_mutation::<T>(mutation)
+            .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
+    }
+
     fn metric_instant(
         &mut self,
         event: &str,
@@ -1509,6 +1586,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.metric_writer
             .serialize(record)
             .expect("Failed to write metric");
+        // Crash experiments use SIGKILL. Flush each record so the trace up to
+        // the kill is retained instead of being lost in the CSV writer buffer.
+        self.metric_writer.flush().expect("Failed to flush metric");
     }
 }
 

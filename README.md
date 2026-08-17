@@ -99,6 +99,7 @@ Gresse reads runtime configuration from environment variables.
 | Variable | Meaning |
 | --- | --- |
 | `GRESSE_ADDR` | IP address this replica binds to. |
+| `GRESSE_ADVERTISE_ADDR` | Optional routable IP published to peers. Defaults to `GRESSE_ADDR`; set it when binding a wildcard/local address behind NAT or a tunnel. |
 | `GRESSE_HTTP_PORT` | HTTP port for client query and mutation requests. |
 | `GRESSE_INTERNAL_PORT` | Internal replication port for peer-to-peer replica traffic. |
 | `GRESSE_RESULT_DIR_PATH` | Local directory where replica metrics are written. |
@@ -250,6 +251,67 @@ The throughput-vs-replicas experiment uses:
 - replica startup stagger fixed at `1s` by default
 - replica counts increasing from `1` to `8` by default
 - stable throughput computed only over the configured warmup/cooldown-trimmed window
+
+## Six-region crash and churn experiment
+
+`scripts/geo_churn_experiment.py` is a laptop-run orchestrator for the ACM SEC
+geo-distributed evaluation. It controls 30 independent replica processes (five
+on each of six VMs), injects hard process crashes and graceful replica churn,
+drives a deliberately light client workload from the laptop, periodically
+checks canonical OR-Set state digests, and collects all remote artifacts.
+
+Copy and edit `scripts/geo_churn_topology.example.json`: each VM must have a
+routable `advertise_ip` for replica-to-replica traffic, an SSH target, and an
+already installed release `orset_bench_replica` binary. The VM's AWS identity
+must have access to the configured shared bucket. The `client_host` value must
+be reachable from the laptop (or be reached through an established tunnel).
+Use an SSH host alias in `ssh_host` (configured with its user, key, and any
+`ProxyJump` in `~/.ssh/config`); the controller runs SSH/SCP in noninteractive
+`BatchMode` and never accepts passwords. Prefer an IAM instance role for S3
+access on each VM, rather than exporting long-lived credentials.
+Set `expected_binary_sha256` to the SHA-256 of the release binary copied to
+the VMs; preflight rejects a mixed or unexpected binary. Preflight also checks
+the midpoint-estimated VM clock offset against `max_clock_skew_ms`. The
+experiment uses a per-VM-slot durable journal by default, retaining local
+state across a hard-crashed process and its replacement. It waits for each
+replica's completed bootstrap metric and a membership stabilization interval
+before starting the workload.
+
+```sh
+python3 scripts/geo_churn_experiment.py \
+  --topology scripts/geo_churn_topology.json \
+  --result-dir ./results/acm-sec-geo-churn
+
+python3 scripts/analyze_geo_churn.py ./results/acm-sec-geo-churn
+```
+
+Run `--dry-run` first to validate the topology and lifecycle schedule without
+connecting to hosts. The result directory contains the controller event trace,
+state-digest snapshots, topology/manifest, and a `remote_artifacts/` directory
+with metrics and logs collected from all six VMs. `crash` sends `SIGKILL`;
+`graceful_stop` sends `SIGTERM`, which intentionally exercises GRESSE's normal
+shutdown path. A subsequent `spawn` always receives a fresh GRESSE PID.
+The analyzer writes `summary.json` with availability split by expected process
+state, first-success recovery time, lifecycle counts, and state-digest
+convergence; correlate collected replica CSVs by `gc_marker` for GC progress.
+
+Every invocation creates a timestamp-and-random-suffixed run ID from
+`run_label`; this isolates the S3 prefix and remote log directory from all
+previous attempts. Result directories are refused when they already exist.
+At preflight the controller terminates processes recorded by any previous
+controller run on the six VMs, without deleting prior artifacts. Every started
+process also has a remote watchdog that gracefully terminates it at the global
+deadline and force-kills it after the configured grace period if the laptop
+controller stalls or disappears. SSH/SCP operations have bounded timeouts and
+artifact collection continues when one VM is unavailable. Recover artifacts
+after a laptop failure with a fresh local result directory:
+
+```sh
+python3 scripts/geo_churn_experiment.py \
+  --topology scripts/geo_churn_topology.json \
+  --result-dir ./results/acm-sec-geo-churn-recovered \
+  --collect-run-id '<run-id-from-the-original-manifest>'
+```
 
 Example:
 

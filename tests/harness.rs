@@ -104,6 +104,7 @@ impl MinioHarness {
     {
         let config = ReplicaConfig {
             address,
+            advertised_address: address,
             sync_interval: timing.sync_interval,
             result_dir_path: self.result_dir.clone(),
             durability_path: None,
@@ -313,6 +314,7 @@ impl FilesystemHarness {
     {
         let config = ReplicaConfig {
             address,
+            advertised_address: address,
             sync_interval: timing.sync_interval,
             result_dir_path: self.result_dir.clone(),
             durability_path: None,

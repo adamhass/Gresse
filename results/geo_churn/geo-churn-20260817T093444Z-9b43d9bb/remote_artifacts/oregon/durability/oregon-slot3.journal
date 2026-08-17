@@ -1,0 +1,3 @@
+{"record_type":"snapshot","payload":{"crdt_wrapper":{"gc_markers":[],"version_matrix":{"final_dots":[],"matrix":{}}},"local_state":{"delta_log":{"map":{}},"entries":{},"pid":178695929047432849,"version_vector":{"set":{}}}}}
+{"record_type":"snapshot","payload":{"crdt_wrapper":{"gc_markers":[],"version_matrix":{"final_dots":[],"matrix":{}}},"local_state":{"delta_log":{"map":{}},"entries":{},"pid":178695929047432864,"version_vector":{"set":{}}}}}
+{"record_type":"delta_group","payload":{"list":[{"change":{"Remove":{"element":-6803,"removed_dots":[]}},"dot":{"counter":0,"pid":178695929047432864}}],"side_effects":null,"version_vector":{"set":{"178695929047432864":0}}}}

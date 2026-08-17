@@ -1,0 +1,21 @@
+[2026-08-17T10:34:34.369Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T10:34:34.369Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18083
+[2026-08-17T10:34:34.398Z INFO  gresse::replica] replica 178696280264305149 initiating runtime at bind_http=0.0.0.0:18083 bind_internal=0.0.0.0:19083 advertised_internal=54.201.80.134:19083
+[2026-08-17T10:34:34.883Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-smoke-20260817T103322Z-6dd393a8/persistent.json
+[2026-08-17T10:34:35.061Z INFO  gresse::replica] replica 178696280264305149 discovered 19 membership descriptors during init
+[2026-08-17T10:34:35.061Z INFO  gresse::network] replica 178696280264305149 discovered network member NetworkMember { pid: 178696280264305131, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T10:34:35.064Z INFO  gresse::replica] replica 178696280264305149 startup completed
+[2026-08-17T10:36:42.339Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13852
+[2026-08-17T10:36:57.613Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32672
+[2026-08-17T10:37:12.927Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21472
+[2026-08-17T10:37:22.547Z WARN  gresse::network] replica 178696280264305149 ignored failed handshake with peer 178696280264305131 at 16.192.148.144:19080: Connection reset by peer (os error 104)
+[2026-08-17T10:37:22.547Z INFO  gresse::network] replica 178696280264305149 discovered network member NetworkMember { pid: 178696280264305132, address: 16.192.148.144:19081, final_counter: None }
+[2026-08-17T10:37:28.204Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51209
+[2026-08-17T10:37:43.507Z ERROR gresse::http_server] http server connection error for 193.12.118.239:48381
+[2026-08-17T10:37:58.832Z ERROR gresse::http_server] http server connection error for 193.12.118.239:29494
+[2026-08-17T10:38:14.116Z ERROR gresse::http_server] http server connection error for 193.12.118.239:48618
+[2026-08-17T10:38:29.421Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45926
+[2026-08-17T10:38:44.725Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17319
+[2026-08-17T10:39:00.037Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19843
+[2026-08-17T10:39:15.323Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8138
+[2026-08-17T10:39:30.624Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4631

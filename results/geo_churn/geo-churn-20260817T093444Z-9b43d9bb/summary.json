@@ -1,0 +1,334 @@
+{
+  "availability": {
+    "expected_live": {
+      "requests": 8559,
+      "successful": 10,
+      "success_rate": 0.0011683607898118939
+    },
+    "intentionally_down": {
+      "requests": 51,
+      "successful": 0,
+      "success_rate": 0.0
+    }
+  },
+  "lifecycle_events": {
+    "spawn_requested": 36,
+    "crash_requested": 3,
+    "graceful_stop_requested": 33
+  },
+  "recovery_to_first_success_us": {
+    "samples": 6,
+    "min": 492008,
+    "median": 3773682,
+    "max": 5250950
+  },
+  "state_snapshots": [
+    {
+      "timestamp_us": 1786959522233880,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959552306790,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959582311247,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959612488930,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959642345577,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959672320385,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959702370801,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959733074286,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959762257603,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959792242315,
+      "digest_groups": 1,
+      "replicas": 30
+    },
+    {
+      "timestamp_us": 1786959819983106,
+      "digest_groups": 1,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786959848561694,
+      "digest_groups": 1,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786959880224617,
+      "digest_groups": 1,
+      "replicas": 17
+    },
+    {
+      "timestamp_us": 1786959931499335,
+      "digest_groups": 2,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786959938797709,
+      "digest_groups": 2,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786959970206270,
+      "digest_groups": 2,
+      "replicas": 17
+    },
+    {
+      "timestamp_us": 1786960003414473,
+      "digest_groups": 3,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786960028810426,
+      "digest_groups": 3,
+      "replicas": 16
+    },
+    {
+      "timestamp_us": 1786960062553623,
+      "digest_groups": 3,
+      "replicas": 17
+    },
+    {
+      "timestamp_us": 1786960096316706,
+      "digest_groups": 4,
+      "replicas": 17
+    },
+    {
+      "timestamp_us": 1786960118511901,
+      "digest_groups": 4,
+      "replicas": 17
+    },
+    {
+      "timestamp_us": 1786960155175838,
+      "digest_groups": 4,
+      "replicas": 18
+    },
+    {
+      "timestamp_us": 1786960189558963,
+      "digest_groups": 4,
+      "replicas": 18
+    },
+    {
+      "timestamp_us": 1786960208579073,
+      "digest_groups": 4,
+      "replicas": 18
+    },
+    {
+      "timestamp_us": 1786960247412600,
+      "digest_groups": 4,
+      "replicas": 19
+    },
+    {
+      "timestamp_us": 1786960280615398,
+      "digest_groups": 4,
+      "replicas": 19
+    },
+    {
+      "timestamp_us": 1786960299082984,
+      "digest_groups": 4,
+      "replicas": 19
+    },
+    {
+      "timestamp_us": 1786960337630795,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960359436908,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960389672742,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960419729915,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960449579812,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960479658311,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960509562937,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960539435724,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960569645813,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960599701642,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960629703835,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960659608724,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960690019062,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960719716713,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960749719370,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960779521207,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960809627459,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960839631238,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960869532800,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960899536963,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960929503011,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960959515250,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786960989737822,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961019740020,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961049345243,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961079486948,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961109491174,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961139753407,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961169350196,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961199558345,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961229665759,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961259565550,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961289513667,
+      "digest_groups": 4,
+      "replicas": 20
+    },
+    {
+      "timestamp_us": 1786961439587404,
+      "digest_groups": 4,
+      "replicas": 20
+    }
+  ],
+  "final_snapshot_converged": false,
+  "note": "GC completion and departed-membership cleanup are in the collected per-replica CSV traces, correlated by gc_marker."
+}

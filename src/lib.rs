@@ -40,6 +40,11 @@ pub mod prelude {
             SocketAddr::new(self.ip, self.internal_port)
         }
 
+        /// Keep the configured ports while replacing the bind/published IP.
+        pub fn with_ip(self, ip: IpAddr) -> ServerAddr {
+            ServerAddr { ip, ..self }
+        }
+
         pub fn from_args() -> ServerAddr {
             Self::from_env()
         }

@@ -1,0 +1,169 @@
+{
+  "run_id": "acm-sec-geo-churn-20260817T091824Z-485e8c58",
+  "config": {
+    "run_label": "acm-sec-geo-churn",
+    "duration_seconds": 1800,
+    "bucket": "gresse-geo-035351467464-20260817080652-e8d881",
+    "s3_region": "eu-north-1",
+    "replicas_per_vm": 5,
+    "sync_interval_ms": 1000,
+    "discovery_interval_ms": 5000,
+    "gc_interval_ms": 60000,
+    "workload_rate_per_replica": 1.0,
+    "snapshot_interval_seconds": 30,
+    "final_convergence_seconds": 120,
+    "startup_timeout_seconds": 60,
+    "process_stop_timeout_seconds": 20,
+    "membership_settle_seconds": 30,
+    "max_clock_skew_ms": 5000,
+    "durable_recovery": true,
+    "remote_shutdown_grace_seconds": 20,
+    "remote_deadline_slack_seconds": 600,
+    "ssh_timeout_seconds": 30,
+    "collection_timeout_seconds": 300,
+    "ssh_options": [
+      "-i",
+      "/Users/adam/.ssh/gresse-geo-churn-20260817080652-e8d881.pem",
+      "-o",
+      "IdentitiesOnly=yes"
+    ],
+    "vms": [
+      {
+        "name": "stockholm",
+        "region": "eu-north-1",
+        "ssh_host": "ec2-user@16.192.148.144",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "16.192.148.144",
+        "client_host": "16.192.148.144",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      },
+      {
+        "name": "frankfurt",
+        "region": "eu-central-1",
+        "ssh_host": "ec2-user@3.76.45.179",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "3.76.45.179",
+        "client_host": "3.76.45.179",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      },
+      {
+        "name": "virginia",
+        "region": "us-east-1",
+        "ssh_host": "ec2-user@3.231.214.148",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "3.231.214.148",
+        "client_host": "3.231.214.148",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      },
+      {
+        "name": "oregon",
+        "region": "us-west-2",
+        "ssh_host": "ec2-user@54.201.80.134",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "54.201.80.134",
+        "client_host": "54.201.80.134",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      },
+      {
+        "name": "singapore",
+        "region": "ap-southeast-1",
+        "ssh_host": "ec2-user@54.251.165.199",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "54.251.165.199",
+        "client_host": "54.251.165.199",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      },
+      {
+        "name": "tokyo",
+        "region": "ap-northeast-1",
+        "ssh_host": "ec2-user@35.77.61.140",
+        "bind_ip": "0.0.0.0",
+        "advertise_ip": "35.77.61.140",
+        "client_host": "35.77.61.140",
+        "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+        "remote_root": "/home/ec2-user/gresse-runs"
+      }
+    ],
+    "events": [
+      {
+        "at_seconds": 300,
+        "action": "crash",
+        "vm": "stockholm",
+        "slot": 0
+      },
+      {
+        "at_seconds": 360,
+        "action": "spawn",
+        "vm": "stockholm",
+        "slot": 0
+      },
+      {
+        "at_seconds": 390,
+        "action": "graceful_stop",
+        "vm": "frankfurt",
+        "slot": 1
+      },
+      {
+        "at_seconds": 450,
+        "action": "spawn",
+        "vm": "frankfurt",
+        "slot": 1
+      },
+      {
+        "at_seconds": 480,
+        "action": "crash",
+        "vm": "virginia",
+        "slot": 2
+      },
+      {
+        "at_seconds": 540,
+        "action": "spawn",
+        "vm": "virginia",
+        "slot": 2
+      },
+      {
+        "at_seconds": 570,
+        "action": "graceful_stop",
+        "vm": "oregon",
+        "slot": 3
+      },
+      {
+        "at_seconds": 630,
+        "action": "spawn",
+        "vm": "oregon",
+        "slot": 3
+      },
+      {
+        "at_seconds": 660,
+        "action": "crash",
+        "vm": "singapore",
+        "slot": 4
+      },
+      {
+        "at_seconds": 720,
+        "action": "spawn",
+        "vm": "singapore",
+        "slot": 4
+      },
+      {
+        "at_seconds": 750,
+        "action": "graceful_stop",
+        "vm": "tokyo",
+        "slot": 0
+      },
+      {
+        "at_seconds": 810,
+        "action": "spawn",
+        "vm": "tokyo",
+        "slot": 0
+      }
+    ],
+    "expected_binary_sha256": "0aa168671dc3813a0919ad39d9580724c3405b41fcff62015049098fd975d872"
+  },
+  "collect_only": false
+}

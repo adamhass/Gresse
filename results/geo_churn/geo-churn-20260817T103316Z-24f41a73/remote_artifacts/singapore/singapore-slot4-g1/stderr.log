@@ -1,0 +1,52 @@
+[2026-08-17T10:35:21.042Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T10:35:21.042Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18084
+[2026-08-17T10:35:21.071Z INFO  gresse::replica] replica 178696280264305155 initiating runtime at bind_http=0.0.0.0:18084 bind_internal=0.0.0.0:19084 advertised_internal=54.251.165.199:19084
+[2026-08-17T10:35:21.638Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-smoke-20260817T103322Z-6dd393a8/persistent.json
+[2026-08-17T10:35:21.834Z INFO  gresse::replica] replica 178696280264305155 discovered 36 membership descriptors during init
+[2026-08-17T10:35:21.834Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305131, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T10:35:21.837Z INFO  gresse::replica] replica 178696280264305155 startup completed
+[2026-08-17T10:36:42.491Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19242
+[2026-08-17T10:36:57.785Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51006
+[2026-08-17T10:37:13.079Z ERROR gresse::http_server] http server connection error for 193.12.118.239:44356
+[2026-08-17T10:37:22.559Z WARN  gresse::network] replica 178696280264305155 ignored failed handshake with peer 178696280264305131 at 16.192.148.144:19080: Connection reset by peer (os error 104)
+[2026-08-17T10:37:22.559Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305131, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T10:37:22.746Z WARN  gresse::network] replica 178696280264305155 could not connect to discovered peer 178696280264305131 at 16.192.148.144:19080: Connection refused (os error 111)
+[2026-08-17T10:37:22.746Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305132, address: 16.192.148.144:19081, final_counter: None }
+[2026-08-17T10:37:28.371Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51730
+[2026-08-17T10:37:43.679Z ERROR gresse::http_server] http server connection error for 193.12.118.239:28119
+[2026-08-17T10:37:58.992Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27456
+[2026-08-17T10:38:14.286Z ERROR gresse::http_server] http server connection error for 193.12.118.239:59665
+[2026-08-17T10:38:29.583Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63454
+[2026-08-17T10:38:44.894Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7576
+[2026-08-17T10:39:00.210Z ERROR gresse::http_server] http server connection error for 193.12.118.239:47526
+[2026-08-17T10:39:15.496Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49605
+[2026-08-17T10:39:30.789Z ERROR gresse::http_server] http server connection error for 193.12.118.239:14145
+[2026-08-17T10:39:46.089Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38158
+[2026-08-17T10:40:01.379Z ERROR gresse::http_server] http server connection error for 193.12.118.239:22655
+[2026-08-17T10:40:16.669Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4433
+[2026-08-17T10:40:31.962Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49395
+[2026-08-17T10:40:47.261Z ERROR gresse::http_server] http server connection error for 193.12.118.239:36724
+[2026-08-17T10:41:02.541Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18837
+[2026-08-17T10:41:17.831Z ERROR gresse::http_server] http server connection error for 193.12.118.239:11300
+[2026-08-17T10:41:33.134Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6424
+[2026-08-17T10:43:29.141Z WARN  gresse::network] replica 178696280264305155 ignored failed handshake with peer 178696280264305132 at 16.192.148.144:19081: Connection reset by peer (os error 104)
+[2026-08-17T10:43:29.141Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305132, address: 16.192.148.144:19081, final_counter: None }
+[2026-08-17T10:43:29.320Z WARN  gresse::network] replica 178696280264305155 could not connect to discovered peer 178696280264305132 at 16.192.148.144:19081: Connection refused (os error 111)
+[2026-08-17T10:43:29.320Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305133, address: 16.192.148.144:19082, final_counter: None }
+[2026-08-17T10:43:30.002Z WARN  gresse::network] replica 178696280264305155 ignored failed handshake with peer 178696280264305133 at 16.192.148.144:19082: Connection reset by peer (os error 104)
+[2026-08-17T10:43:30.002Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305133, address: 16.192.148.144:19082, final_counter: None }
+
+thread 'tokio-rt-worker' (8157) panicked at src/replica.rs:966:14:
+failed to send confirmation: Ok(Ok(Acknowledged))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[2026-08-17T10:43:30.004Z INFO  gresse::http_server] http server received shutdown signal
+[2026-08-17T10:43:30.004Z INFO  gresse::http_server] http server shutdown complete
+[2026-08-17T10:43:30.179Z WARN  gresse::network] replica 178696280264305155 could not connect to discovered peer 178696280264305133 at 16.192.148.144:19082: Connection refused (os error 111)
+[2026-08-17T10:43:30.179Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305134, address: 16.192.148.144:19083, final_counter: None }
+[2026-08-17T10:43:51.531Z WARN  gresse::network] replica 178696280264305155 ignored failed handshake with peer 178696280264305134 at 16.192.148.144:19083: Connection reset by peer (os error 104)
+[2026-08-17T10:43:51.531Z INFO  gresse::network] replica 178696280264305155 discovered network member NetworkMember { pid: 178696280264305134, address: 16.192.148.144:19083, final_counter: None }
+[2026-08-17T10:43:51.708Z WARN  gresse::network] replica 178696280264305155 could not connect to discovered peer 178696280264305134 at 16.192.148.144:19083: Connection refused (os error 111)
+
+thread 'tokio-rt-worker' (8157) panicked at /Users/adam/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.52.1/src/sync/oneshot.rs:1289:13:
+called after complete
+Error: JoinError::Panic(Id(5), "failed to send confirmation: Ok(Ok(Acknowledged))", ...)

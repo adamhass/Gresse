@@ -1,0 +1,84 @@
+[2026-08-17T10:33:57.551Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T10:33:57.551Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18084
+[2026-08-17T10:33:57.583Z INFO  gresse::replica] replica 178696280264305140 initiating runtime at bind_http=0.0.0.0:18084 bind_internal=0.0.0.0:19084 advertised_internal=3.76.45.179:19084
+[2026-08-17T10:33:57.683Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-smoke-20260817T103322Z-6dd393a8/persistent.json
+[2026-08-17T10:33:57.733Z INFO  gresse::replica] replica 178696280264305140 discovered 10 membership descriptors during init
+[2026-08-17T10:33:57.733Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305131, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T10:33:57.735Z INFO  gresse::replica] replica 178696280264305140 startup completed
+[2026-08-17T10:33:57.780Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305131
+[2026-08-17T10:33:57.781Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305131
+[2026-08-17T10:33:57.781Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305132, address: 16.192.148.144:19081, final_counter: None }
+[2026-08-17T10:33:57.781Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305131
+[2026-08-17T10:33:57.828Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305132
+[2026-08-17T10:33:57.828Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305132
+[2026-08-17T10:33:57.828Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305133, address: 16.192.148.144:19082, final_counter: None }
+[2026-08-17T10:33:57.828Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305132
+[2026-08-17T10:33:57.876Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305133
+[2026-08-17T10:33:57.876Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305133
+[2026-08-17T10:33:57.876Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305134, address: 16.192.148.144:19083, final_counter: None }
+[2026-08-17T10:33:57.876Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305133
+[2026-08-17T10:33:57.924Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305134
+[2026-08-17T10:33:57.924Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305134
+[2026-08-17T10:33:57.924Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305135, address: 16.192.148.144:19084, final_counter: None }
+[2026-08-17T10:33:57.924Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305134
+[2026-08-17T10:33:57.971Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305135
+[2026-08-17T10:33:57.971Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305135
+[2026-08-17T10:33:57.971Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305136, address: 3.76.45.179:19080, final_counter: None }
+[2026-08-17T10:33:57.971Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305135
+[2026-08-17T10:33:57.972Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305136
+[2026-08-17T10:33:57.972Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305136
+[2026-08-17T10:33:57.972Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305137, address: 3.76.45.179:19081, final_counter: None }
+[2026-08-17T10:33:57.972Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305136
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305137
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305137
+[2026-08-17T10:33:57.974Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305137
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305138, address: 3.76.45.179:19082, final_counter: None }
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305138
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305138
+[2026-08-17T10:33:57.974Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305139, address: 3.76.45.179:19083, final_counter: None }
+[2026-08-17T10:33:57.974Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305138
+[2026-08-17T10:33:57.975Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305139
+[2026-08-17T10:33:57.975Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305139
+[2026-08-17T10:33:57.975Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305139
+[2026-08-17T10:34:02.178Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305141
+[2026-08-17T10:34:02.178Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305141
+[2026-08-17T10:34:02.178Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305141
+[2026-08-17T10:34:05.459Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305142
+[2026-08-17T10:34:05.459Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305142
+[2026-08-17T10:34:05.459Z INFO  gresse::replica] replica 178696280264305140 established peer replication connection with replica 178696280264305142
+[2026-08-17T10:34:07.621Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305143, address: 3.231.214.148:19082, final_counter: None }
+[2026-08-17T10:35:01.286Z INFO  gresse::replica] replica 178696280264305140 gc departed_pids=None updated_stable=DotSet { set: {178696280264305131: -1, 178696280264305134: -1, 178696280264305133: -1, 178696280264305140: -1, 178696280264305135: -1, 178696280264305132: -1, 178696280264305141: -1, 178696280264305136: -1, 178696280264305137: -1, 178696280264305139: -1, 178696280264305138: -1, 178696280264305142: -1} }
+[2026-08-17T10:35:01.342Z INFO  gresse::replica] replica 178696280264305140 completed gc round
+[2026-08-17T10:36:42.101Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27722
+[2026-08-17T10:36:57.361Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33820
+[2026-08-17T10:37:12.786Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25254
+[2026-08-17T10:37:24.580Z WARN  gresse::network] replica 178696280264305140 ignored failed handshake with peer 178696280264305143 at 3.231.214.148:19082: Connection reset by peer (os error 104)
+[2026-08-17T10:37:24.580Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305143, address: 3.231.214.148:19082, final_counter: None }
+[2026-08-17T10:37:24.671Z WARN  gresse::network] replica 178696280264305140 could not connect to discovered peer 178696280264305143 at 3.231.214.148:19082: Connection refused (os error 111)
+[2026-08-17T10:37:24.671Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305144, address: 3.231.214.148:19083, final_counter: None }
+[2026-08-17T10:37:27.960Z ERROR gresse::http_server] http server connection error for 193.12.118.239:28629
+[2026-08-17T10:37:43.252Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49218
+[2026-08-17T10:37:58.567Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26045
+[2026-08-17T10:38:13.860Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18897
+[2026-08-17T10:38:29.166Z ERROR gresse::http_server] http server connection error for 193.12.118.239:65073
+[2026-08-17T10:38:44.480Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18719
+[2026-08-17T10:38:59.771Z ERROR gresse::http_server] http server connection error for 193.12.118.239:22811
+[2026-08-17T10:39:15.070Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25146
+[2026-08-17T10:39:30.363Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64355
+[2026-08-17T10:39:45.655Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40542
+[2026-08-17T10:40:00.951Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27143
+[2026-08-17T10:40:16.242Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35702
+[2026-08-17T10:40:31.542Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51738
+[2026-08-17T10:40:46.833Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18203
+[2026-08-17T10:41:02.121Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27734
+[2026-08-17T10:41:17.435Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62089
+[2026-08-17T10:41:32.704Z ERROR gresse::http_server] http server connection error for 193.12.118.239:10155
+[2026-08-17T10:43:51.542Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305144
+[2026-08-17T10:43:51.542Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305144
+[2026-08-17T10:43:51.542Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305143, address: 3.231.214.148:19082, final_counter: None }
+[2026-08-17T10:44:35.950Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305162
+[2026-08-17T10:44:35.950Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305162
+[2026-08-17T10:44:35.950Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305144, address: 3.231.214.148:19083, final_counter: None }
+[2026-08-17T10:45:00.360Z INFO  gresse::network] replica 178696280264305140 completed network handshake with replica 178696280264305144
+[2026-08-17T10:45:00.360Z INFO  gresse::network] replica 178696280264305140 registered bidirectional network channel for replica 178696280264305144
+[2026-08-17T10:45:00.360Z INFO  gresse::network] replica 178696280264305140 discovered network member NetworkMember { pid: 178696280264305145, address: 3.231.214.148:19084, final_counter: None }

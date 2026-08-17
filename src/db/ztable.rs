@@ -35,9 +35,7 @@ impl<K: Eq + Hash + Copy + std::fmt::Display, V: Clone + Default + PartialEq> ZT
     pub fn new_with_shards(shard_count: usize) -> ZTable<K, V> {
         let shard_count = shard_count.max(1);
         ZTable {
-            shards: (0..shard_count)
-                .map(|_| Arc::new(HashMap::new()))
-                .collect(),
+            shards: (0..shard_count).map(|_| Arc::new(HashMap::new())).collect(),
         }
     }
 
@@ -108,11 +106,15 @@ impl<K: Eq + Hash + Copy + std::fmt::Display, V: Clone + Default + PartialEq> ZT
 
     /// Retrieves the value associated with the key, if it exists with weight >0
     pub fn get(&self, key: &K) -> Option<&V> {
-        self.shard(key).get(key).map(|(weight, value)| {
-            if *weight < 1 {
-                None
-            } else {Some(value)}
-        })?
+        self.shard(key).get(key).map(
+            |(weight, value)| {
+                if *weight < 1 {
+                    None
+                } else {
+                    Some(value)
+                }
+            },
+        )?
     }
 
     pub fn len(&self) -> usize {

@@ -1,0 +1,323 @@
+[2026-08-17T09:35:46.512Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T09:35:46.512Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18082
+[2026-08-17T09:35:46.545Z INFO  gresse::replica] replica 178695929047432833 initiating runtime at bind_http=0.0.0.0:18082 bind_internal=0.0.0.0:19082 advertised_internal=16.192.148.144:19082
+[2026-08-17T09:35:46.579Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-20260817T093450Z-e7c2f9b4/persistent.json
+[2026-08-17T09:35:46.598Z INFO  gresse::replica] replica 178695929047432833 discovered 3 membership descriptors during init
+[2026-08-17T09:35:46.598Z INFO  gresse::network] replica 178695929047432833 discovered network member NetworkMember { pid: 178695929047432831, address: 16.192.148.144:19080, final_counter: None }
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432831
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432831
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432833 discovered network member NetworkMember { pid: 178695929047432832, address: 16.192.148.144:19081, final_counter: None }
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432832
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432832
+[2026-08-17T09:35:46.601Z INFO  gresse::replica] replica 178695929047432833 startup completed
+[2026-08-17T09:35:46.601Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432831
+[2026-08-17T09:35:46.601Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432832
+[2026-08-17T09:35:47.305Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432834
+[2026-08-17T09:35:47.305Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432834
+[2026-08-17T09:35:47.305Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432834
+[2026-08-17T09:35:47.932Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432835
+[2026-08-17T09:35:47.932Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432835
+[2026-08-17T09:35:47.932Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432835
+[2026-08-17T09:35:49.271Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432836
+[2026-08-17T09:35:49.271Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432836
+[2026-08-17T09:35:49.272Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432836
+[2026-08-17T09:35:50.424Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432837
+[2026-08-17T09:35:50.424Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432837
+[2026-08-17T09:35:50.424Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432837
+[2026-08-17T09:35:51.500Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432838
+[2026-08-17T09:35:51.500Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432838
+[2026-08-17T09:35:51.500Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432838
+[2026-08-17T09:35:52.517Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432839
+[2026-08-17T09:35:52.517Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432839
+[2026-08-17T09:35:52.517Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432839
+[2026-08-17T09:35:53.502Z INFO  gresse::network] replica 178695929047432833 completed network handshake with replica 178695929047432840
+[2026-08-17T09:35:53.503Z INFO  gresse::network] replica 178695929047432833 registered bidirectional network channel for replica 178695929047432840
+[2026-08-17T09:35:53.503Z INFO  gresse::replica] replica 178695929047432833 established peer replication connection with replica 178695929047432840
+[2026-08-17T09:35:56.566Z INFO  gresse::network] replica 178695929047432833 discovered network member NetworkMember { pid: 178695929047432841, address: 3.231.214.148:19080, final_counter: None }
+[2026-08-17T09:38:37.837Z ERROR gresse::http_server] http server connection error for 193.12.118.239:52320
+[2026-08-17T09:38:44.139Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50904
+[2026-08-17T09:38:50.449Z ERROR gresse::http_server] http server connection error for 193.12.118.239:47677
+[2026-08-17T09:38:56.746Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61195
+[2026-08-17T09:39:03.037Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7933
+[2026-08-17T09:39:09.333Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18674
+[2026-08-17T09:39:15.623Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37950
+[2026-08-17T09:39:21.927Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61490
+[2026-08-17T09:39:28.214Z ERROR gresse::http_server] http server connection error for 193.12.118.239:2128
+[2026-08-17T09:39:34.505Z ERROR gresse::http_server] http server connection error for 193.12.118.239:29888
+[2026-08-17T09:39:40.810Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45152
+[2026-08-17T09:39:47.107Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58589
+[2026-08-17T09:39:53.420Z ERROR gresse::http_server] http server connection error for 193.12.118.239:30220
+[2026-08-17T09:39:59.710Z ERROR gresse::http_server] http server connection error for 193.12.118.239:20759
+[2026-08-17T09:40:06.008Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24830
+[2026-08-17T09:40:12.296Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38350
+[2026-08-17T09:40:18.591Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6055
+[2026-08-17T09:40:24.897Z ERROR gresse::http_server] http server connection error for 193.12.118.239:36919
+[2026-08-17T09:40:31.213Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37460
+[2026-08-17T09:40:37.482Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31548
+[2026-08-17T09:40:43.780Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13294
+[2026-08-17T09:40:50.373Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40590
+[2026-08-17T09:40:56.436Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50185
+[2026-08-17T09:41:02.735Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62694
+[2026-08-17T09:41:09.016Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25249
+[2026-08-17T09:41:15.316Z ERROR gresse::http_server] http server connection error for 193.12.118.239:34913
+[2026-08-17T09:41:21.609Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17484
+[2026-08-17T09:41:27.909Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35968
+[2026-08-17T09:41:34.191Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63593
+[2026-08-17T09:41:40.481Z ERROR gresse::http_server] http server connection error for 193.12.118.239:34853
+[2026-08-17T09:41:46.770Z ERROR gresse::http_server] http server connection error for 193.12.118.239:43656
+[2026-08-17T09:41:53.098Z ERROR gresse::http_server] http server connection error for 193.12.118.239:20115
+[2026-08-17T09:41:59.401Z ERROR gresse::http_server] http server connection error for 193.12.118.239:12918
+[2026-08-17T09:42:05.704Z ERROR gresse::http_server] http server connection error for 193.12.118.239:22863
+[2026-08-17T09:42:12.002Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25203
+[2026-08-17T09:42:18.308Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37735
+[2026-08-17T09:42:24.599Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49159
+[2026-08-17T09:42:30.896Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58523
+[2026-08-17T09:42:37.184Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51087
+[2026-08-17T09:42:43.478Z ERROR gresse::http_server] http server connection error for 193.12.118.239:29602
+[2026-08-17T09:42:49.772Z ERROR gresse::http_server] http server connection error for 193.12.118.239:55265
+[2026-08-17T09:42:56.064Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62234
+[2026-08-17T09:43:02.366Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49955
+[2026-08-17T09:43:08.654Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46211
+[2026-08-17T09:43:14.945Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21220
+[2026-08-17T09:43:21.231Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21010
+[2026-08-17T09:43:27.531Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26357
+[2026-08-17T09:43:33.823Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8573
+[2026-08-17T09:43:40.019Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64358
+[2026-08-17T09:43:46.220Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64415
+[2026-08-17T09:43:52.418Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19140
+[2026-08-17T09:43:58.636Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51643
+[2026-08-17T09:44:04.839Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7799
+[2026-08-17T09:44:11.038Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31133
+[2026-08-17T09:44:17.252Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40516
+[2026-08-17T09:44:23.447Z ERROR gresse::http_server] http server connection error for 193.12.118.239:15384
+[2026-08-17T09:44:29.654Z ERROR gresse::http_server] http server connection error for 193.12.118.239:43373
+[2026-08-17T09:44:35.874Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50061
+[2026-08-17T09:44:42.080Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35065
+[2026-08-17T09:44:48.295Z ERROR gresse::http_server] http server connection error for 193.12.118.239:41748
+[2026-08-17T09:44:54.510Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32565
+[2026-08-17T09:45:00.713Z ERROR gresse::http_server] http server connection error for 193.12.118.239:11896
+[2026-08-17T09:45:06.927Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27656
+[2026-08-17T09:45:13.124Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33926
+[2026-08-17T09:45:19.326Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18630
+[2026-08-17T09:45:25.529Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6345
+[2026-08-17T09:45:31.734Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62158
+[2026-08-17T09:45:37.974Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31584
+[2026-08-17T09:45:44.169Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61689
+[2026-08-17T09:45:50.375Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58094
+[2026-08-17T09:45:56.589Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18622
+[2026-08-17T09:46:02.823Z ERROR gresse::http_server] http server connection error for 193.12.118.239:11366
+[2026-08-17T09:46:09.017Z ERROR gresse::http_server] http server connection error for 193.12.118.239:52112
+[2026-08-17T09:46:15.221Z ERROR gresse::http_server] http server connection error for 193.12.118.239:15425
+[2026-08-17T09:46:21.453Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64561
+[2026-08-17T09:46:27.650Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45879
+[2026-08-17T09:46:33.873Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58733
+[2026-08-17T09:46:40.063Z ERROR gresse::http_server] http server connection error for 193.12.118.239:15214
+[2026-08-17T09:46:46.254Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46419
+[2026-08-17T09:46:52.473Z ERROR gresse::http_server] http server connection error for 193.12.118.239:1881
+[2026-08-17T09:46:58.677Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8724
+[2026-08-17T09:47:04.903Z ERROR gresse::http_server] http server connection error for 193.12.118.239:41332
+[2026-08-17T09:47:11.108Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26696
+[2026-08-17T09:47:17.310Z ERROR gresse::http_server] http server connection error for 193.12.118.239:10521
+[2026-08-17T09:47:23.507Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45306
+[2026-08-17T09:47:29.706Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31741
+[2026-08-17T09:47:35.923Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21073
+[2026-08-17T09:47:42.123Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57927
+[2026-08-17T09:47:48.325Z ERROR gresse::http_server] http server connection error for 193.12.118.239:39507
+[2026-08-17T09:47:54.518Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46538
+[2026-08-17T09:48:00.733Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56390
+[2026-08-17T09:48:06.933Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5274
+[2026-08-17T09:48:13.137Z ERROR gresse::http_server] http server connection error for 193.12.118.239:60771
+[2026-08-17T09:48:19.353Z ERROR gresse::http_server] http server connection error for 193.12.118.239:2410
+[2026-08-17T09:48:25.563Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27450
+[2026-08-17T09:48:31.755Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58676
+[2026-08-17T09:48:37.973Z ERROR gresse::http_server] http server connection error for 193.12.118.239:16416
+[2026-08-17T09:48:44.189Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38900
+[2026-08-17T09:48:50.397Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4261
+[2026-08-17T09:48:56.623Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53207
+[2026-08-17T09:49:02.805Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17547
+[2026-08-17T09:49:09.029Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50738
+[2026-08-17T09:49:15.243Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18815
+[2026-08-17T09:49:21.454Z ERROR gresse::http_server] http server connection error for 193.12.118.239:39333
+[2026-08-17T09:49:27.661Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32354
+[2026-08-17T09:49:33.866Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26991
+[2026-08-17T09:49:40.093Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40513
+[2026-08-17T09:49:46.273Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63433
+[2026-08-17T09:49:52.485Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57016
+[2026-08-17T09:49:58.703Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4676
+[2026-08-17T09:50:04.906Z ERROR gresse::http_server] http server connection error for 193.12.118.239:11201
+[2026-08-17T09:50:11.123Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5926
+[2026-08-17T09:50:17.343Z ERROR gresse::http_server] http server connection error for 193.12.118.239:60131
+[2026-08-17T09:50:23.523Z ERROR gresse::http_server] http server connection error for 193.12.118.239:1951
+[2026-08-17T09:50:29.743Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50037
+[2026-08-17T09:50:35.943Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61868
+[2026-08-17T09:50:42.136Z ERROR gresse::http_server] http server connection error for 193.12.118.239:11470
+[2026-08-17T09:50:48.343Z ERROR gresse::http_server] http server connection error for 193.12.118.239:9333
+[2026-08-17T09:50:54.554Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57160
+[2026-08-17T09:51:00.843Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19487
+[2026-08-17T09:51:07.133Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24895
+[2026-08-17T09:51:13.423Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61775
+[2026-08-17T09:51:19.713Z ERROR gresse::http_server] http server connection error for 193.12.118.239:20563
+[2026-08-17T09:51:26.001Z ERROR gresse::http_server] http server connection error for 193.12.118.239:48486
+[2026-08-17T09:51:32.293Z ERROR gresse::http_server] http server connection error for 193.12.118.239:27036
+[2026-08-17T09:51:38.581Z ERROR gresse::http_server] http server connection error for 193.12.118.239:20956
+[2026-08-17T09:51:44.893Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25111
+[2026-08-17T09:51:51.173Z ERROR gresse::http_server] http server connection error for 193.12.118.239:1828
+[2026-08-17T09:51:57.457Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49035
+[2026-08-17T09:52:03.744Z ERROR gresse::http_server] http server connection error for 193.12.118.239:60980
+[2026-08-17T09:52:10.053Z ERROR gresse::http_server] http server connection error for 193.12.118.239:52653
+[2026-08-17T09:52:16.318Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37238
+[2026-08-17T09:52:22.613Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8152
+[2026-08-17T09:52:28.919Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13354
+[2026-08-17T09:52:35.215Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33402
+[2026-08-17T09:52:41.503Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7382
+[2026-08-17T09:52:47.793Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46598
+[2026-08-17T09:52:54.103Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33313
+[2026-08-17T09:53:00.403Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26081
+[2026-08-17T09:53:06.693Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25350
+[2026-08-17T09:53:12.975Z ERROR gresse::http_server] http server connection error for 193.12.118.239:43943
+[2026-08-17T09:53:19.293Z ERROR gresse::http_server] http server connection error for 193.12.118.239:42222
+[2026-08-17T09:53:25.570Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6641
+[2026-08-17T09:53:31.849Z ERROR gresse::http_server] http server connection error for 193.12.118.239:39369
+[2026-08-17T09:53:38.163Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53861
+[2026-08-17T09:53:44.443Z ERROR gresse::http_server] http server connection error for 193.12.118.239:55638
+[2026-08-17T09:53:50.753Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21709
+[2026-08-17T09:53:57.033Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53837
+[2026-08-17T09:54:03.312Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18348
+[2026-08-17T09:54:09.613Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58769
+[2026-08-17T09:54:15.902Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13247
+[2026-08-17T09:54:22.213Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5982
+[2026-08-17T09:54:28.485Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45619
+[2026-08-17T09:54:34.784Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7718
+[2026-08-17T09:54:41.067Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58127
+[2026-08-17T09:54:47.362Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50850
+[2026-08-17T09:54:53.657Z ERROR gresse::http_server] http server connection error for 193.12.118.239:54706
+[2026-08-17T09:54:59.953Z ERROR gresse::http_server] http server connection error for 193.12.118.239:28821
+[2026-08-17T09:55:06.243Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21895
+[2026-08-17T09:55:12.529Z ERROR gresse::http_server] http server connection error for 193.12.118.239:42542
+[2026-08-17T09:55:18.843Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8051
+[2026-08-17T09:55:25.133Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32414
+[2026-08-17T09:55:31.433Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64417
+[2026-08-17T09:55:37.711Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61235
+[2026-08-17T09:55:44.002Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18140
+[2026-08-17T09:55:50.313Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35060
+[2026-08-17T09:55:56.588Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24831
+[2026-08-17T09:56:02.885Z ERROR gresse::http_server] http server connection error for 193.12.118.239:54783
+[2026-08-17T09:56:09.193Z ERROR gresse::http_server] http server connection error for 193.12.118.239:55366
+[2026-08-17T09:56:15.493Z ERROR gresse::http_server] http server connection error for 193.12.118.239:16965
+[2026-08-17T09:56:21.773Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49563
+[2026-08-17T09:56:28.073Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17330
+[2026-08-17T09:56:34.363Z ERROR gresse::http_server] http server connection error for 193.12.118.239:60495
+[2026-08-17T09:56:40.648Z ERROR gresse::http_server] http server connection error for 193.12.118.239:3649
+[2026-08-17T09:56:46.940Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4545
+[2026-08-17T09:56:53.237Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51893
+[2026-08-17T09:56:59.530Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31156
+[2026-08-17T09:57:05.833Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40808
+[2026-08-17T09:57:12.116Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26731
+[2026-08-17T09:57:18.403Z ERROR gresse::http_server] http server connection error for 193.12.118.239:14951
+[2026-08-17T09:57:24.703Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32746
+[2026-08-17T09:57:31.013Z ERROR gresse::http_server] http server connection error for 193.12.118.239:1511
+[2026-08-17T09:57:37.284Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25998
+[2026-08-17T09:57:43.593Z ERROR gresse::http_server] http server connection error for 193.12.118.239:52957
+[2026-08-17T09:57:49.898Z ERROR gresse::http_server] http server connection error for 193.12.118.239:30792
+[2026-08-17T09:57:56.174Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57838
+[2026-08-17T09:58:02.463Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37045
+[2026-08-17T09:58:08.773Z ERROR gresse::http_server] http server connection error for 193.12.118.239:39631
+[2026-08-17T09:58:15.073Z ERROR gresse::http_server] http server connection error for 193.12.118.239:47684
+[2026-08-17T09:58:21.373Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56441
+[2026-08-17T09:58:27.662Z ERROR gresse::http_server] http server connection error for 193.12.118.239:36341
+[2026-08-17T09:58:33.956Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63324
+[2026-08-17T09:58:40.253Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5869
+[2026-08-17T09:58:46.553Z ERROR gresse::http_server] http server connection error for 193.12.118.239:34841
+[2026-08-17T09:58:52.863Z ERROR gresse::http_server] http server connection error for 193.12.118.239:60637
+[2026-08-17T09:58:59.143Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13707
+[2026-08-17T09:59:05.429Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58277
+[2026-08-17T09:59:11.723Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40016
+[2026-08-17T09:59:18.023Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8978
+[2026-08-17T09:59:24.316Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32216
+[2026-08-17T09:59:30.603Z ERROR gresse::http_server] http server connection error for 193.12.118.239:47865
+[2026-08-17T09:59:36.903Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17733
+[2026-08-17T09:59:43.184Z ERROR gresse::http_server] http server connection error for 193.12.118.239:10578
+[2026-08-17T09:59:49.493Z ERROR gresse::http_server] http server connection error for 193.12.118.239:28842
+[2026-08-17T09:59:55.783Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62972
+[2026-08-17T10:00:02.080Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35534
+[2026-08-17T10:00:08.359Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38169
+[2026-08-17T10:00:14.655Z ERROR gresse::http_server] http server connection error for 193.12.118.239:48858
+[2026-08-17T10:00:20.954Z ERROR gresse::http_server] http server connection error for 193.12.118.239:41401
+[2026-08-17T10:00:27.253Z ERROR gresse::http_server] http server connection error for 193.12.118.239:28518
+[2026-08-17T10:00:33.543Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56978
+[2026-08-17T10:00:39.823Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37504
+[2026-08-17T10:00:46.133Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8883
+[2026-08-17T10:00:52.413Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45290
+[2026-08-17T10:00:58.711Z ERROR gresse::http_server] http server connection error for 193.12.118.239:44792
+[2026-08-17T10:01:05.003Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26255
+[2026-08-17T10:01:11.291Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26161
+[2026-08-17T10:01:17.603Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46039
+[2026-08-17T10:01:23.882Z ERROR gresse::http_server] http server connection error for 193.12.118.239:22653
+[2026-08-17T10:01:30.193Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7851
+[2026-08-17T10:01:36.473Z ERROR gresse::http_server] http server connection error for 193.12.118.239:45257
+[2026-08-17T10:01:42.793Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8512
+[2026-08-17T10:01:49.055Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58156
+[2026-08-17T10:01:55.373Z ERROR gresse::http_server] http server connection error for 193.12.118.239:29523
+[2026-08-17T10:02:01.645Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21401
+[2026-08-17T10:02:07.941Z ERROR gresse::http_server] http server connection error for 193.12.118.239:17950
+[2026-08-17T10:02:14.253Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25702
+[2026-08-17T10:02:20.533Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31827
+[2026-08-17T10:02:26.823Z ERROR gresse::http_server] http server connection error for 193.12.118.239:34498
+[2026-08-17T10:02:33.103Z ERROR gresse::http_server] http server connection error for 193.12.118.239:2587
+[2026-08-17T10:02:39.413Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56619
+[2026-08-17T10:02:45.703Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37035
+[2026-08-17T10:02:51.983Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24228
+[2026-08-17T10:02:58.279Z ERROR gresse::http_server] http server connection error for 193.12.118.239:14667
+[2026-08-17T10:03:04.583Z ERROR gresse::http_server] http server connection error for 193.12.118.239:65510
+[2026-08-17T10:03:10.860Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61828
+[2026-08-17T10:03:17.175Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38155
+[2026-08-17T10:03:23.457Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38589
+[2026-08-17T10:03:29.763Z ERROR gresse::http_server] http server connection error for 193.12.118.239:30932
+[2026-08-17T10:03:36.046Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53992
+[2026-08-17T10:03:42.363Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35821
+[2026-08-17T10:03:48.630Z ERROR gresse::http_server] http server connection error for 193.12.118.239:47748
+[2026-08-17T10:03:54.933Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61449
+[2026-08-17T10:04:01.213Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58032
+[2026-08-17T10:04:07.513Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8696
+[2026-08-17T10:04:13.823Z ERROR gresse::http_server] http server connection error for 193.12.118.239:3685
+[2026-08-17T10:04:20.113Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32728
+[2026-08-17T10:04:26.385Z ERROR gresse::http_server] http server connection error for 193.12.118.239:9626
+[2026-08-17T10:04:32.687Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61289
+[2026-08-17T10:04:38.973Z ERROR gresse::http_server] http server connection error for 193.12.118.239:31337
+[2026-08-17T10:04:45.260Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6398
+[2026-08-17T10:04:51.553Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51100
+[2026-08-17T10:04:57.853Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61854
+[2026-08-17T10:05:04.127Z ERROR gresse::http_server] http server connection error for 193.12.118.239:9185
+[2026-08-17T10:05:10.423Z ERROR gresse::http_server] http server connection error for 193.12.118.239:55453
+[2026-08-17T10:05:16.707Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63546
+[2026-08-17T10:05:23.001Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63902
+[2026-08-17T10:05:29.303Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53768
+[2026-08-17T10:05:35.586Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5983
+[2026-08-17T10:05:41.893Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40277
+[2026-08-17T10:05:48.193Z ERROR gresse::http_server] http server connection error for 193.12.118.239:40081
+[2026-08-17T10:05:54.483Z ERROR gresse::http_server] http server connection error for 193.12.118.239:12156
+[2026-08-17T10:06:00.793Z ERROR gresse::http_server] http server connection error for 193.12.118.239:14043
+[2026-08-17T10:06:07.055Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50078
+[2026-08-17T10:06:13.363Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35144
+[2026-08-17T10:06:19.644Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4146
+[2026-08-17T10:06:25.928Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62810
+[2026-08-17T10:06:32.233Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62090
+[2026-08-17T10:06:38.513Z ERROR gresse::http_server] http server connection error for 193.12.118.239:58721
+[2026-08-17T10:06:44.803Z ERROR gresse::http_server] http server connection error for 193.12.118.239:65369
+[2026-08-17T10:06:51.113Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24062
+[2026-08-17T10:06:57.377Z ERROR gresse::http_server] http server connection error for 193.12.118.239:53571
+[2026-08-17T10:07:03.676Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19223
+[2026-08-17T10:07:09.958Z ERROR gresse::http_server] http server connection error for 193.12.118.239:5891
+[2026-08-17T10:07:16.303Z ERROR gresse::http_server] http server connection error for 193.12.118.239:32119
+[2026-08-17T10:07:22.574Z ERROR gresse::http_server] http server connection error for 193.12.118.239:6883
+[2026-08-17T10:07:28.877Z ERROR gresse::http_server] http server connection error for 193.12.118.239:22734
+[2026-08-17T10:07:35.166Z ERROR gresse::http_server] http server connection error for 193.12.118.239:38976
+[2026-08-17T10:07:41.457Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7969
+[2026-08-17T10:07:47.743Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33486
+[2026-08-17T10:07:54.043Z ERROR gresse::http_server] http server connection error for 193.12.118.239:36733
+[2026-08-17T10:08:00.343Z ERROR gresse::http_server] http server connection error for 193.12.118.239:13076
+[2026-08-17T10:08:06.633Z ERROR gresse::http_server] http server connection error for 193.12.118.239:49360
+[2026-08-17T10:08:12.924Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57602
+[2026-08-17T10:08:19.227Z ERROR gresse::http_server] http server connection error for 193.12.118.239:62928
+[2026-08-17T10:08:25.533Z ERROR gresse::http_server] http server connection error for 193.12.118.239:50142
+[2026-08-17T10:08:31.794Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51586

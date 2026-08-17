@@ -1,0 +1,104 @@
+[2026-08-17T09:35:44.801Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-17T09:35:44.801Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18080
+[2026-08-17T09:35:44.835Z INFO  gresse::replica] replica 178695929047432831 initiating runtime at bind_http=0.0.0.0:18080 bind_internal=0.0.0.0:19080 advertised_internal=16.192.148.144:19080
+[2026-08-17T09:35:44.867Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-20260817T093450Z-e7c2f9b4/persistent.json
+[2026-08-17T09:35:44.933Z INFO  gresse::replica] replica 178695929047432831 discovered 1 membership descriptors during init
+[2026-08-17T09:35:44.936Z INFO  gresse::replica] replica 178695929047432831 startup completed
+[2026-08-17T09:35:45.932Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432832
+[2026-08-17T09:35:45.932Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432832
+[2026-08-17T09:35:45.932Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432832
+[2026-08-17T09:35:46.598Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432833
+[2026-08-17T09:35:46.599Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432833
+[2026-08-17T09:35:46.599Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432833
+[2026-08-17T09:35:47.303Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432834
+[2026-08-17T09:35:47.303Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432834
+[2026-08-17T09:35:47.303Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432834
+[2026-08-17T09:35:47.931Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432835
+[2026-08-17T09:35:47.931Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432835
+[2026-08-17T09:35:47.931Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432835
+[2026-08-17T09:35:49.176Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432836
+[2026-08-17T09:35:49.176Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432836
+[2026-08-17T09:35:49.176Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432836
+[2026-08-17T09:35:50.328Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432837
+[2026-08-17T09:35:50.328Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432837
+[2026-08-17T09:35:50.328Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432837
+[2026-08-17T09:35:51.405Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432838
+[2026-08-17T09:35:51.405Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432838
+[2026-08-17T09:35:51.405Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432838
+[2026-08-17T09:35:52.422Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432839
+[2026-08-17T09:35:52.422Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432839
+[2026-08-17T09:35:52.422Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432839
+[2026-08-17T09:35:53.407Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432840
+[2026-08-17T09:35:53.407Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432840
+[2026-08-17T09:35:53.407Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432840
+[2026-08-17T09:35:56.324Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432841
+[2026-08-17T09:35:56.324Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432841
+[2026-08-17T09:35:56.324Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432841
+[2026-08-17T09:35:59.690Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432842
+[2026-08-17T09:35:59.690Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432842
+[2026-08-17T09:35:59.690Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432842
+[2026-08-17T09:36:02.820Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432843
+[2026-08-17T09:36:02.820Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432843
+[2026-08-17T09:36:02.821Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432843
+[2026-08-17T09:36:05.831Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432844
+[2026-08-17T09:36:05.831Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432844
+[2026-08-17T09:36:05.831Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432844
+[2026-08-17T09:36:08.949Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432845
+[2026-08-17T09:36:08.950Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432845
+[2026-08-17T09:36:08.950Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432845
+[2026-08-17T09:36:13.591Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432846
+[2026-08-17T09:36:13.591Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432846
+[2026-08-17T09:36:13.591Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432846
+[2026-08-17T09:36:19.702Z INFO  gresse::network] replica 178695929047432831 completed network handshake with replica 178695929047432847
+[2026-08-17T09:36:19.703Z INFO  gresse::network] replica 178695929047432831 registered bidirectional network channel for replica 178695929047432847
+[2026-08-17T09:36:19.703Z INFO  gresse::replica] replica 178695929047432831 established peer replication connection with replica 178695929047432847
+[2026-08-17T09:36:24.856Z INFO  gresse::network] replica 178695929047432831 discovered network member NetworkMember { pid: 178695929047432848, address: 54.201.80.134:19082, final_counter: None }
+[2026-08-17T09:37:45.404Z INFO  gresse::replica] replica 178695929047432831 gc departed_pids=None updated_stable=DotSet { set: {178695929047432841: -1, 178695929047432839: -1, 178695929047432844: -1, 178695929047432845: -1, 178695929047432837: -1, 178695929047432835: -1, 178695929047432847: -1, 178695929047432838: -1, 178695929047432831: -1, 178695929047432832: -1, 178695929047432833: -1, 178695929047432840: -1, 178695929047432846: -1, 178695929047432836: -1, 178695929047432842: -1, 178695929047432843: -1, 178695929047432834: -1} }
+[2026-08-17T09:37:45.443Z INFO  gresse::replica] replica 178695929047432831 completed gc round
+[2026-08-17T09:38:37.840Z ERROR gresse::http_server] http server connection error for 193.12.118.239:59291
+[2026-08-17T09:38:44.143Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37742
+[2026-08-17T09:38:50.448Z ERROR gresse::http_server] http server connection error for 193.12.118.239:10594
+[2026-08-17T09:38:56.746Z ERROR gresse::http_server] http server connection error for 193.12.118.239:24716
+[2026-08-17T09:39:03.038Z ERROR gresse::http_server] http server connection error for 193.12.118.239:44118
+[2026-08-17T09:39:09.334Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64244
+[2026-08-17T09:39:15.624Z ERROR gresse::http_server] http server connection error for 193.12.118.239:1465
+[2026-08-17T09:39:21.926Z ERROR gresse::http_server] http server connection error for 193.12.118.239:42985
+[2026-08-17T09:39:28.210Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33650
+[2026-08-17T09:39:34.503Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26314
+[2026-08-17T09:39:40.814Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64175
+[2026-08-17T09:39:47.108Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33307
+[2026-08-17T09:39:53.422Z ERROR gresse::http_server] http server connection error for 193.12.118.239:21593
+[2026-08-17T09:39:59.708Z ERROR gresse::http_server] http server connection error for 193.12.118.239:34985
+[2026-08-17T09:40:06.007Z ERROR gresse::http_server] http server connection error for 193.12.118.239:42481
+[2026-08-17T09:40:12.295Z ERROR gresse::http_server] http server connection error for 193.12.118.239:46554
+[2026-08-17T09:40:18.588Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7160
+[2026-08-17T09:40:24.897Z ERROR gresse::http_server] http server connection error for 193.12.118.239:18081
+[2026-08-17T09:40:31.212Z ERROR gresse::http_server] http server connection error for 193.12.118.239:63960
+[2026-08-17T09:40:37.480Z ERROR gresse::http_server] http server connection error for 193.12.118.239:30187
+[2026-08-17T09:40:43.781Z ERROR gresse::http_server] http server connection error for 193.12.118.239:59859
+[2026-08-17T09:40:50.373Z ERROR gresse::http_server] http server connection error for 193.12.118.239:16946
+[2026-08-17T09:40:56.437Z ERROR gresse::http_server] http server connection error for 193.12.118.239:64032
+[2026-08-17T09:41:02.731Z ERROR gresse::http_server] http server connection error for 193.12.118.239:16305
+[2026-08-17T09:41:09.015Z ERROR gresse::http_server] http server connection error for 193.12.118.239:12370
+[2026-08-17T09:41:15.318Z ERROR gresse::http_server] http server connection error for 193.12.118.239:16181
+[2026-08-17T09:41:21.605Z ERROR gresse::http_server] http server connection error for 193.12.118.239:36230
+[2026-08-17T09:41:27.907Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56381
+[2026-08-17T09:41:34.193Z ERROR gresse::http_server] http server connection error for 193.12.118.239:33387
+[2026-08-17T09:41:40.481Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37487
+[2026-08-17T09:41:46.772Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8921
+[2026-08-17T09:41:53.097Z ERROR gresse::http_server] http server connection error for 193.12.118.239:56564
+[2026-08-17T09:41:59.400Z ERROR gresse::http_server] http server connection error for 193.12.118.239:51700
+[2026-08-17T09:42:05.711Z ERROR gresse::http_server] http server connection error for 193.12.118.239:10223
+[2026-08-17T09:42:12.002Z ERROR gresse::http_server] http server connection error for 193.12.118.239:25626
+[2026-08-17T09:42:18.308Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57320
+[2026-08-17T09:42:24.601Z ERROR gresse::http_server] http server connection error for 193.12.118.239:8055
+[2026-08-17T09:42:30.898Z ERROR gresse::http_server] http server connection error for 193.12.118.239:35406
+[2026-08-17T09:42:37.187Z ERROR gresse::http_server] http server connection error for 193.12.118.239:7729
+[2026-08-17T09:42:43.478Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19482
+[2026-08-17T09:42:49.771Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19969
+[2026-08-17T09:42:56.065Z ERROR gresse::http_server] http server connection error for 193.12.118.239:61073
+[2026-08-17T09:43:02.367Z ERROR gresse::http_server] http server connection error for 193.12.118.239:37163
+[2026-08-17T09:43:08.655Z ERROR gresse::http_server] http server connection error for 193.12.118.239:57159
+[2026-08-17T09:43:14.945Z ERROR gresse::http_server] http server connection error for 193.12.118.239:26309
+[2026-08-17T09:43:21.229Z ERROR gresse::http_server] http server connection error for 193.12.118.239:4043
+[2026-08-17T09:43:27.531Z ERROR gresse::http_server] http server connection error for 193.12.118.239:19651

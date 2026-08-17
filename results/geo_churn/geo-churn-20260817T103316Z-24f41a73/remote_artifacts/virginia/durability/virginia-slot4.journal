@@ -1,0 +1,2 @@
+{"record_type":"snapshot","payload":{"crdt_wrapper":{"gc_markers":[],"version_matrix":{"final_dots":[],"matrix":{}}},"local_state":{"delta_log":{"map":{}},"entries":{},"pid":178696280264305145,"version_vector":{"set":{}}}}}
+{"record_type":"delta_group","payload":{"list":[{"change":{"Remove":{"element":361,"removed_dots":[]}},"dot":{"counter":0,"pid":178696280264305145}}],"side_effects":null,"version_vector":{"set":{"178696280264305145":0}}}}
