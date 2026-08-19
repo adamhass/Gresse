@@ -1,4 +1,4 @@
-use crate::http_server::launch_http_server;
+use crate::http_server::{launch_http_server, ClientMutationHandler};
 // use crate::vectors::{api::*, vector_db::*, Float, Key, Vector};
 // use crate::prelude::*;
 use crate::dots::{Counter, Dot, DotSet, VersionMatrix};
@@ -21,9 +21,9 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::{Instant, Interval};
 
 const STABLE_REPLICA_PID: Pid = 0;
@@ -102,6 +102,19 @@ struct MetricRecord {
     value: Option<i32>,
     status_code: Option<u16>,
     latency_us: Option<u128>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClientMutationMetric {
+    received_us: u128,
+    start_us: u128,
+    end_us: u128,
+}
+
+struct MembershipPollResult {
+    start_us: u128,
+    end_us: u128,
+    members: Result<Vec<ReplicaDescriptor>, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,15 +282,22 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     membership_poll_interval: Interval,
     // Network Stuff:
     writers: HashMap<Pid, Sender<ReplicaMessage<T>>>,
-    client_request_receiver: Receiver<(T::Mutation, ClientResponder<T>)>,
+    /// Serializes durable CRDT commits initiated by the HTTP data plane and
+    /// replica-side replication handling.
+    commit_gate: Arc<Mutex<()>>,
+    client_mutation_metric_receiver: UnboundedReceiver<ClientMutationMetric>,
     replication_receiver: Receiver<ReplicaMessage<T>>,
     // Allows new connections to be established:
     replication_writer_receiver: Receiver<(Pid, Sender<ReplicaMessage<T>>)>,
     network_member_sender: Sender<NetworkMember>,
     // Records results/metrics
     metric_writer: csv::Writer<std::fs::File>,
-    object_storage_client: ObjectStorageClient,
-    durability_journal: Option<DurabilityJournal>,
+    object_storage_client: Arc<ObjectStorageClient>,
+    membership_poll_in_flight: bool,
+    membership_poll_sender: UnboundedSender<MembershipPollResult>,
+    membership_poll_receiver: UnboundedReceiver<MembershipPollResult>,
+    membership_poll_task: Option<tokio::task::JoinHandle<()>>,
+    durability_journal: Option<Arc<DurabilityJournal>>,
     recovered_from_durability: bool,
     startup_construction_metrics: StartupConstructionMetrics,
     replica_run_start_us: Option<u128>,
@@ -339,6 +359,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             .clone()
             .map(DurabilityJournal::new)
             .transpose()
+            .map(|journal| journal.map(Arc::new))
             .unwrap_or_else(|error| panic!("Failed to initialize durability journal: {error}"));
         let recovered_replica = durability_journal
             .as_ref()
@@ -370,15 +391,49 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         pid: Pid,
         crdt: Arc<RwLock<T>>,
         config: ReplicaConfig,
-        durability_journal: Option<DurabilityJournal>,
+        durability_journal: Option<Arc<DurabilityJournal>>,
         recovered_replica: Option<PersistentReplica<T>>,
     ) -> (Self, oneshot::Sender<()>) {
         crdt.write().await.set_pid(pid);
         let crdt_pid_set_us = now_micros();
 
-        // Launch HTTP server with shutdown capability
-        let (client_request_receiver, http_shutdown_sender) =
-            launch_http_server::<T>(&config.address, crdt.clone()).await;
+        // The HTTP data plane applies local mutations directly.  It must not
+        // wait behind membership, GC, or anti-entropy work in Replica::run.
+        // The shared gate preserves durable-before-apply ordering with remote
+        // delta merges.
+        let commit_gate = Arc::new(Mutex::new(()));
+        let mutation_crdt = crdt.clone();
+        let mutation_journal = durability_journal.clone();
+        let mutation_commit_gate = commit_gate.clone();
+        let (client_mutation_metric_sender, client_mutation_metric_receiver) = unbounded_channel();
+        let mutation_handler: ClientMutationHandler<T> = Arc::new(move |mutation| {
+            let crdt = mutation_crdt.clone();
+            let journal = mutation_journal.clone();
+            let commit_gate = mutation_commit_gate.clone();
+            let metric_sender = client_mutation_metric_sender.clone();
+            Box::pin(async move {
+                let received_us = now_micros();
+                let _commit = commit_gate.lock().await;
+                let start_us = now_micros();
+                if let Some(journal) = &journal {
+                    journal
+                        .append_mutation::<T>(&mutation)
+                        .unwrap_or_else(|error| {
+                            panic!("Failed to append durable client mutation: {error}")
+                        });
+                }
+                let response = crdt.write().await.mutate(mutation);
+                let end_us = now_micros();
+                let _ = metric_sender.send(ClientMutationMetric {
+                    received_us,
+                    start_us,
+                    end_us,
+                });
+                response
+            })
+        });
+        let http_shutdown_sender =
+            launch_http_server::<T>(&config.address, crdt.clone(), mutation_handler).await;
         let http_server_ready_us = now_micros();
 
         // Launch NetworkManager with shutdown capability
@@ -403,9 +458,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let metric_writer_ready_us = now_micros();
         let membership_poll_period = config.object_storage_config.discovery_interval;
         let object_storage_client_start_us = now_micros();
-        let object_storage_client = ObjectStorageClient::new(config.object_storage_config)
-            .unwrap_or_else(|error| panic!("Failed to initialize object storage client: {error}"));
+        let object_storage_client = Arc::new(
+            ObjectStorageClient::new(config.object_storage_config).unwrap_or_else(|error| {
+                panic!("Failed to initialize object storage client: {error}")
+            }),
+        );
         let object_storage_client_ready_us = now_micros();
+        let (membership_poll_sender, membership_poll_receiver) = unbounded_channel();
 
         // Create shutdown channel for the CRDT server itself
         let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
@@ -416,7 +475,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 address: config.address,
                 advertised_address: config.advertised_address,
                 crdt,
-                client_request_receiver,
+                commit_gate,
+                client_mutation_metric_receiver,
                 replication_writer_receiver,
                 network_member_sender,
                 crdt_wrapper: recovered_replica
@@ -434,6 +494,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 membership_poll_interval: Self::membership_poll_interval(membership_poll_period),
                 metric_writer,
                 object_storage_client,
+                membership_poll_in_flight: false,
+                membership_poll_sender,
+                membership_poll_receiver,
+                membership_poll_task: None,
                 durability_journal,
                 recovered_from_durability: recovered_replica.is_some(),
                 startup_construction_metrics: StartupConstructionMetrics {
@@ -473,13 +537,19 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let mut interval = tokio::time::interval(self.sync_interval);
         loop {
             tokio::select! {
-                // Replication can remain continuously ready in a large,
-                // geographically distributed deployment.  Give externally
-                // admitted mutations precedence so anti-entropy traffic
-                // cannot starve the availability path indefinitely.
-                biased;
-                Some((client_request, responder)) = self.client_request_receiver.recv() => {
-                    self.handle_client_request(client_request, responder).await;
+                Some(metric) = self.client_mutation_metric_receiver.recv() => {
+                    self.metric_span(
+                        "client_mutation",
+                        "completed",
+                        None,
+                        None,
+                        metric.start_us,
+                        metric.end_us,
+                        None,
+                        None,
+                        Some(metric.received_us),
+                        Some("http_data_plane".to_string()),
+                    );
                 }
                 Some(remote_event) = self.replication_receiver.recv() => {
                     self.handle_remote_event(remote_event).await;
@@ -492,7 +562,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.init_gc(stable).await;
                 }
                 _ = self.membership_poll_interval.tick() => {
-                    self.poll_membership_directory().await;
+                    self.start_membership_poll();
+                }
+                Some(result) = self.membership_poll_receiver.recv() => {
+                    self.apply_membership_poll(result).await;
                 }
                 Some((pid, writer)) = self.replication_writer_receiver.recv() => {
                     info!(
@@ -563,7 +636,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid,
                 membership_init.members.len()
             );
-            self.enqueue_network_members(&membership_init.members).await;
+            self.enqueue_network_members(&membership_init.members);
         } else {
             let (persistent_replica_result, concurrent_membership_init) = tokio::join!(
                 Self::timed_storage_operation(
@@ -625,7 +698,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid,
                 membership_init.members.len()
             );
-            self.enqueue_network_members(&membership_init.members).await;
+            self.enqueue_network_members(&membership_init.members);
         }
 
         self.persist_durable_snapshot().await;
@@ -755,7 +828,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         );
     }
 
-    async fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
+    fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
         let shutdown_pids = members
             .iter()
             .filter(|descriptor| descriptor.is_shutdown())
@@ -777,18 +850,19 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid, descriptor.pid, descriptor.address, descriptor.gc_counter
             );
 
-            if self
-                .network_member_sender
-                .send(NetworkMember {
-                    pid: descriptor.pid,
-                    address: descriptor.address,
-                    final_counter: descriptor.final_counter,
-                })
-                .await
-                .is_err()
-            {
-                warn!("replica {} network manager is unavailable; membership will be retried on the next discovery poll", self.pid);
-                return;
+            if let Err(error) = self.network_member_sender.try_send(NetworkMember {
+                pid: descriptor.pid,
+                address: descriptor.address,
+                final_counter: descriptor.final_counter,
+            }) {
+                // Discovery is periodic.  A full network-manager queue means
+                // there is already sufficient pending work; retry this peer
+                // on the next membership poll without stalling replication,
+                // GC, or client-visible state transitions.
+                warn!(
+                    "replica {} deferred discovery of peer {}: {}",
+                    self.pid, descriptor.pid, error
+                );
             }
         }
     }
@@ -856,8 +930,69 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         members
     }
 
-    async fn poll_membership_directory(&mut self) {
-        let members = self.list_members("poll", None).await;
+    fn start_membership_poll(&mut self) {
+        if self.membership_poll_in_flight {
+            debug!(
+                "replica {} skipped membership poll; previous poll is still in flight",
+                self.pid
+            );
+            return;
+        }
+        self.membership_poll_in_flight = true;
+        let object_storage_client = self.object_storage_client.clone();
+        let result_sender = self.membership_poll_sender.clone();
+        self.membership_poll_task = Some(tokio::spawn(async move {
+            let start_us = now_micros();
+            let members = object_storage_client
+                .fetch_membership_descriptors()
+                .await
+                .map_err(|error| error.to_string());
+            let end_us = now_micros();
+            let _ = result_sender.send(MembershipPollResult {
+                start_us,
+                end_us,
+                members,
+            });
+        }));
+    }
+
+    async fn apply_membership_poll(&mut self, result: MembershipPollResult) {
+        self.membership_poll_in_flight = false;
+        self.membership_poll_task.take();
+        let members = match result.members {
+            Ok(members) => members,
+            Err(error) => {
+                self.metric_span(
+                    "membership_directory_read",
+                    "failed",
+                    None,
+                    None,
+                    result.start_us,
+                    result.end_us,
+                    None,
+                    None,
+                    None,
+                    Some(error.clone()),
+                );
+                warn!("replica {} membership poll failed: {}", self.pid, error);
+                return;
+            }
+        };
+        self.object_storage_client
+            .update_membership_cache(members.clone())
+            .await;
+        self.metric_span(
+            "membership_directory_read",
+            "completed",
+            None,
+            None,
+            result.start_us,
+            result.end_us,
+            None,
+            None,
+            None,
+            Some(format!("poll:{} descriptors", members.len())),
+        );
         trace!(
             "replica {} polling membership directory saw {} descriptors",
             self.pid,
@@ -868,7 +1003,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             "replica {} scanning membership directory for new members and shutdown descriptors",
             self.pid
         );
-        self.enqueue_network_members(&members).await;
+        self.enqueue_network_members(&members);
         // Find shutdown descriptors
         let shutdown_descriptors = members
             .iter()
@@ -948,52 +1083,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             delta.list.len(),
             descriptor.pid
         );
+        let _commit = self.commit_gate.lock().await;
         self.persist_delta_before_apply(&delta);
         self.crdt.write().await.merge_delta_group(delta);
         let current_version_vector = { self.crdt.read().await.get_version_vector().clone() };
         self.crdt_wrapper
             .version_matrix
             .update(self.pid, current_version_vector);
-    }
-
-    async fn handle_client_request(
-        &mut self,
-        mutation: T::Mutation,
-        responder: ClientResponder<T>,
-    ) {
-        debug!("replica {} handling client mutation", self.pid);
-        let received = now_micros();
-        let (start, response) = {
-            let start = now_micros();
-            let mut writable = self.crdt.write().await;
-            // let version_vector_before = writable.get_version_vector().clone();
-            self.persist_mutation(&mutation);
-            let response = writable.mutate(mutation);
-            (start, response)
-        };
-        let end = now_micros();
-        self.metric_span(
-            "client_mutation",
-            "completed",
-            None,
-            None,
-            start,
-            end,
-            None,
-            None,
-            Some(received),
-            None,
-        );
-        // The external HTTP client may have timed out or disconnected while a
-        // mutation was waiting behind replication work.  The mutation has
-        // already been applied durably, so a dropped response must not turn a
-        // client timeout into a replica crash.
-        if responder.send(Ok(response)).is_err() {
-            debug!(
-                "client disconnected before replica {} could send its mutation response",
-                self.pid
-            );
-        }
     }
 
     async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
@@ -1005,17 +1101,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.observe_gc(gc_metadata).await;
                 }
                 let delta_len = delta.list.len();
-                self.persist_delta_before_apply(&delta);
-                let start = now_micros();
-                {
+                let (start, end) = {
+                    let commit_gate = self.commit_gate.clone();
+                    let _commit = commit_gate.lock().await;
+                    self.persist_delta_before_apply(&delta);
+                    let start = now_micros();
                     let mut writable = self.crdt.write().await;
                     writable.merge_delta_group(delta);
+                    let end = now_micros();
+                    (start, end)
                 };
-                debug!(
-                    "replica {} merging remote delta group with {} entries",
-                    self.pid, delta_len
-                );
-                let end = now_micros();
                 self.metric_span(
                     "peer_replication_merge_delta",
                     "completed",
@@ -1027,6 +1122,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     None,
                     Some(received),
                     Some(format!("delta_len={delta_len},sent_us={sent}")),
+                );
+                debug!(
+                    "replica {} merging remote delta group with {} entries",
+                    self.pid, delta_len
                 );
             }
             ReplicaMessage::<T>::VersionVector(pid, vv, sent) => {
@@ -1443,6 +1542,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         self.write_shutdown_descriptor().await;
 
+        if let Some(task) = self.membership_poll_task.take() {
+            task.abort();
+        }
+        self.membership_poll_in_flight = false;
+
         // Shutdown HTTP Server
         if let Some(http_sender) = self.http_shutdown_sender.take() {
             let _ = http_sender.send(()); // Ignore error if receiver is already dropped
@@ -1501,15 +1605,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         };
         journal
             .append_delta_group::<T>(delta_group)
-            .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
-    }
-
-    fn persist_mutation(&self, mutation: &T::Mutation) {
-        let Some(journal) = &self.durability_journal else {
-            return;
-        };
-        journal
-            .append_mutation::<T>(mutation)
             .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
     }
 

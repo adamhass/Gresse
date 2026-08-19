@@ -217,23 +217,268 @@ def scatter_latency(
     return axis
 
 
+def lifecycle_duration_dataframe(controller: pd.DataFrame) -> pd.DataFrame:
+    """Pair controller lifecycle events into boot and stop duration samples."""
+    frame = controller.copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["experiment_time_s", "duration_ms", "duration_type"])
+    frame["timestamp_us"] = pd.to_numeric(frame["timestamp_us"], errors="coerce")
+    frame["pid"] = pd.to_numeric(frame["pid"], errors="coerce")
+    frame = frame.dropna(subset=["timestamp_us", "pid"]).sort_values("timestamp_us")
+    samples: list[dict[str, float | str]] = []
+    pairs = (
+        ("spawn_requested", "http_ready", "spawn to HTTP-ready"),
+        ("spawn_requested", "bootstrap_ready", "spawn to bootstrap-ready"),
+        ("graceful_stop_requested", "process_stopped", "graceful stop"),
+        ("crash_requested", "process_stopped", "crash stop"),
+    )
+    for start_event, end_event, duration_type in pairs:
+        starts = frame.loc[frame["event"].eq(start_event)]
+        ends = frame.loc[frame["event"].eq(end_event)]
+        for _, start in starts.iterrows():
+            matching = ends.loc[(ends["pid"] == start["pid"]) & (ends["timestamp_us"] >= start["timestamp_us"])]
+            if matching.empty:
+                continue
+            end = matching.iloc[0]
+            samples.append({
+                "experiment_time_s": end["experiment_time_s"],
+                "duration_ms": (end["timestamp_us"] - start["timestamp_us"]) / 1_000,
+                "duration_type": duration_type,
+            })
+    return pd.DataFrame(samples)
+
+
+def scatter_lifecycle_durations(figure: matplotlib.figure.Figure, dataframe: pd.DataFrame) -> plt.Axes:
+    """Plot controller-observed boot and stop durations over experiment time."""
+    axis = figure.add_subplot(1, 1, 1)
+    colors = plt.get_cmap("tab10")
+    for index, (kind, group) in enumerate(dataframe.groupby("duration_type", sort=True)):
+        axis.scatter(group["experiment_time_s"], group["duration_ms"], label=kind,
+                     color=colors(index % 10), alpha=0.8, s=24, linewidths=0)
+    axis.set_title("Replica lifecycle durations")
+    axis.set_xlabel("Experiment time (s)")
+    axis.set_ylabel("Duration (ms)")
+    axis.grid(True, alpha=0.25)
+    if not dataframe.empty:
+        axis.legend(loc="best")
+    return axis
+
+
+def gc_activity_dataframe(replicas: pd.DataFrame) -> pd.DataFrame:
+    """Extract GC protocol observations for a categorical timeline plot."""
+    phases = {
+        ("gc_init", "start"): "GC round started",
+        ("gc_init", "aborted"): "GC round aborted",
+        ("gc_local_collect", "completed"): "Local collection completed",
+        ("gc_persistent_state_write", "completed"): "Persistent state written",
+        ("gc_finalize", "completed"): "GC finalized",
+    }
+    frame = replicas.copy()
+    selected = pd.Series(False, index=frame.index)
+    labels = pd.Series(index=frame.index, dtype="object")
+    for (event, phase), label in phases.items():
+        mask = frame["event"].eq(event) & frame["phase"].eq(phase)
+        selected |= mask
+        labels.loc[mask] = label
+    result = frame.loc[selected, ["experiment_time_s", "replica_pid", "gc_marker"]].copy()
+    result["gc_activity"] = labels.loc[selected]
+    return result
+
+
+def scatter_gc_activity(figure: matplotlib.figure.Figure, dataframe: pd.DataFrame) -> plt.Axes:
+    """Plot GC protocol state transitions over experiment time."""
+    axis = figure.add_subplot(1, 1, 1)
+    activities = list(dataframe["gc_activity"].dropna().unique())
+    positions = {activity: index for index, activity in enumerate(activities)}
+    colors = plt.get_cmap("tab10")
+    for index, activity in enumerate(activities):
+        group = dataframe.loc[dataframe["gc_activity"].eq(activity)]
+        axis.scatter(group["experiment_time_s"], [positions[activity]] * len(group), label=activity,
+                     color=colors(index % 10), alpha=0.75, s=22, linewidths=0)
+    axis.set_title("GC protocol activity")
+    axis.set_xlabel("Experiment time (s)")
+    axis.set_yticks(list(positions.values()), list(positions.keys()))
+    axis.grid(True, axis="x", alpha=0.25)
+    return axis
+
+
+def replication_rate_dataframe(replicas: pd.DataFrame, bin_seconds: int = 10) -> pd.DataFrame:
+    """Aggregate anti-entropy operations into fixed-width experiment-time bins."""
+    events = {
+        "peer_replication_connection": "connections",
+        "peer_replication_pull_request": "pull requests",
+        "peer_replication_get_delta": "delta computations",
+        "peer_replication_merge_delta": "delta merges",
+    }
+    frame = replicas.loc[replicas["event"].isin(events)].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["experiment_time_s", "operation", "count"])
+    frame["operation"] = frame["event"].map(events)
+    frame["experiment_time_s"] = pd.to_numeric(frame["experiment_time_s"], errors="coerce")
+    frame = frame.dropna(subset=["experiment_time_s"])
+    frame["bin"] = (frame["experiment_time_s"] // bin_seconds).astype(int) * bin_seconds
+    return frame.groupby(["bin", "operation"], as_index=False).size().rename(
+        columns={"bin": "experiment_time_s", "size": "count"}
+    )
+
+
+def plot_replication_rate(figure: matplotlib.figure.Figure, dataframe: pd.DataFrame) -> plt.Axes:
+    """Plot anti-entropy operation counts per ten-second bin."""
+    axis = figure.add_subplot(1, 1, 1)
+    for operation, group in dataframe.groupby("operation", sort=True):
+        axis.plot(group["experiment_time_s"], group["count"], marker="o", markersize=3, label=operation)
+    axis.set_title("Anti-entropy activity (10-second bins)")
+    axis.set_xlabel("Experiment time (s)")
+    axis.set_ylabel("Operations / bin")
+    axis.grid(True, alpha=0.25)
+    if not dataframe.empty:
+        axis.legend(loc="best")
+    return axis
+
+
+def system_latency_dataframe(data: ExperimentData) -> pd.DataFrame:
+    """Build P2P, initialization/recovery, and completed-GC latency samples.
+
+    A pull request does not currently carry a request identifier.  P2P samples
+    therefore pair each pull with the next local delta merge for that replica.
+    The pairing is intentionally conservative: a merge must arrive within ten
+    seconds, and each merge is used at most once.
+    """
+    replica = data.replicas.copy()
+    for column in ("timestamp_us", "start_us", "end_us", "replica_pid", "gc_marker"):
+        replica[column] = pd.to_numeric(replica.get(column), errors="coerce")
+    origin_us = data.origin_us
+    samples: list[dict[str, float | str]] = []
+
+    # for pid, group in replica.groupby("replica_pid"):
+    #     group = group.sort_values("timestamp_us")
+    #     pulls = group.loc[(group["event"] == "peer_replication_pull_request") & (group["phase"] == "sent")]
+    #     merges = group.loc[(group["event"] == "peer_replication_merge_delta") & (group["phase"] == "completed")].copy()
+    #     merge_index = 0
+    #     for _, pull in pulls.iterrows():
+    #         while merge_index < len(merges) and merges.iloc[merge_index]["timestamp_us"] < pull["timestamp_us"]:
+    #             merge_index += 1
+    #         if merge_index >= len(merges):
+    #             break
+    #         merge = merges.iloc[merge_index]
+    #         completed_us = merge["end_us"] if pd.notna(merge["end_us"]) else merge["timestamp_us"]
+    #         latency_us = completed_us - pull["timestamp_us"]
+    #         if 0 <= latency_us <= 10_000_000:
+    #             samples.append({
+    #                 "experiment_time_s": (pull["timestamp_us"] - origin_us) / 1_000_000,
+    #                 "latency_ms": latency_us / 1_000,
+    #                 "latency_type": "P2P pull to delta merge",
+    #             })
+    #             merge_index += 1
+
+    for source, group in replica.groupby("source_file"):
+        init_start = group.loc[(group["event"] == "replica_init") & (group["phase"] == "start"), "timestamp_us"]
+        init_end = group.loc[(group["event"] == "replica_init") & (group["phase"] == "completed"), "timestamp_us"]
+        if init_start.empty or init_end.empty:
+            continue
+        start_us, end_us = init_start.iloc[0], init_end.iloc[0]
+        if end_us < start_us:
+            continue
+        recovered = (group["event"] == "persistent_state_fetch").any()
+        samples.append({
+            "experiment_time_s": (start_us - origin_us) / 1_000_000,
+            "latency_ms": (end_us - start_us) / 1_000,
+            "latency_type": "Replica recovery" if recovered else "Replica initialization",
+        })
+
+    starts = replica.loc[(replica["event"] == "gc_init") & (replica["phase"] == "start")]
+    finals = replica.loc[(replica["event"] == "gc_finalize") & (replica["phase"] == "completed")]
+    final_by_round = {
+        (row["replica_pid"], row["gc_marker"]): row["timestamp_us"]
+        for _, row in finals.iterrows()
+    }
+    for _, start in starts.iterrows():
+        end_us = final_by_round.get((start["replica_pid"], start["gc_marker"]))
+        if end_us is not None and end_us >= start["timestamp_us"]:
+            samples.append({
+                "experiment_time_s": (start["timestamp_us"] - origin_us) / 1_000_000,
+                "latency_ms": (end_us - start["timestamp_us"]) / 1_000,
+                "latency_type": "GC round",
+            })
+    return pd.DataFrame(samples)
+
+
+def topology_change_dataframe(controller: pd.DataFrame) -> pd.DataFrame:
+    """Return one controller timestamp per concurrently initiated churn group."""
+    frame = controller.loc[controller["event"].eq("scheduled_event_dispatched")].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=["experiment_time_s", "action"])
+    parsed = frame["detail"].str.extract(r"t=([^s]+)s\s+(.*)$", expand=True)
+    frame["scheduled_seconds"] = pd.to_numeric(parsed[0], errors="coerce")
+    frame["action"] = parsed[1].fillna("topology change")
+    return frame.groupby(["scheduled_seconds", "action"], as_index=False)["experiment_time_s"].min()
+
+
+def scatter_system_latencies(
+    figure: matplotlib.figure.Figure,
+    dataframe: pd.DataFrame,
+    topology_changes: pd.DataFrame,
+) -> plt.Axes:
+    """Plot system-operation latencies and topology-change initiation markers."""
+    axis = figure.add_subplot(1, 1, 1)
+    colors = plt.get_cmap("tab10")
+    for index, (kind, group) in enumerate(dataframe.groupby("latency_type", sort=True)):
+        axis.scatter(group["experiment_time_s"], group["latency_ms"], label=kind,
+                     color=colors(index % 10), alpha=0.8, s=22, linewidths=0)
+    change_colors = {"crash": "#d62728", "graceful_stop": "#9467bd", "spawn": "#2ca02c"}
+    for _, change in topology_changes.iterrows():
+        action = change["action"]
+        axis.axvline(change["experiment_time_s"], color=change_colors.get(action, "#555555"),
+                     linestyle="--", linewidth=1.1, alpha=0.75, label=f"topology: {action}")
+    handles, labels = axis.get_legend_handles_labels()
+    unique = dict(zip(labels, handles))
+    axis.set_title("System-operation latency during geo-distributed churn")
+    axis.set_xlabel("Experiment time (s)")
+    axis.set_ylabel("Latency (ms)")
+    # axis.set_yscale("log")
+    axis.grid(True, which="both", alpha=0.25)
+    if unique:
+        axis.legend(unique.values(), unique.keys(), loc="best")
+    return axis
+
+
+def _save_plot(path: Path, plotter, dataframe: pd.DataFrame) -> None:
+    figure = plt.figure(figsize=(9, 4.5), constrained_layout=True)
+    plotter(figure, dataframe)
+    figure.savefig(path, dpi=200)
+    plt.close(figure)
+    print(f"wrote {path}")
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Plot request latency from a geo churn result directory.")
+    parser = argparse.ArgumentParser(description="Plot geo-churn request, lifecycle, GC, and replication traces.")
     parser.add_argument(
         "result_dir", type=Path, nargs="?",
         help="result directory (defaults to the newest directory in results/geo_churn)",
     )
-    parser.add_argument("--output", type=Path, help="output PNG/PDF/SVG path (defaults under results/plots/geo_churn)")
+    parser.add_argument("--output", type=Path, help="request-latency output path (also disables companion plots)")
     args = parser.parse_args()
     result_dir = args.result_dir if args.result_dir is not None else latest_result_dir()
     output = args.output if args.output is not None else DEFAULT_PLOTS_ROOT / result_dir.name / "request_latency.png"
     data = load_experiment_data(result_dir)
-    figure = plt.figure(figsize=(9, 4.5), constrained_layout=True)
-    scatter_latency(figure, request_latency_dataframe(data.events))
     output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output, dpi=200)
     print(f"plotted {result_dir}")
-    print(f"wrote {output}")
+    _save_plot(output, scatter_latency, request_latency_dataframe(data.events))
+    if args.output is None:
+        _save_plot(output.parent / "lifecycle_durations.png", scatter_lifecycle_durations,
+                   lifecycle_duration_dataframe(data.controller))
+        _save_plot(output.parent / "gc_activity.png", scatter_gc_activity,
+                   gc_activity_dataframe(data.replicas))
+        _save_plot(output.parent / "replication_activity.png", plot_replication_rate,
+                   replication_rate_dataframe(data.replicas))
+        system_latency = system_latency_dataframe(data)
+        _save_plot(
+            output.parent / "system_operation_latency.png",
+            lambda figure, frame: scatter_system_latencies(
+                figure, frame, topology_change_dataframe(data.controller)
+            ),
+            system_latency,
+        )
     return 0
 
 

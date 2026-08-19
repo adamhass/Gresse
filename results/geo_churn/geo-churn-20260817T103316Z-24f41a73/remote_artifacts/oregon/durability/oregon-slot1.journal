@@ -1,2 +1,0 @@
-{"record_type":"snapshot","payload":{"crdt_wrapper":{"gc_markers":[{"marker":{"counter":1,"pid":0},"stable":{"set":{}}}],"version_matrix":{"final_dots":[],"matrix":{}}},"local_state":{"delta_log":{"map":{}},"entries":{},"pid":178696280264305147,"version_vector":{"set":{}}}}}
-{"record_type":"delta_group","payload":{"list":[{"change":{"Insert":{"element":5630}},"dot":{"counter":0,"pid":178696280264305147}}],"side_effects":null,"version_vector":{"set":{"178696280264305147":0}}}}

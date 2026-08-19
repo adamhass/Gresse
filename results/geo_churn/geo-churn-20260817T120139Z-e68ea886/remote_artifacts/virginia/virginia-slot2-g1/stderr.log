@@ -1,9 +1,0 @@
-[2026-08-17T12:02:31.021Z INFO  gresse::http_server] running CRDT HTTP server
-[2026-08-17T12:02:31.021Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18082
-[2026-08-17T12:02:31.051Z INFO  gresse::replica] replica 178696810657723243 initiating runtime at bind_http=0.0.0.0:18082 bind_internal=0.0.0.0:19082 advertised_internal=3.231.214.148:19082
-[2026-08-17T12:02:31.417Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260817080652-e8d881, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-smoke-20260817T120146Z-06e66d94/persistent.json
-[2026-08-17T12:02:31.547Z INFO  gresse::replica] replica 178696810657723243 discovered 13 membership descriptors during init
-[2026-08-17T12:02:31.547Z INFO  gresse::network] replica 178696810657723243 discovered network member NetworkMember { pid: 178696810657723231, address: 16.192.148.144:19080, final_counter: None }
-[2026-08-17T12:02:31.549Z INFO  gresse::replica] replica 178696810657723243 startup completed
-[2026-08-17T12:05:44.326Z WARN  gresse::network] replica 178696810657723243 ignored failed handshake with peer 178696810657723231 at 16.192.148.144:19080: Connection reset by peer (os error 104)
-[2026-08-17T12:05:44.326Z INFO  gresse::network] replica 178696810657723243 discovered network member NetworkMember { pid: 178696810657723232, address: 16.192.148.144:19081, final_counter: None }

@@ -1,0 +1,495 @@
+[2026-08-19T13:55:26.554Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-08-19T13:55:26.554Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18082
+[2026-08-19T13:55:26.584Z INFO  gresse::replica] replica 178714744544926862 initiating runtime at bind_http=0.0.0.0:18082 bind_internal=0.0.0.0:19082 advertised_internal=13.219.225.164:19082
+[2026-08-19T13:55:26.954Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260819104151-566c04, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=put-create, object_path=acm-sec-geo-churn-smoke-20260819T135045Z-25226496/membership/178714744544926862,13.219.225.164:19082,1
+[2026-08-19T13:55:27.201Z INFO  gresse::replica] replica 178714744544926862 restored local state from durability journal before startup
+[2026-08-19T13:55:27.201Z INFO  gresse::replica] replica 178714744544926862 discovered 70 membership descriptors during init
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926832, address: 16.170.40.83:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926833, address: 16.170.40.83:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926834, address: 16.170.40.83:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926835, address: 16.170.40.83:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926836, address: 63.186.69.1:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926837, address: 63.186.69.1:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926838, address: 63.186.69.1:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926839, address: 63.186.69.1:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926840, address: 63.186.69.1:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926841, address: 13.219.225.164:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926842, address: 13.219.225.164:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926844, address: 13.219.225.164:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926845, address: 13.219.225.164:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926846, address: 54.184.138.82:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926847, address: 54.184.138.82:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926848, address: 54.184.138.82:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926849, address: 54.184.138.82:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926850, address: 54.184.138.82:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926851, address: 47.129.167.193:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926852, address: 47.129.167.193:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926853, address: 47.129.167.193:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926854, address: 47.129.167.193:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926855, address: 47.129.167.193:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926856, address: 13.193.126.237:19080, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926857, address: 13.193.126.237:19081, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926858, address: 13.193.126.237:19082, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926859, address: 13.193.126.237:19083, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926860, address: 13.193.126.237:19084, final_counter: None }
+[2026-08-19T13:55:27.201Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926861, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:27.202Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926841
+[2026-08-19T13:55:27.202Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926862
+[2026-08-19T13:55:27.202Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926842
+[2026-08-19T13:55:27.202Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:27.203Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926845
+[2026-08-19T13:55:27.203Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926844
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 startup completed
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926841
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926862
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926842
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926845
+[2026-08-19T13:55:27.210Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926844
+[2026-08-19T13:55:27.313Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926849
+[2026-08-19T13:55:27.313Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926849
+[2026-08-19T13:55:27.316Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926846
+[2026-08-19T13:55:27.316Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926846
+[2026-08-19T13:55:27.320Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926848
+[2026-08-19T13:55:27.320Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926848
+[2026-08-19T13:55:27.325Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926847
+[2026-08-19T13:55:27.325Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926847
+[2026-08-19T13:55:27.326Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926850
+[2026-08-19T13:55:27.326Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926850
+[2026-08-19T13:55:27.383Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926838
+[2026-08-19T13:55:27.383Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926838
+[2026-08-19T13:55:27.384Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926837
+[2026-08-19T13:55:27.384Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926837
+[2026-08-19T13:55:27.384Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926840
+[2026-08-19T13:55:27.384Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926840
+[2026-08-19T13:55:27.384Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926836
+[2026-08-19T13:55:27.384Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926836
+[2026-08-19T13:55:27.385Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926839
+[2026-08-19T13:55:27.385Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926839
+[2026-08-19T13:55:27.421Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926834
+[2026-08-19T13:55:27.421Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:27.421Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926861
+[2026-08-19T13:55:27.421Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926834
+[2026-08-19T13:55:27.421Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926833
+[2026-08-19T13:55:27.421Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926861
+[2026-08-19T13:55:27.421Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926833
+[2026-08-19T13:55:27.421Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926832
+[2026-08-19T13:55:27.421Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926832
+[2026-08-19T13:55:27.421Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926835
+[2026-08-19T13:55:27.421Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926835
+[2026-08-19T13:55:27.471Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926859
+[2026-08-19T13:55:27.471Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926859
+[2026-08-19T13:55:27.494Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926860
+[2026-08-19T13:55:27.494Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926860
+[2026-08-19T13:55:27.501Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926856
+[2026-08-19T13:55:27.501Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926856
+[2026-08-19T13:55:27.502Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926858
+[2026-08-19T13:55:27.502Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926858
+[2026-08-19T13:55:27.507Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926857
+[2026-08-19T13:55:27.507Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926857
+[2026-08-19T13:55:27.623Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926852
+[2026-08-19T13:55:27.624Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926852
+[2026-08-19T13:55:27.624Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926854
+[2026-08-19T13:55:27.624Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926854
+[2026-08-19T13:55:27.627Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926853
+[2026-08-19T13:55:27.627Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926853
+[2026-08-19T13:55:27.659Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926851
+[2026-08-19T13:55:27.659Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926851
+[2026-08-19T13:55:27.660Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926855
+[2026-08-19T13:55:27.660Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926855
+[2026-08-19T13:55:31.831Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:31.831Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:31.831Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:32.051Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:36.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:36.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:36.718Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:36.939Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:41.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:41.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:41.722Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:41.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:46.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:46.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:46.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:46.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:51.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:51.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:51.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:51.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:55:56.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:55:56.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:55:56.720Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:55:56.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:01.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:01.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:01.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:01.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:06.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:06.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:06.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:06.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:11.717Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:11.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:11.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:11.718Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:11.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:16.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:16.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:16.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:16.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:16.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:16.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:21.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:21.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:21.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:21.720Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:21.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:21.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:26.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:26.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:26.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:26.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:26.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:26.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:31.713Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:31.713Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:31.713Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:31.714Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:31.847Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:31.932Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:34.212Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-08-19T13:56:36.212Z WARN  gresse::replica] replica 178714744544926862 deferred pull request to peer 178714744544926859: channel closed
+[2026-08-19T13:56:36.718Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:36.718Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:36.718Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:36.719Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:36.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:36.938Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:41.721Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:41.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:41.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:41.722Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:41.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:41.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:46.721Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:46.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:46.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:46.722Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:46.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:46.941Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:51.724Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:51.724Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:51.724Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:51.725Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:51.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:51.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:55.879Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926863
+[2026-08-19T13:56:55.879Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926863
+[2026-08-19T13:56:56.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:56:56.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:56:56.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:56:56.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:56:56.859Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:56:56.944Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:56:58.302Z INFO  gresse::network] replica 178714744544926862 registered bidirectional network channel for replica 178714744544926864
+[2026-08-19T13:56:58.302Z INFO  gresse::replica] replica 178714744544926862 established peer replication connection with replica 178714744544926864
+[2026-08-19T13:57:01.727Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:01.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:01.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:01.730Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:01.865Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:01.949Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:06.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:06.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:06.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:06.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:06.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:06.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:11.719Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:11.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:11.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:11.719Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:11.852Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:11.938Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:16.714Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:16.714Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:16.714Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:16.715Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:16.847Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:16.934Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:21.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:21.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:21.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:21.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:21.859Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:21.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:26.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:26.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:26.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:26.720Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:26.853Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:26.938Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:31.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:31.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:31.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:31.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:31.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:31.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:35.211Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-08-19T13:57:36.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:36.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:36.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:36.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:36.852Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:36.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:41.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:41.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:41.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:41.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:41.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:41.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:46.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:46.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:46.724Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:46.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:46.860Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:46.947Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:51.719Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:51.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:51.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:51.720Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:51.859Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:51.941Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:57:52.211Z WARN  gresse::replica] replica 178714744544926862 deferred pull request to peer 178714744544926864: channel closed
+[2026-08-19T13:57:56.722Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:57:56.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:57:56.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:57:56.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:57:56.859Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:57:56.941Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:01.830Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:01.830Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:01.830Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:01.831Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:01.964Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:02.053Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:06.716Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:06.716Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:06.716Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:06.717Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:06.852Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:06.938Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:11.717Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:11.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:11.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:11.717Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:11.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:11.936Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:16.720Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:16.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:16.720Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:16.721Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:16.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:16.940Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:21.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:21.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:21.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:21.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:21.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:21.945Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:26.719Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:26.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:26.719Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:26.720Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:26.852Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:26.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:31.722Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:31.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:31.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:31.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:31.857Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:31.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:36.721Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:36.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:36.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:36.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:36.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:36.941Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:41.721Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:41.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:41.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:41.722Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:41.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:41.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:46.725Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:46.725Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:46.725Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:46.726Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:46.882Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:46.947Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:51.721Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:51.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:51.721Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:51.722Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:51.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:51.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:58:56.727Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:58:56.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:58:56.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:58:56.728Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:58:56.860Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:58:56.946Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:01.736Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:01.736Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:01.736Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:01.748Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:01.876Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:01.967Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:06.726Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:06.726Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:06.726Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:06.728Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:06.863Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:06.946Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:11.727Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:11.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:11.727Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:11.727Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:11.863Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:11.950Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:16.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:16.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:16.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:16.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:16.860Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:16.946Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:21.717Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:21.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:21.717Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:21.717Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:21.854Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:21.938Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:26.730Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:26.730Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:26.730Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:26.731Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:26.864Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:26.948Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:31.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:31.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:31.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:31.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:31.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:31.942Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:36.728Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:36.728Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:36.728Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:36.729Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:36.867Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:36.950Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:41.730Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:41.730Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:41.730Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:41.731Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:41.861Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:41.952Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:46.728Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:46.728Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:46.728Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:46.729Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:46.863Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:46.950Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:51.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:51.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:51.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:51.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:51.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:51.943Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T13:59:56.723Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T13:59:56.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T13:59:56.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T13:59:56.724Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T13:59:56.856Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T13:59:56.947Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T14:00:01.733Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:01.733Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T14:00:01.733Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:01.734Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:01.871Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:01.981Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926831, received 178714744544926861
+[2026-08-19T14:00:06.722Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926832 with final counter Some(5)
+[2026-08-19T14:00:06.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T14:00:06.723Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:06.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:06.834Z WARN  gresse::network] replica 178714744544926862 peer connection attempt failed: could not connect to 16.170.40.83:19080: Connection refused (os error 111)
+[2026-08-19T14:00:06.853Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:06.988Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:07.123Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926861 with final counter Some(3)
+[2026-08-19T14:00:11.839Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926832 with final counter Some(5)
+[2026-08-19T14:00:11.839Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T14:00:11.839Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:11.839Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:11.948Z WARN  gresse::network] replica 178714744544926862 peer connection attempt failed: could not connect to 16.170.40.83:19080: Connection refused (os error 111)
+[2026-08-19T14:00:11.977Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926833 with final counter Some(4)
+[2026-08-19T14:00:12.113Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926834 with final counter Some(4)
+[2026-08-19T14:00:12.245Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926835 with final counter Some(4)
+[2026-08-19T14:00:12.378Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926836 with final counter Some(4)
+[2026-08-19T14:00:12.512Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:12.647Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:12.783Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926861 with final counter Some(3)
+[2026-08-19T14:00:16.722Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926832 with final counter Some(5)
+[2026-08-19T14:00:16.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T14:00:16.722Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:16.723Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:16.832Z WARN  gresse::network] replica 178714744544926862 peer connection attempt failed: could not connect to 16.170.40.83:19080: Connection refused (os error 111)
+[2026-08-19T14:00:16.855Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926833 with final counter Some(4)
+[2026-08-19T14:00:16.990Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926834 with final counter Some(4)
+[2026-08-19T14:00:17.127Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926835 with final counter Some(4)
+[2026-08-19T14:00:17.264Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926836 with final counter Some(4)
+[2026-08-19T14:00:17.401Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:17.534Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926838 with final counter Some(4)
+[2026-08-19T14:00:17.670Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926839 with final counter Some(4)
+[2026-08-19T14:00:17.808Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926840 with final counter Some(4)
+[2026-08-19T14:00:17.943Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:18.080Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926861 with final counter Some(3)
+[2026-08-19T14:00:18.213Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926863 with final counter Some(1)
+[2026-08-19T14:00:21.835Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926832 with final counter Some(5)
+[2026-08-19T14:00:21.835Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:21.836Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:21.970Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926833 with final counter Some(4)
+[2026-08-19T14:00:22.105Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926834 with final counter Some(4)
+[2026-08-19T14:00:22.239Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926835 with final counter Some(4)
+[2026-08-19T14:00:22.379Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926836 with final counter Some(4)
+[2026-08-19T14:00:22.515Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:22.680Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926838 with final counter Some(4)
+[2026-08-19T14:00:22.818Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926839 with final counter Some(4)
+[2026-08-19T14:00:22.953Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926840 with final counter Some(4)
+[2026-08-19T14:00:23.110Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926841 with final counter Some(4)
+[2026-08-19T14:00:23.241Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:23.376Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926861 with final counter Some(3)
+[2026-08-19T14:00:23.511Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926863 with final counter Some(1)
+[2026-08-19T14:00:26.716Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926832 with final counter Some(5)
+[2026-08-19T14:00:26.716Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926831, address: 16.170.40.83:19080, final_counter: None }
+[2026-08-19T14:00:26.716Z INFO  gresse::network] replica 178714744544926862 discovered network member NetworkMember { pid: 178714744544926843, address: 13.219.225.164:19082, final_counter: None }
+[2026-08-19T14:00:26.717Z WARN  gresse::network] replica 178714744544926862 rejected peer handshake: expected 178714744544926843, received 178714744544926862
+[2026-08-19T14:00:26.826Z WARN  gresse::network] replica 178714744544926862 peer connection attempt failed: could not connect to 16.170.40.83:19080: Connection refused (os error 111)
+[2026-08-19T14:00:26.851Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926833 with final counter Some(4)
+[2026-08-19T14:00:26.985Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926834 with final counter Some(4)
+[2026-08-19T14:00:27.120Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926835 with final counter Some(4)
+[2026-08-19T14:00:27.251Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926836 with final counter Some(4)
+[2026-08-19T14:00:27.387Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926837 with final counter Some(2)
+[2026-08-19T14:00:27.520Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926838 with final counter Some(4)
+[2026-08-19T14:00:27.660Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926839 with final counter Some(4)
+[2026-08-19T14:00:27.794Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926840 with final counter Some(4)
+[2026-08-19T14:00:27.932Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926841 with final counter Some(4)
+[2026-08-19T14:00:28.063Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926842 with final counter Some(4)
+[2026-08-19T14:00:28.201Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926849 with final counter Some(1)
+[2026-08-19T14:00:28.336Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926861 with final counter Some(3)
+[2026-08-19T14:00:28.471Z INFO  gresse::replica] replica 178714744544926862 observed shutdown descriptor for replica 178714744544926863 with final counter Some(1)
+[2026-08-19T14:00:28.611Z INFO  gresse::replica] shutdown signal received for replica 178714744544926862
+[2026-08-19T14:00:28.611Z INFO  gresse::replica] replica 178714744544926862 shutting down with 16 connected writers
+[2026-08-19T14:00:28.862Z INFO  gresse::http_server] http server received shutdown signal
+[2026-08-19T14:00:28.862Z INFO  gresse::http_server] http server shutdown complete
+[2026-08-19T14:00:28.862Z INFO  gresse::network] network manager for replica 178714744544926862 shutdown complete

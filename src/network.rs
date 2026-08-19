@@ -4,20 +4,44 @@ use log::{debug, info, warn};
 use rand::Rng;
 // use crate::prelude::*;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fmt::Debug;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tokio::time::{timeout, Instant};
 
 use std::net::SocketAddr;
 use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader, Interest, Lines, ReadHalf, WriteHalf},
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{
+        channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender,
+    },
 };
+
+const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_CONNECTION_RETRY_BACKOFF: Duration = Duration::from_secs(30);
+
+struct EstablishedConnection<T> {
+    peer_pid: Pid,
+    writer: Sender<T>,
+    reader_task: JoinHandle<()>,
+    writer_task: JoinHandle<()>,
+}
+
+enum ConnectionResult<T> {
+    Established {
+        expected_pid: Option<Pid>,
+        connection: EstablishedConnection<T>,
+    },
+    Failed {
+        expected_pid: Option<Pid>,
+        detail: String,
+    },
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct NetworkMember {
@@ -73,6 +97,12 @@ pub struct NetworkManager<T> {
     pub pid: Pid,
     pub address: ServerAddr,
     dead_members: HashSet<Pid>,
+    connected_members: HashSet<Pid>,
+    connecting_members: HashSet<Pid>,
+    connection_retry_at: HashMap<Pid, Instant>,
+    connection_failures: HashMap<Pid, u32>,
+    connection_result_sender: UnboundedSender<ConnectionResult<T>>,
+    connection_result_receiver: UnboundedReceiver<ConnectionResult<T>>,
     latency_profile: NetworkLatencyProfile,
     // For graceful shutdown
     shutdown_receiver: Option<oneshot::Receiver<()>>,
@@ -92,6 +122,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         let (local_event_sender, local_event_receiver) = channel::<T>(100);
         let (connection_sender, connection_receiver) = channel::<(Pid, Sender<T>)>(100);
         let (member_sender, member_receiver) = channel::<NetworkMember>(100);
+        let (connection_result_sender, connection_result_receiver) = unbounded_channel();
         let listener = TcpListener::bind(address.internal())
             .await
             .expect("Failed to bind to internal address");
@@ -115,6 +146,12 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             pid,
             address,
             dead_members: HashSet::new(),
+            connected_members: HashSet::new(),
+            connecting_members: HashSet::new(),
+            connection_retry_at: HashMap::new(),
+            connection_failures: HashMap::new(),
+            connection_result_sender,
+            connection_result_receiver,
             latency_profile,
             shutdown_receiver: Some(shutdown_receiver),
             task_handles: Vec::new(),
@@ -142,15 +179,16 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
                 accept_result = self.listener.accept() => {
                     match accept_result {
                         Ok((stream, _)) => {
-                            if let Err(error) = self.handle_new_stream(stream).await {
-                                warn!("replica {} ignored failed incoming peer handshake: {}", self.pid, error);
-                            }
+                            self.spawn_connection_attempt(None, stream);
                         }
                         Err(error) => warn!("replica {} failed to accept peer connection: {}", self.pid, error),
                     }
                 }
                 Some(member) = self.member_receiver.recv() => {
-                    self.handle_new_member(member).await;
+                    self.handle_new_member(member);
+                }
+                Some(result) = self.connection_result_receiver.recv() => {
+                    self.handle_connection_result(result);
                 }
                 Ok(()) = &mut shutdown_receiver => {
                     break;
@@ -163,9 +201,13 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         info!("network manager for replica {} shutdown complete", self.pid);
     }
 
-    pub async fn handle_new_member(&mut self, member: NetworkMember) {
+    pub fn handle_new_member(&mut self, member: NetworkMember) {
         if member.is_shutdown() {
             self.dead_members.insert(member.pid);
+            self.connecting_members.remove(&member.pid);
+            self.connected_members.remove(&member.pid);
+            self.connection_retry_at.remove(&member.pid);
+            self.connection_failures.remove(&member.pid);
             return;
         }
 
@@ -174,6 +216,12 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             || member.address == self.address.internal()
             || member.address < self.address.internal()
             || self.dead_members.contains(&member.pid)
+            || self.connected_members.contains(&member.pid)
+            || self.connecting_members.contains(&member.pid)
+            || self
+                .connection_retry_at
+                .get(&member.pid)
+                .is_some_and(|retry_at| *retry_at > Instant::now())
         {
             return;
         }
@@ -181,70 +229,187 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             "replica {} discovered network member {:?}",
             self.pid, member
         );
-        let stream = match TcpStream::connect(member.address).await {
-            Ok(stream) => stream,
-            Err(error) => {
-                warn!(
-                    "replica {} could not connect to discovered peer {} at {}: {}",
-                    self.pid, member.pid, member.address, error
-                );
-                return;
-            }
-        };
-        if let Err(error) = self.handle_new_stream(stream).await {
-            warn!(
-                "replica {} ignored failed handshake with peer {} at {}: {}",
-                self.pid, member.pid, member.address, error
-            );
-        }
+        self.connecting_members.insert(member.pid);
+        let result_sender = self.connection_result_sender.clone();
+        let local_event_sender = self.local_event_sender.clone();
+        let latency_profile = self.latency_profile;
+        let local_pid = self.pid;
+        let handle = tokio::spawn(async move {
+            let stream = match timeout(CONNECTION_TIMEOUT, TcpStream::connect(member.address)).await
+            {
+                Ok(Ok(stream)) => stream,
+                Ok(Err(error)) => {
+                    let _ = result_sender.send(ConnectionResult::Failed {
+                        expected_pid: Some(member.pid),
+                        detail: format!("could not connect to {}: {error}", member.address),
+                    });
+                    return;
+                }
+                Err(_) => {
+                    let _ = result_sender.send(ConnectionResult::Failed {
+                        expected_pid: Some(member.pid),
+                        detail: format!("connection to {} timed out", member.address),
+                    });
+                    return;
+                }
+            };
+            let result = Self::establish_connection(
+                stream,
+                local_pid,
+                Some(member.pid),
+                local_event_sender,
+                latency_profile,
+            )
+            .await;
+            let _ = result_sender.send(result);
+        });
+        self.task_handles.push(handle);
     }
 
-    /// This method can be used both for incoming and outgoing streams
-    async fn handle_new_stream(&mut self, mut stream: TcpStream) -> io::Result<()> {
-        // Tell the stream who we are
-        stream.write_u128(self.pid).await?;
-        // Find out who it is on the opposite end
-        let pid = stream.read_u128().await?;
-        if self.dead_members.contains(&pid) {
-            return Ok(());
+    fn spawn_connection_attempt(&mut self, expected_pid: Option<Pid>, stream: TcpStream) {
+        let result_sender = self.connection_result_sender.clone();
+        let local_event_sender = self.local_event_sender.clone();
+        let latency_profile = self.latency_profile;
+        let local_pid = self.pid;
+        let handle = tokio::spawn(async move {
+            let result = Self::establish_connection(
+                stream,
+                local_pid,
+                expected_pid,
+                local_event_sender,
+                latency_profile,
+            )
+            .await;
+            let _ = result_sender.send(result);
+        });
+        self.task_handles.push(handle);
+    }
+
+    fn handle_connection_result(&mut self, result: ConnectionResult<T>) {
+        match result {
+            ConnectionResult::Failed {
+                expected_pid,
+                detail,
+            } => {
+                if let Some(pid) = expected_pid {
+                    self.connecting_members.remove(&pid);
+                    let failures = self.connection_failures.entry(pid).or_default();
+                    *failures = failures.saturating_add(1);
+                    let multiplier = 1u32 << (*failures).min(5);
+                    let delay =
+                        Duration::from_secs(multiplier as u64).min(MAX_CONNECTION_RETRY_BACKOFF);
+                    self.connection_retry_at.insert(pid, Instant::now() + delay);
+                }
+                warn!(
+                    "replica {} peer connection attempt failed: {}",
+                    self.pid, detail
+                );
+            }
+            ConnectionResult::Established {
+                expected_pid,
+                connection,
+            } => {
+                if let Some(expected_pid) = expected_pid {
+                    self.connecting_members.remove(&expected_pid);
+                    self.connection_retry_at.remove(&expected_pid);
+                    self.connection_failures.remove(&expected_pid);
+                    if connection.peer_pid != expected_pid {
+                        warn!(
+                            "replica {} rejected peer handshake: expected {}, received {}",
+                            self.pid, expected_pid, connection.peer_pid
+                        );
+                        connection.reader_task.abort();
+                        connection.writer_task.abort();
+                        return;
+                    }
+                }
+                if self.dead_members.contains(&connection.peer_pid)
+                    || !self.connected_members.insert(connection.peer_pid)
+                {
+                    connection.reader_task.abort();
+                    connection.writer_task.abort();
+                    return;
+                }
+                match self
+                    .connection_sender
+                    .try_send((connection.peer_pid, connection.writer))
+                {
+                    Ok(()) => {
+                        self.task_handles.push(connection.reader_task);
+                        self.task_handles.push(connection.writer_task);
+                        info!(
+                            "replica {} registered bidirectional network channel for replica {}",
+                            self.pid, connection.peer_pid
+                        );
+                    }
+                    Err(error) => {
+                        self.connected_members.remove(&connection.peer_pid);
+                        connection.reader_task.abort();
+                        connection.writer_task.abort();
+                        warn!(
+                            "replica {} deferred peer {} registration: {}",
+                            self.pid, connection.peer_pid, error
+                        );
+                    }
+                }
+            }
         }
-        info!(
-            "replica {} completed network handshake with replica {}",
-            self.pid, pid
-        );
-        stream
-            .ready(Interest::READABLE | Interest::WRITABLE)
-            .await?;
+        self.task_handles.retain(|handle| !handle.is_finished());
+    }
+
+    /// Establish a peer stream without blocking the network-manager loop.
+    async fn establish_connection(
+        mut stream: TcpStream,
+        local_pid: Pid,
+        expected_pid: Option<Pid>,
+        local_event_sender: Sender<T>,
+        latency_profile: NetworkLatencyProfile,
+    ) -> ConnectionResult<T> {
+        // Tell the stream who we are
+        let handshake = async {
+            stream.write_u128(local_pid).await?;
+            stream.read_u128().await
+        };
+        let pid = match timeout(CONNECTION_TIMEOUT, handshake).await {
+            Ok(Ok(pid)) => pid,
+            Ok(Err(error)) => {
+                return ConnectionResult::Failed {
+                    expected_pid,
+                    detail: format!("handshake failed: {error}"),
+                };
+            }
+            Err(_) => {
+                return ConnectionResult::Failed {
+                    expected_pid,
+                    detail: "handshake timed out".to_string(),
+                };
+            }
+        };
+        // Find out who it is on the opposite end
+        if let Err(error) = stream.ready(Interest::READABLE | Interest::WRITABLE).await {
+            return ConnectionResult::Failed {
+                expected_pid,
+                detail: format!("peer {pid} was not ready: {error}"),
+            };
+        }
         let (read_half, stream_writer) = io::split(stream);
         let stream_reader = BufReader::new(read_half).lines();
         let (from_local_sender, from_local_receiver) = channel::<T>(100);
-        let sender_clone = self.local_event_sender.clone();
-        let handle = tokio::spawn(async move {
-            Self::read_loop(stream_reader, sender_clone).await;
+        let reader_task = tokio::spawn(async move {
+            Self::read_loop(stream_reader, local_event_sender).await;
         });
-        self.task_handles.push(handle);
-        let latency_profile = self.latency_profile;
-        let handle = tokio::spawn(async move {
+        let writer_task = tokio::spawn(async move {
             Self::write_loop(stream_writer, from_local_receiver, latency_profile).await;
         });
-        self.task_handles.push(handle);
-        if self
-            .connection_sender
-            .send((pid as Pid, from_local_sender))
-            .await
-            .is_err()
-        {
-            warn!(
-                "replica {} dropped peer {} because its local connection receiver is closed",
-                self.pid, pid
-            );
-            return Ok(());
+        ConnectionResult::Established {
+            expected_pid,
+            connection: EstablishedConnection {
+                peer_pid: pid,
+                writer: from_local_sender,
+                reader_task,
+                writer_task,
+            },
         }
-        info!(
-            "replica {} registered bidirectional network channel for replica {}",
-            self.pid, pid
-        );
-        Ok(())
     }
 
     async fn read_loop(mut reader: Lines<BufReader<ReadHalf<TcpStream>>>, sender: Sender<T>) {

@@ -1,9 +1,0 @@
-source,event,phase,timestamp_us,replica_pid,peer_pid,gc_marker,sent_us,received_us,start_us,end_us,insert_count,delete_count,detail,client_id,operation,value,status_code,latency_us
-server,replica_init,start,1786959420126944,178695929047432853,,,,,,,,,,,,,,
-server,persistent_state_fetch,completed,1786959420691005,178695929047432853,,,,,1786959420126983,1786959420691005,,,restored_existing_snapshot,,,,,564022
-server,membership_descriptor_write,completed,1786959420691827,178695929047432853,,,,,1786959420127330,1786959420691827,,,"178695929047432853,54.251.165.199:19082,0",,,,,564497
-server,membership_directory_read,completed,1786959420887245,178695929047432853,,,,,1786959420691830,1786959420887245,,,init:32 descriptors,,,,,195415
-server,replica_init,completed,1786959420890019,178695929047432853,,,,,,,,,,,,,,
-server,membership_directory_read,completed,1786959425326336,178695929047432853,,,,,1786959425127675,1786959425326336,,,poll:32 descriptors,,,,,198661
-server,membership_directory_read,completed,1786959430326576,178695929047432853,,,,,1786959430128047,1786959430326576,,,poll:33 descriptors,,,,,198529
-server,membership_directory_read,completed,1786959435324399,178695929047432853,,,,,1786959435127275,1786959435324399,,,poll:33 descriptors,,,,,197124

@@ -2,7 +2,6 @@ use crate::crdt::*;
 use crate::prelude::*;
 
 use crate::http_client::HttpError;
-use crate::replica_helpers::*;
 use bytes::Bytes;
 use http_body_util::BodyExt;
 use http_body_util::Full;
@@ -14,48 +13,51 @@ use hyper_util::rt::TokioIo;
 use log::{debug, error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::{future::Future, pin::Pin};
 
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::sync::RwLock;
 
 use std::fmt::Debug;
 
+pub type ClientMutationHandler<T> = Arc<
+    dyn Fn(
+            <T as CRDT>::Mutation,
+        ) -> Pin<Box<dyn Future<Output = <T as CRDT>::ClientResponse> + Send>>
+        + Send
+        + Sync,
+>;
+
 pub async fn launch_http_server<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     address: &ServerAddr,
     crdt: Arc<RwLock<T>>,
-) -> (
-    Receiver<(T::Mutation, ClientResponder<T>)>,
-    oneshot::Sender<()>,
-) {
+    mutation_handler: ClientMutationHandler<T>,
+) -> oneshot::Sender<()> {
     let http_listener = TcpListener::bind(address.http())
         .await
         .expect("Failed to bind to http address");
-
-    let (client_request_sender, client_request_receiver) =
-        channel::<(T::Mutation, ClientResponder<T>)>(100);
 
     // Create a shutdown channel
     let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
 
     tokio::spawn(http_server_loop::<T>(
         http_listener,
-        client_request_sender,
         crdt,
+        mutation_handler,
         shutdown_receiver,
     ));
 
-    (client_request_receiver, shutdown_sender)
+    shutdown_sender
 }
 
-/// Runs a HTTP Service listening for incoming ClientRequests
-/// Handles queries and forwards mutations over the ´client_request_sender´
-/// Runs until a shutdown signal is received.
+/// Runs an HTTP service listening for incoming client requests. Queries read
+/// shared state directly; mutations are handled in the HTTP data plane by the
+/// supplied durable mutation handler. Runs until a shutdown signal is received.
 async fn http_server_loop<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     http_listener: TcpListener,
-    client_request_sender: Sender<(T::Mutation, ClientResponder<T>)>,
     crdt: Arc<RwLock<T>>,
+    mutation_handler: ClientMutationHandler<T>,
     mut shutdown_receiver: oneshot::Receiver<()>,
 ) {
     info!("running CRDT HTTP server");
@@ -67,14 +69,14 @@ async fn http_server_loop<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     // Enter HTTP Listener event loop with shutdown capability:
     loop {
         let crdt_clone = crdt.clone();
-        let client_request_sender_clone = client_request_sender.clone();
+        let mutation_handler_clone = mutation_handler.clone();
 
         tokio::select! {
             accept_result = http_listener.accept() => {
                 match accept_result {
                     Ok((stream, addr)) => {
                         // Spawn a handler for the connection, using immutable reference to db
-                        handle_http_connection(stream, addr, crdt_clone, client_request_sender_clone);
+                        handle_http_connection(stream, addr, crdt_clone, mutation_handler_clone);
                     }
                     Err(e) => {
                         error!("http server accept error: {}", e);
@@ -96,12 +98,12 @@ fn handle_http_connection<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     stream: TcpStream,
     addr: SocketAddr,
     crdt: Arc<RwLock<T>>,
-    client_channel: Sender<(T::Mutation, ClientResponder<T>)>,
+    mutation_handler: ClientMutationHandler<T>,
 ) {
     let io = TokioIo::new(stream);
     tokio::spawn(async move {
         let service = service_fn(move |req: Request<Incoming>| {
-            handle_request(req, crdt.clone(), client_channel.clone())
+            handle_request(req, crdt.clone(), mutation_handler.clone())
         });
         if Builder::new().serve_connection(io, service).await.is_err() {
             error!("http server connection error for {}", addr);
@@ -114,7 +116,7 @@ fn handle_http_connection<T: CRDT + Send + Sync + 'static + Clone + Debug>(
 async fn handle_request<T: CRDT + Send + Sync + 'static + Clone + Debug>(
     req: Request<Incoming>,
     crdt: Arc<RwLock<T>>,
-    server_channel: Sender<(T::Mutation, ClientResponder<T>)>,
+    mutation_handler: ClientMutationHandler<T>,
 ) -> Result<Response<Full<Bytes>>, HttpError> {
     // let request_received = now();
     let request = client_req_from_incoming::<T>(req).await?;
@@ -126,29 +128,13 @@ async fn handle_request<T: CRDT + Send + Sync + 'static + Clone + Debug>(
             crdt.query(arg)
         }
         CRDTClientRequest::<T>::Mutation(mutation) => {
-            debug!("forwarding client mutation request to replica");
-            forward_request::<T>(mutation.clone(), server_channel).await
+            debug!("handling client mutation in HTTP data plane");
+            mutation_handler(mutation).await
         }
     };
     let response = serde_json::to_string(&response).unwrap();
     let response = Response::new(response.into());
     Ok(response)
-}
-
-async fn forward_request<T: CRDT + Send + Sync + 'static>(
-    client_request: T::Mutation,
-    server_channel: Sender<(T::Mutation, ClientResponder<T>)>,
-) -> T::ClientResponse {
-    // Send the request to Paxos for coordination
-    let (tx, rx) = oneshot::channel();
-    server_channel.send((client_request, tx)).await.unwrap();
-    // Wait for the request to be handled...
-    let result = rx.await.expect("Server failed to handle the message");
-    if let Ok(response) = result {
-        response
-    } else {
-        todo!("Handle error for forwarded request");
-    }
 }
 
 async fn client_req_from_incoming<T: CRDT + Send + Sync + 'static + Clone + Debug>(

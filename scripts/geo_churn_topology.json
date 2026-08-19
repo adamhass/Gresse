@@ -1,7 +1,7 @@
 {
   "run_label": "acm-sec-geo-churn",
   "duration_seconds": 1800,
-  "bucket": "gresse-geo-035351467464-20260817080652-e8d881",
+  "bucket": "gresse-geo-035351467464-20260819104151-566c04",
   "s3_region": "eu-north-1",
   "replicas_per_vm": 5,
   "sync_interval_ms": 1000,
@@ -21,7 +21,7 @@
   "collection_timeout_seconds": 300,
   "ssh_options": [
     "-i",
-    "/Users/adam/.ssh/gresse-geo-churn-20260817080652-e8d881.pem",
+    "/Users/adam/.ssh/gresse-geo-churn-20260819104151-566c04.pem",
     "-o",
     "IdentitiesOnly=yes"
   ],
@@ -29,63 +29,544 @@
     {
       "name": "stockholm",
       "region": "eu-north-1",
-      "ssh_host": "ec2-user@16.192.148.144",
+      "ssh_host": "ec2-user@16.170.40.83",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "16.192.148.144",
-      "client_host": "16.192.148.144",
+      "advertise_ip": "16.170.40.83",
+      "client_host": "16.170.40.83",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     },
     {
       "name": "frankfurt",
       "region": "eu-central-1",
-      "ssh_host": "ec2-user@3.76.45.179",
+      "ssh_host": "ec2-user@63.186.69.1",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "3.76.45.179",
-      "client_host": "3.76.45.179",
+      "advertise_ip": "63.186.69.1",
+      "client_host": "63.186.69.1",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     },
     {
       "name": "virginia",
       "region": "us-east-1",
-      "ssh_host": "ec2-user@3.231.214.148",
+      "ssh_host": "ec2-user@13.219.225.164",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "3.231.214.148",
-      "client_host": "3.231.214.148",
+      "advertise_ip": "13.219.225.164",
+      "client_host": "13.219.225.164",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     },
     {
       "name": "oregon",
       "region": "us-west-2",
-      "ssh_host": "ec2-user@54.201.80.134",
+      "ssh_host": "ec2-user@54.184.138.82",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "54.201.80.134",
-      "client_host": "54.201.80.134",
+      "advertise_ip": "54.184.138.82",
+      "client_host": "54.184.138.82",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     },
     {
       "name": "singapore",
       "region": "ap-southeast-1",
-      "ssh_host": "ec2-user@54.251.165.199",
+      "ssh_host": "ec2-user@47.129.167.193",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "54.251.165.199",
-      "client_host": "54.251.165.199",
+      "advertise_ip": "47.129.167.193",
+      "client_host": "47.129.167.193",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     },
     {
       "name": "tokyo",
       "region": "ap-northeast-1",
-      "ssh_host": "ec2-user@35.77.61.140",
+      "ssh_host": "ec2-user@13.193.126.237",
       "bind_ip": "0.0.0.0",
-      "advertise_ip": "35.77.61.140",
-      "client_host": "35.77.61.140",
+      "advertise_ip": "13.193.126.237",
+      "client_host": "13.193.126.237",
       "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
       "remote_root": "/home/ec2-user/gresse-runs"
     }
   ],
-  "events": [{"at_seconds":180,"action":"crash","vm":"stockholm","slot":0},{"at_seconds":180,"action":"crash","vm":"frankfurt","slot":1},{"at_seconds":180,"action":"crash","vm":"virginia","slot":2},{"at_seconds":180,"action":"crash","vm":"oregon","slot":3},{"at_seconds":300,"action":"spawn","vm":"stockholm","slot":0},{"at_seconds":300,"action":"spawn","vm":"frankfurt","slot":1},{"at_seconds":300,"action":"spawn","vm":"virginia","slot":2},{"at_seconds":300,"action":"spawn","vm":"oregon","slot":3},{"at_seconds":300,"action":"graceful_stop","vm":"singapore","slot":4},{"at_seconds":300,"action":"graceful_stop","vm":"tokyo","slot":0},{"at_seconds":300,"action":"graceful_stop","vm":"stockholm","slot":1},{"at_seconds":300,"action":"crash","vm":"frankfurt","slot":2},{"at_seconds":300,"action":"crash","vm":"virginia","slot":3},{"at_seconds":300,"action":"crash","vm":"oregon","slot":4},{"at_seconds":420,"action":"spawn","vm":"singapore","slot":4},{"at_seconds":420,"action":"spawn","vm":"tokyo","slot":0},{"at_seconds":420,"action":"spawn","vm":"stockholm","slot":1},{"at_seconds":420,"action":"spawn","vm":"frankfurt","slot":2},{"at_seconds":420,"action":"spawn","vm":"virginia","slot":3},{"at_seconds":420,"action":"spawn","vm":"oregon","slot":4},{"at_seconds":600,"action":"crash","vm":"singapore","slot":0},{"at_seconds":600,"action":"crash","vm":"tokyo","slot":1},{"at_seconds":600,"action":"crash","vm":"stockholm","slot":2},{"at_seconds":600,"action":"crash","vm":"frankfurt","slot":3},{"at_seconds":720,"action":"spawn","vm":"singapore","slot":0},{"at_seconds":720,"action":"spawn","vm":"tokyo","slot":1},{"at_seconds":720,"action":"spawn","vm":"stockholm","slot":2},{"at_seconds":720,"action":"spawn","vm":"frankfurt","slot":3},{"at_seconds":720,"action":"graceful_stop","vm":"virginia","slot":4},{"at_seconds":720,"action":"graceful_stop","vm":"oregon","slot":0},{"at_seconds":720,"action":"graceful_stop","vm":"singapore","slot":1},{"at_seconds":720,"action":"crash","vm":"tokyo","slot":2},{"at_seconds":720,"action":"crash","vm":"stockholm","slot":3},{"at_seconds":720,"action":"crash","vm":"frankfurt","slot":4},{"at_seconds":840,"action":"spawn","vm":"virginia","slot":4},{"at_seconds":840,"action":"spawn","vm":"oregon","slot":0},{"at_seconds":840,"action":"spawn","vm":"singapore","slot":1},{"at_seconds":840,"action":"spawn","vm":"tokyo","slot":2},{"at_seconds":840,"action":"spawn","vm":"stockholm","slot":3},{"at_seconds":840,"action":"spawn","vm":"frankfurt","slot":4},{"at_seconds":1020,"action":"crash","vm":"virginia","slot":0},{"at_seconds":1020,"action":"crash","vm":"oregon","slot":1},{"at_seconds":1020,"action":"crash","vm":"singapore","slot":2},{"at_seconds":1020,"action":"crash","vm":"tokyo","slot":3},{"at_seconds":1140,"action":"spawn","vm":"virginia","slot":0},{"at_seconds":1140,"action":"spawn","vm":"oregon","slot":1},{"at_seconds":1140,"action":"spawn","vm":"singapore","slot":2},{"at_seconds":1140,"action":"spawn","vm":"tokyo","slot":3},{"at_seconds":1140,"action":"graceful_stop","vm":"stockholm","slot":4},{"at_seconds":1140,"action":"graceful_stop","vm":"frankfurt","slot":0},{"at_seconds":1140,"action":"graceful_stop","vm":"virginia","slot":1},{"at_seconds":1140,"action":"crash","vm":"oregon","slot":2},{"at_seconds":1140,"action":"crash","vm":"singapore","slot":3},{"at_seconds":1140,"action":"crash","vm":"tokyo","slot":4},{"at_seconds":1260,"action":"spawn","vm":"stockholm","slot":4},{"at_seconds":1260,"action":"spawn","vm":"frankfurt","slot":0},{"at_seconds":1260,"action":"spawn","vm":"virginia","slot":1},{"at_seconds":1260,"action":"spawn","vm":"oregon","slot":2},{"at_seconds":1260,"action":"spawn","vm":"singapore","slot":3},{"at_seconds":1260,"action":"spawn","vm":"tokyo","slot":4},{"at_seconds":1440,"action":"crash","vm":"stockholm","slot":0},{"at_seconds":1440,"action":"crash","vm":"frankfurt","slot":1},{"at_seconds":1440,"action":"crash","vm":"virginia","slot":2},{"at_seconds":1440,"action":"crash","vm":"oregon","slot":3},{"at_seconds":1560,"action":"spawn","vm":"stockholm","slot":0},{"at_seconds":1560,"action":"spawn","vm":"frankfurt","slot":1},{"at_seconds":1560,"action":"spawn","vm":"virginia","slot":2},{"at_seconds":1560,"action":"spawn","vm":"oregon","slot":3},{"at_seconds":1560,"action":"graceful_stop","vm":"singapore","slot":0},{"at_seconds":1560,"action":"graceful_stop","vm":"tokyo","slot":1},{"at_seconds":1560,"action":"graceful_stop","vm":"stockholm","slot":2},{"at_seconds":1560,"action":"crash","vm":"frankfurt","slot":3},{"at_seconds":1560,"action":"crash","vm":"virginia","slot":4},{"at_seconds":1560,"action":"crash","vm":"oregon","slot":0},{"at_seconds":1680,"action":"spawn","vm":"singapore","slot":0},{"at_seconds":1680,"action":"spawn","vm":"tokyo","slot":1},{"at_seconds":1680,"action":"spawn","vm":"stockholm","slot":2},{"at_seconds":1680,"action":"spawn","vm":"frankfurt","slot":3},{"at_seconds":1680,"action":"spawn","vm":"virginia","slot":4},{"at_seconds":1680,"action":"spawn","vm":"oregon","slot":0}]
+  "events": [
+    {
+      "at_seconds": 180,
+      "action": "crash",
+      "vm": "stockholm",
+      "slot": 0
+    },
+    {
+      "at_seconds": 180,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 1
+    },
+    {
+      "at_seconds": 180,
+      "action": "crash",
+      "vm": "virginia",
+      "slot": 2
+    },
+    {
+      "at_seconds": 180,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 3
+    },
+    {
+      "at_seconds": 300,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 0
+    },
+    {
+      "at_seconds": 300,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 1
+    },
+    {
+      "at_seconds": 300,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 2
+    },
+    {
+      "at_seconds": 300,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 3
+    },
+    {
+      "at_seconds": 300,
+      "action": "graceful_stop",
+      "vm": "singapore",
+      "slot": 4
+    },
+    {
+      "at_seconds": 300,
+      "action": "graceful_stop",
+      "vm": "tokyo",
+      "slot": 0
+    },
+    {
+      "at_seconds": 300,
+      "action": "graceful_stop",
+      "vm": "stockholm",
+      "slot": 1
+    },
+    {
+      "at_seconds": 300,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 2
+    },
+    {
+      "at_seconds": 300,
+      "action": "crash",
+      "vm": "virginia",
+      "slot": 3
+    },
+    {
+      "at_seconds": 300,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 4
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 4
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 0
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 1
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 2
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 3
+    },
+    {
+      "at_seconds": 420,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 4
+    },
+    {
+      "at_seconds": 600,
+      "action": "crash",
+      "vm": "singapore",
+      "slot": 0
+    },
+    {
+      "at_seconds": 600,
+      "action": "crash",
+      "vm": "tokyo",
+      "slot": 1
+    },
+    {
+      "at_seconds": 600,
+      "action": "crash",
+      "vm": "stockholm",
+      "slot": 2
+    },
+    {
+      "at_seconds": 600,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 3
+    },
+    {
+      "at_seconds": 720,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 0
+    },
+    {
+      "at_seconds": 720,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 1
+    },
+    {
+      "at_seconds": 720,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 2
+    },
+    {
+      "at_seconds": 720,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 3
+    },
+    {
+      "at_seconds": 720,
+      "action": "graceful_stop",
+      "vm": "virginia",
+      "slot": 4
+    },
+    {
+      "at_seconds": 720,
+      "action": "graceful_stop",
+      "vm": "oregon",
+      "slot": 0
+    },
+    {
+      "at_seconds": 720,
+      "action": "graceful_stop",
+      "vm": "singapore",
+      "slot": 1
+    },
+    {
+      "at_seconds": 720,
+      "action": "crash",
+      "vm": "tokyo",
+      "slot": 2
+    },
+    {
+      "at_seconds": 720,
+      "action": "crash",
+      "vm": "stockholm",
+      "slot": 3
+    },
+    {
+      "at_seconds": 720,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 4
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 4
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 0
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 1
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 2
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 3
+    },
+    {
+      "at_seconds": 840,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1020,
+      "action": "crash",
+      "vm": "virginia",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1020,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1020,
+      "action": "crash",
+      "vm": "singapore",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1020,
+      "action": "crash",
+      "vm": "tokyo",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1140,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1140,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1140,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1140,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1140,
+      "action": "graceful_stop",
+      "vm": "stockholm",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1140,
+      "action": "graceful_stop",
+      "vm": "frankfurt",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1140,
+      "action": "graceful_stop",
+      "vm": "virginia",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1140,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1140,
+      "action": "crash",
+      "vm": "singapore",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1140,
+      "action": "crash",
+      "vm": "tokyo",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1260,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1440,
+      "action": "crash",
+      "vm": "stockholm",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1440,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1440,
+      "action": "crash",
+      "vm": "virginia",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1440,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1560,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1560,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1560,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1560,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1560,
+      "action": "graceful_stop",
+      "vm": "singapore",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1560,
+      "action": "graceful_stop",
+      "vm": "tokyo",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1560,
+      "action": "graceful_stop",
+      "vm": "stockholm",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1560,
+      "action": "crash",
+      "vm": "frankfurt",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1560,
+      "action": "crash",
+      "vm": "virginia",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1560,
+      "action": "crash",
+      "vm": "oregon",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "singapore",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "tokyo",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "stockholm",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "frankfurt",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "virginia",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1680,
+      "action": "spawn",
+      "vm": "oregon",
+      "slot": 0
+    }
+  ]
 }

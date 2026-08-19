@@ -1,1 +1,0 @@
-{"record_type":"snapshot","payload":{"crdt_wrapper":{"gc_markers":[],"version_matrix":{"final_dots":[],"matrix":{}}},"local_state":{"delta_log":{"map":{}},"entries":{},"pid":178695929047432851,"version_vector":{"set":{}}}}}

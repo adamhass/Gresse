@@ -125,15 +125,27 @@ impl ObjectStorageClient {
     pub async fn list_membership_descriptors(
         &self,
     ) -> Result<Vec<ReplicaDescriptor>, ObjectStorageError> {
+        let membership_descriptors = self.fetch_membership_descriptors().await?;
+        self.update_membership_cache(membership_descriptors.clone())
+            .await;
+        Ok(membership_descriptors)
+    }
+
+    /// Fetch membership descriptors without changing the shared cache. This is
+    /// used by background discovery polling so a slow/stale read cannot race
+    /// with a synchronous GC membership-validation round.
+    pub async fn fetch_membership_descriptors(
+        &self,
+    ) -> Result<Vec<ReplicaDescriptor>, ObjectStorageError> {
         let members = self.list_objects(&self.membership_directory_path).await?;
-        let membership_descriptors = members
+        Ok(members
             .into_iter()
             .filter_map(|member| member.parse::<ReplicaDescriptor>().ok())
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>())
+    }
 
+    pub async fn update_membership_cache(&self, membership_descriptors: Vec<ReplicaDescriptor>) {
         *self.membership_descriptors.write().await = membership_descriptors.clone();
-
-        Ok(membership_descriptors)
     }
 
     #[allow(unused)]
