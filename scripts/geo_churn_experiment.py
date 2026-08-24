@@ -68,6 +68,7 @@ class Replica:
     pid: int
     generation: int = 0
     live: bool = False
+    bootstrapping: bool = False
     remote_dir: str = ""
 
     @property
@@ -110,6 +111,9 @@ class CsvLog:
 
 
 class Controller:
+    process_tag_env = "GRESSE_EXPERIMENT_TAG"
+    process_tag_value = "geo-churn"
+
     def __init__(self, config: dict[str, Any], result_dir: Path, dry_run: bool) -> None:
         self.config = config
         self.result_dir = result_dir
@@ -117,6 +121,7 @@ class Controller:
         run_label = str(config.get("run_label", config.get("run_id", "geo-churn")))
         if not run_label.replace("-", "").replace("_", "").isalnum():
             raise ValueError("run_label may contain only letters, digits, hyphens, and underscores")
+        self.run_label = run_label
         self.run_id = f"{run_label}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:8]}"
         self.remote_run_root = config.get("remote_run_root", "/tmp/gresse-geo-churn")
         self.registry_dir_name = ".gresse-geo-churn-active"
@@ -126,10 +131,25 @@ class Controller:
         self.discovery_interval_ms = int(config.get("discovery_interval_ms", 5000))
         self.gc_interval_ms = int(config.get("gc_interval_ms", 60000))
         self.workload_rate = float(config.get("workload_rate_per_replica", 1.0))
+        self.workload_max_in_flight = int(config.get("workload_max_in_flight", 512))
+        self.workload_max_in_flight_per_replica = int(config.get("workload_max_in_flight_per_replica", 8))
+        if self.workload_max_in_flight < 1:
+            raise ValueError("workload_max_in_flight must be positive")
+        if self.workload_max_in_flight_per_replica < 1:
+            raise ValueError("workload_max_in_flight_per_replica must be positive")
         self.snapshot_interval = float(config.get("snapshot_interval_seconds", 30.0))
         self.final_convergence_seconds = float(config.get("final_convergence_seconds", 120.0))
-        self.startup_timeout_seconds = float(config.get("startup_timeout_seconds", 60.0))
+        self.startup_timeout_seconds = float(config.get("startup_timeout_seconds", 180.0))
+        self.startup_max_attempts = int(config.get("startup_max_attempts", 3))
+        self.startup_retry_delay_seconds = float(config.get("startup_retry_delay_seconds", 1.0))
+        if self.startup_max_attempts < 1:
+            raise ValueError("startup_max_attempts must be positive")
+        if self.startup_retry_delay_seconds < 0:
+            raise ValueError("startup_retry_delay_seconds must be non-negative")
         self.ssh_timeout_seconds = float(config.get("ssh_timeout_seconds", 30.0))
+        self.launch_timeout_seconds = float(config.get("launch_timeout_seconds", self.startup_timeout_seconds))
+        if self.launch_timeout_seconds <= 0:
+            raise ValueError("launch_timeout_seconds must be positive")
         self.collection_timeout_seconds = float(config.get("collection_timeout_seconds", 300.0))
         self.remote_shutdown_grace_seconds = int(config.get("remote_shutdown_grace_seconds", 20))
         self.remote_deadline_slack_seconds = int(config.get("remote_deadline_slack_seconds", 600))
@@ -202,13 +222,25 @@ class Controller:
             self.pid_counter += 1
             return self.pid_counter
 
-    def ssh(self, vm: Vm, command: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    def ssh(
+        self, vm: Vm, command: str, check: bool = True, timeout_seconds: Optional[float] = None,
+    ) -> subprocess.CompletedProcess[str]:
         argv = self.ssh_argv("ssh", vm.ssh_host) + [command]
         self.log.write("ssh_command", detail=f"{vm.name}: {command}")
         if self.dry_run:
             return subprocess.CompletedProcess(argv, 0, "dry-run", "")
         try:
-            return subprocess.run(argv, text=True, capture_output=True, check=check, timeout=self.ssh_timeout_seconds)
+            result = subprocess.run(
+                argv, text=True, capture_output=True, check=False,
+                timeout=timeout_seconds if timeout_seconds is not None else self.ssh_timeout_seconds,
+            )
+            if result.returncode != 0 and check:
+                detail = f"{vm.name}: exit={result.returncode}; stderr={result.stderr.strip()}"
+                self.log.write("ssh_failed", detail=detail)
+                raise subprocess.CalledProcessError(
+                    result.returncode, argv, output=result.stdout, stderr=result.stderr,
+                )
+            return result
         except subprocess.TimeoutExpired as error:
             self.log.write("ssh_timeout", detail=f"{vm.name}: {error}")
             if check:
@@ -216,7 +248,7 @@ class Controller:
             return subprocess.CompletedProcess(argv, 124, "", "SSH timeout")
 
     def ssh_argv(self, program: str, target: str) -> list[str]:
-        return [program, *self.connection_options(), target]
+        return [program, "-n", *self.connection_options(), target]
 
     def connection_options(self) -> list[str]:
         return [
@@ -228,9 +260,20 @@ class Controller:
     def registry_path(self, replica: Replica) -> str:
         return f"{replica.vm.remote_root}/{self.registry_dir_name}/{self.run_id}-{replica.name}.pid"
 
+    def durability_path(self, replica: Replica) -> str:
+        return f"{replica.vm.remote_root}/{self.run_id}/durability/{replica.vm.name}-slot{replica.slot}.journal"
+
+    @staticmethod
+    def launch_cancel_path(replica: Replica) -> str:
+        return f"{replica.remote_dir}/launch.cancel"
+
     def cleanup_stale_processes(self, vm: Vm) -> None:
         registry = f"{vm.remote_root}/{self.registry_dir_name}"
         registry_q = shlex.quote(registry)
+        process_pattern = shlex.quote(
+            f"^({self.process_tag_env}={self.process_tag_value}$|"
+            f"GRESSE_RESULT_DIR_PATH=.*/{self.run_label}-)"
+        )
         command = (
             f"registry={registry_q}; if [ -d \"$registry\" ]; then "
             "found=0; "
@@ -239,8 +282,17 @@ class Controller:
             f"[ \"$found\" -eq 1 ] && sleep {self.remote_shutdown_grace_seconds}; "
             "for record in \"$registry\"/*.pid; do [ -f \"$record\" ] || continue; "
             "read replica_pid watchdog_pid < \"$record\"; for pid in \"$replica_pid\" \"$watchdog_pid\"; do case \"$pid\" in ''|*[!0-9]*) ;; *) kill -KILL \"$pid\" 2>/dev/null || true ;; esac; done; rm -f \"$record\"; done; fi"
+            "; tagged=0; for proc in /proc/[0-9]*; do env_file=\"$proc/environ\"; [ -r \"$env_file\" ] || continue; "
+            f"if tr '\\000' '\\n' < \"$env_file\" 2>/dev/null | grep -Eq {process_pattern}; then tagged=1; pid=${{proc##*/}}; kill -TERM \"$pid\" 2>/dev/null || true; fi; done; "
+            f"[ \"$tagged\" -eq 1 ] && sleep {self.remote_shutdown_grace_seconds}; "
+            "remaining=0; for proc in /proc/[0-9]*; do env_file=\"$proc/environ\"; [ -r \"$env_file\" ] || continue; "
+            f"if tr '\\000' '\\n' < \"$env_file\" 2>/dev/null | grep -Eq {process_pattern}; then remaining=1; pid=${{proc##*/}}; kill -KILL \"$pid\" 2>/dev/null || true; fi; done; "
+            "sleep 1; for proc in /proc/[0-9]*; do env_file=\"$proc/environ\"; [ -r \"$env_file\" ] || continue; "
+            f"if tr '\\000' '\\n' < \"$env_file\" 2>/dev/null | grep -Eq {process_pattern}; then echo \"tagged process survived cleanup: ${{proc##*/}}\" >&2; exit 1; fi; done"
         )
-        self.ssh(vm, command, check=False)
+        result = self.ssh(vm, command, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"failed to clear tagged processes on {vm.name}: {result.stderr.strip()}")
         self.log.write("stale_process_cleanup_requested", detail=vm.name)
 
     def deploy_binary(self, local_binary: Path) -> str:
@@ -318,11 +370,39 @@ class Controller:
     def start(self, replica: Replica) -> None:
         if replica.live:
             raise RuntimeError(f"cannot spawn already-live replica {replica.name}")
+        # The HTTP listener comes up before Replica::init completes.  Keep
+        # workload traffic away from this process until its bootstrap metric
+        # confirms it can safely serve mutations.
+        replica.bootstrapping = True
+        try:
+            failures: list[str] = []
+            for attempt in range(1, self.startup_max_attempts + 1):
+                try:
+                    self.start_attempt(replica, attempt)
+                    return
+                except (TimeoutError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+                    detail = f"attempt {attempt}/{self.startup_max_attempts}: {type(error).__name__}: {error}"
+                    failures.append(detail)
+                    self.log.write("bootstrap_attempt_failed", replica, detail=detail)
+                    self.cleanup_failed_start(replica, attempt)
+                    if attempt < self.startup_max_attempts:
+                        self.progress(f"retrying {replica.name} after failed bootstrap attempt {attempt}")
+                        time.sleep(self.startup_retry_delay_seconds)
+            raise TimeoutError(
+                f"replica failed to initialize after {self.startup_max_attempts} attempts: "
+                + "; ".join(failures)
+            )
+        finally:
+            replica.bootstrapping = False
+
+    def start_attempt(self, replica: Replica, attempt: int) -> None:
+        predecessor_pid = replica.pid
         replica.generation += 1
         replica.pid = self.next_pid()
         replica.remote_dir = f"{replica.vm.remote_root}/{self.run_id}/{replica.name}"
         registry_path = self.registry_path(replica)
-        durability_path = f"{replica.vm.remote_root}/{self.run_id}/durability/{replica.vm.name}-slot{replica.slot}.journal"
+        durability_path = self.durability_path(replica)
+        launch_cancel_path = self.launch_cancel_path(replica)
         prefix = f"{self.run_id}"
         env = {
             "GRESSE_BENCH_PID": str(replica.pid), "GRESSE_ADDR": replica.vm.bind_ip,
@@ -333,8 +413,10 @@ class Controller:
             "GRESSE_OBJECT_STORAGE_DISCOVERY_INTERVAL_MS": str(self.discovery_interval_ms),
             "GRESSE_GC_INTERVAL_MS": str(self.gc_interval_ms),
             "GRESSE_OBJECT_STORAGE_REGION": self.region, "GRESSE_OBJECT_STORAGE_BUCKET": self.bucket,
-            "GRESSE_PERSISTENT_REPLICA_PATH": f"{prefix}/persistent.json",
-            "GRESSE_MEMBERSHIP_DIRECTORY_PATH": f"{prefix}/membership",
+                "GRESSE_PERSISTENT_REPLICA_PATH": f"{prefix}/persistent.json",
+                "GRESSE_MEMBERSHIP_DIRECTORY_PATH": f"{prefix}/membership",
+                "GRESSE_RECOVERED_PREDECESSOR_PID": str(predecessor_pid),
+                self.process_tag_env: self.process_tag_value,
         }
         if self.durable_recovery:
             env["GRESSE_DURABLE"] = "true"
@@ -348,31 +430,48 @@ class Controller:
         )
         command = (
             f"mkdir -p {shlex.quote(replica.remote_dir)} {shlex.quote(replica.vm.remote_root + '/' + self.registry_dir_name)} {shlex.quote(replica.vm.remote_root + '/' + self.run_id + '/durability')} && "
+            f"test ! -e {shlex.quote(launch_cancel_path)} && "
             f"(setsid sh -c {shlex.quote(runtime_command)} "
             f"> {shlex.quote(replica.remote_dir + '/stdout.log')} "
             f"2> {shlex.quote(replica.remote_dir + '/stderr.log')} < /dev/null & "
             f"replica_pid=$!; echo \"$replica_pid\" > {shlex.quote(replica.remote_dir + '/os.pid')}; "
-            f"nohup sh -c {shlex.quote(watchdog_command)} sh \"$replica_pid\" "
-            f"> {shlex.quote(replica.remote_dir + '/watchdog.log')} 2>&1 & watchdog_pid=$!; echo \"$watchdog_pid\" > {shlex.quote(replica.remote_dir + '/watchdog.pid')}; "
+            f"if test -e {shlex.quote(launch_cancel_path)}; then kill -KILL \"$replica_pid\" 2>/dev/null || true; exit 1; fi; "
+            f"nohup env {self.process_tag_env}={shlex.quote(self.process_tag_value)} sh -c {shlex.quote(watchdog_command)} sh \"$replica_pid\" "
+            f"> {shlex.quote(replica.remote_dir + '/watchdog.log')} 2>&1 < /dev/null & watchdog_pid=$!; echo \"$watchdog_pid\" > {shlex.quote(replica.remote_dir + '/watchdog.pid')}; "
             f"echo \"$replica_pid $watchdog_pid\" > {shlex.quote(registry_path)})"
         )
-        self.ssh(replica.vm, command)
+        self.log.write("bootstrap_attempt_started", replica, detail=f"attempt {attempt}/{self.startup_max_attempts}")
+        self.ssh(replica.vm, command, timeout_seconds=self.launch_timeout_seconds)
         replica.live = True
         self.log.write("spawn_requested", replica, detail=replica.remote_dir)
-        self.progress(f"starting {replica.name} ({replica.vm.region})")
-        self.wait_until_ready(replica)
-        self.wait_until_bootstrapped(replica)
+        self.progress(f"starting {replica.name} ({replica.vm.region}), attempt {attempt}")
+        deadline = time.monotonic() + self.startup_timeout_seconds
+        self.wait_until_ready(replica, deadline)
+        self.wait_until_bootstrapped(replica, deadline)
         self.progress(f"ready {replica.name}")
 
-    def wait_until_ready(self, replica: Replica) -> None:
+    def cleanup_failed_start(self, replica: Replica, attempt: int) -> None:
+        cancel_path = self.launch_cancel_path(replica)
+        command = (
+            f"mkdir -p {shlex.quote(replica.remote_dir)}; touch {shlex.quote(cancel_path)}; "
+            f"test -f {shlex.quote(replica.remote_dir + '/watchdog.pid')} && kill -KILL $(cat {shlex.quote(replica.remote_dir + '/watchdog.pid')}) 2>/dev/null || true; "
+            f"test -f {shlex.quote(replica.remote_dir + '/os.pid')} && kill -KILL $(cat {shlex.quote(replica.remote_dir + '/os.pid')}) 2>/dev/null || true; "
+            f"rm -f {shlex.quote(self.registry_path(replica))}"
+        )
+        self.ssh(replica.vm, command, check=False, timeout_seconds=self.ssh_timeout_seconds)
+        replica.live = False
+        self.log.write("bootstrap_attempt_cleaned_up", replica, detail=f"attempt {attempt}/{self.startup_max_attempts}")
+
+    def wait_until_ready(self, replica: Replica, deadline: Optional[float] = None) -> None:
         if self.dry_run:
             self.log.write("http_ready", replica, detail="dry-run")
             return
-        deadline = time.monotonic() + self.startup_timeout_seconds
+        deadline = deadline if deadline is not None else time.monotonic() + self.startup_timeout_seconds
         last_error = ""
         while time.monotonic() < deadline:
             try:
-                connection = http.client.HTTPConnection(replica.vm.client_host, replica.http_port, timeout=3)
+                request_timeout = min(3.0, max(0.1, deadline - time.monotonic()))
+                connection = http.client.HTTPConnection(replica.vm.client_host, replica.http_port, timeout=request_timeout)
                 connection.request("POST", "/", body=json.dumps({"type": "Query", "params": "Meta"}), headers={"Content-Type": "application/json"})
                 response = connection.getresponse()
                 response.read()
@@ -383,19 +482,22 @@ class Controller:
                 last_error = f"HTTP {response.status}"
             except Exception as error:
                 last_error = f"{type(error).__name__}: {error}"
-            time.sleep(0.5)
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
         self.log.write("http_ready_timeout", replica, detail=last_error)
         raise TimeoutError(f"replica did not become HTTP-ready: {replica.name}: {last_error}")
 
-    def wait_until_bootstrapped(self, replica: Replica) -> None:
+    def wait_until_bootstrapped(self, replica: Replica, deadline: Optional[float] = None) -> None:
         if self.dry_run:
             self.log.write("bootstrap_ready", replica, detail="dry-run")
             return
         metrics_path = f"{replica.remote_dir}/server_{replica.pid}.csv"
         command = f"test -f {shlex.quote(metrics_path)} && grep -q '^server,replica_init,completed,' {shlex.quote(metrics_path)}"
-        deadline = time.monotonic() + self.startup_timeout_seconds
+        deadline = deadline if deadline is not None else time.monotonic() + self.startup_timeout_seconds
         while time.monotonic() < deadline:
-            if self.ssh(replica.vm, command, check=False).returncode == 0:
+            # This is a lightweight status probe.  A stalled SSH session must
+            # not consume the full replica-bootstrap allowance.
+            probe_timeout = min(5.0, self.ssh_timeout_seconds, max(0.1, deadline - time.monotonic()))
+            if self.ssh(replica.vm, command, check=False, timeout_seconds=probe_timeout).returncode == 0:
                 self.log.write("bootstrap_ready", replica)
                 return
             time.sleep(0.5)
@@ -414,10 +516,11 @@ class Controller:
         self.log.write("membership_stabilized", detail=str(self.membership_settle_seconds))
         self.progress("membership stabilized")
 
-    def stop(self, replica: Replica, graceful: bool) -> None:
+    def stop(self, replica: Replica, graceful: bool, retire_durability: bool = False) -> None:
         if not replica.live:
             self.log.write("lifecycle_ignored_not_live", replica, detail="graceful_stop" if graceful else "crash")
             return
+        replica.bootstrapping = False
         signal = "TERM" if graceful else "KILL"
         self.progress(f"{'gracefully stopping' if graceful else 'crashing'} {replica.name}")
         command = (
@@ -436,6 +539,9 @@ class Controller:
         self.ssh(replica.vm, f"rm -f {shlex.quote(self.registry_path(replica))}", check=False)
         replica.live = False
         self.log.write("process_stopped", replica)
+        if retire_durability and self.durable_recovery:
+            self.ssh(replica.vm, f"rm -f {shlex.quote(self.durability_path(replica))}", check=False)
+            self.log.write("durability_journal_retired", replica)
         self.progress(f"stopped {replica.name}")
 
     def wait_until_stopped(self, replica: Replica, timeout_seconds: float) -> bool:
@@ -468,7 +574,10 @@ class Controller:
         if event.action == "crash":
             self.stop(replica, graceful=False)
         elif event.action == "graceful_stop":
-            self.stop(replica, graceful=True)
+            # A planned replacement is a new replica initialization.  Its
+            # local journal is retired after clean shutdown; crash recovery
+            # deliberately retains its journal for the next spawn.
+            self.stop(replica, graceful=True, retire_durability=True)
         else:
             self.start(replica)
         self.log.write("scheduled_event_completed", replica, detail=f"t={event.at_seconds:.3f}s {event.action}")
@@ -514,20 +623,45 @@ class Controller:
         self.log.write("client_request", replica, status_code=status, latency_us=latency, operation=operation, value=value, expected_live=replica.live, detail=detail)
 
     def workload(self) -> None:
-        # This is a churn/availability experiment, not a throughput benchmark.
-        # Rotate one request at a time rather than creating a synchronized
-        # mutation burst across all 30 replicas.  The configured per-replica
-        # rate is converted to a total inter-request period.
+        """Dispatch each replica's mutations independently at the configured rate."""
         replicas = list(self.replicas.values())
-        period = 1.0 / (self.workload_rate * len(replicas)) if self.workload_rate > 0 else 1.0
-        index = 0
-        while not self.workload_stop.is_set():
-            replica = replicas[index % len(replicas)]
-            index += 1
-            operation = "Remove" if self.random.random() < 0.5 else "Insert"
-            payload = {"type": "Mutation", "params": {operation: self.random.randint(-10_000, 10_000)}}
-            self.request(replica, payload)
-            self.workload_stop.wait(period)
+        if self.workload_rate <= 0:
+            return
+
+        period = 1.0 / self.workload_rate
+        next_dispatch = time.monotonic()
+        # Bound slow/unavailable replicas independently.  Without this, a
+        # 5-second HTTP timeout turns a 10/s schedule into 50 queued requests
+        # for one replica, which can starve its startup work and the laptop's
+        # request pool.
+        in_flight: dict[Any, tuple[str, int]] = {}
+        in_flight_per_replica: dict[tuple[str, int], int] = {}
+        with ThreadPoolExecutor(max_workers=self.workload_max_in_flight, thread_name_prefix="workload-request") as pool:
+            while not self.workload_stop.is_set():
+                for future, replica_key in list(in_flight.items()):
+                    if future.done():
+                        del in_flight[future]
+                        in_flight_per_replica[replica_key] -= 1
+                for replica in replicas:
+                    if len(in_flight) >= self.workload_max_in_flight:
+                        break
+                    # HTTP readiness is intentionally weaker than bootstrap
+                    # readiness, so do not queue mutations during startup.
+                    if replica.bootstrapping:
+                        continue
+                    replica_key = (replica.vm.name, replica.slot)
+                    if in_flight_per_replica.get(replica_key, 0) >= self.workload_max_in_flight_per_replica:
+                        continue
+                    operation = "Remove" if self.random.random() < 0.5 else "Insert"
+                    payload = {"type": "Mutation", "params": {operation: self.random.randint(-10_000, 10_000)}}
+                    future = pool.submit(self.request, replica, payload)
+                    in_flight[future] = replica_key
+                    in_flight_per_replica[replica_key] = in_flight_per_replica.get(replica_key, 0) + 1
+
+                next_dispatch += period
+                self.workload_stop.wait(max(0.0, next_dispatch - time.monotonic()))
+                if next_dispatch < time.monotonic() - period:
+                    next_dispatch = time.monotonic()
 
     def snapshot_states(self) -> None:
         digests: dict[str, list[str]] = {}
@@ -606,6 +740,7 @@ class Controller:
         event_index = 0
         next_snapshot = 0.0
         next_progress = 60.0
+        completed = False
         self.progress(f"workload started; scheduled duration is {self.duration:.0f}s")
         try:
             while (elapsed := time.monotonic() - started) < self.duration:
@@ -623,6 +758,7 @@ class Controller:
                     self.progress(f"workload progress: {elapsed:.0f}s / {self.duration:.0f}s; {sum(replica.live for replica in self.replicas.values())} replicas live")
                     next_progress += 60.0
                 time.sleep(0.2)
+            completed = True
         finally:
             self.workload_stop.set()
             worker.join(timeout=15)
@@ -635,7 +771,11 @@ class Controller:
             self.shutdown_all()
             self.collect()
             self.log.close()
-            self.progress("experiment controller completed")
+            self.progress(
+                "experiment controller completed"
+                if completed
+                else "experiment controller failed; cleanup completed"
+            )
 
 
 def required(mapping: dict[str, Any], name: str) -> Any:

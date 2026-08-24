@@ -18,6 +18,9 @@ pub struct ReplicaConfig {
     pub sync_interval: Duration,
     pub result_dir_path: PathBuf,
     pub durability_path: Option<PathBuf>,
+    /// PID of the process this slot replaces, supplied by the lifecycle
+    /// controller.  It is used only after successful journal recovery.
+    pub recovered_predecessor_pid: Option<Pid>,
     pub object_storage_config: ObjectStorageConfig,
 }
 
@@ -42,6 +45,13 @@ impl ReplicaConfig {
             } else {
                 None
             },
+            recovered_predecessor_pid: env_optional_string("GRESSE_RECOVERED_PREDECESSOR_PID").map(
+                |value| {
+                    value
+                        .parse()
+                        .expect("GRESSE_RECOVERED_PREDECESSOR_PID must be an integer")
+                },
+            ),
             sync_interval: env::var("GRESSE_SYNC_INTERVAL_MS")
                 .ok()
                 .map(|value| {

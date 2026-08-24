@@ -11,11 +11,14 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
 use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
+
+const SLOW_DOWNLOAD_THRESHOLD: Duration = Duration::from_secs(1);
 
 pub struct ObjectStorageClient {
     store: Arc<dyn ObjectStore>,
@@ -183,25 +186,66 @@ impl ObjectStorageClient {
         file_path: &str,
     ) -> Result<(T, UpdateVersion), ObjectStorageError> {
         let path = Path::from(file_path);
-        let result = self.store.get(&path).await;
-        if let Err(error) = result {
-            return match error {
+        let download_started = Instant::now();
+        let get_started = Instant::now();
+        let response = match self.store.get(&path).await {
+            Ok(response) => response,
+            Err(error) => match error {
                 Error::NotFound { .. } => {
                     self.log_connection_established_once("get", file_path);
-                    Err(ObjectStorageError::FileNotFound)
+                    return Err(ObjectStorageError::FileNotFound);
                 }
-                _ => Err(ObjectStorageError::StoreError(error)),
-            };
-        }
-        let response = result?;
+                _ => {
+                    log::warn!(
+                        "object storage get failed: path={}, get_elapsed_ms={}, error={}",
+                        file_path,
+                        get_started.elapsed().as_millis(),
+                        error,
+                    );
+                    return Err(ObjectStorageError::StoreError(error));
+                }
+            },
+        };
         self.log_connection_established_once("get", file_path);
         let version = UpdateVersion {
             e_tag: response.meta.e_tag.clone(),
             version: response.meta.version.clone(),
         };
 
-        let raw_data = response.bytes().await?;
+        let get_elapsed = get_started.elapsed();
+        let body_started = Instant::now();
+        let raw_data = match response.bytes().await {
+            Ok(raw_data) => raw_data,
+            Err(error) => {
+                log::warn!(
+                    "object storage response body read failed: path={}, get_elapsed_ms={}, body_elapsed_ms={}, error={}",
+                    file_path,
+                    get_elapsed.as_millis(),
+                    body_started.elapsed().as_millis(),
+                    error,
+                );
+                return Err(ObjectStorageError::StoreError(error));
+            }
+        };
+        let body_elapsed = body_started.elapsed();
+        let decode_started = Instant::now();
         let data: T = serde_json::from_slice(&raw_data)?;
+        let decode_elapsed = decode_started.elapsed();
+        let total_elapsed = download_started.elapsed();
+
+        if total_elapsed >= SLOW_DOWNLOAD_THRESHOLD {
+            log::warn!(
+                "slow object storage download: path={}, bytes={}, etag={:?}, version={:?}, get_elapsed_ms={}, body_elapsed_ms={}, decode_elapsed_ms={}, total_elapsed_ms={}",
+                file_path,
+                raw_data.len(),
+                version.e_tag,
+                version.version,
+                get_elapsed.as_millis(),
+                body_elapsed.as_millis(),
+                decode_elapsed.as_millis(),
+                total_elapsed.as_millis(),
+            );
+        }
 
         Ok((data, version))
     }

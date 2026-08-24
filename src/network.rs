@@ -104,6 +104,7 @@ pub struct NetworkManager<T> {
     connection_result_sender: UnboundedSender<ConnectionResult<T>>,
     connection_result_receiver: UnboundedReceiver<ConnectionResult<T>>,
     latency_profile: NetworkLatencyProfile,
+    start_receiver: Option<oneshot::Receiver<()>>,
     // For graceful shutdown
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     task_handles: Vec<JoinHandle<()>>,
@@ -117,6 +118,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         Receiver<T>,
         Receiver<(Pid, Sender<T>)>,
         Sender<NetworkMember>,
+        oneshot::Sender<()>,
         oneshot::Sender<()>,
     ) {
         let (local_event_sender, local_event_receiver) = channel::<T>(100);
@@ -137,6 +139,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         }
         // Create shutdown channel
         let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
+        let (start_sender, start_receiver) = oneshot::channel::<()>();
 
         let mut this = NetworkManager::<T> {
             local_event_sender,
@@ -153,6 +156,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             connection_result_sender,
             connection_result_receiver,
             latency_profile,
+            start_receiver: Some(start_receiver),
             shutdown_receiver: Some(shutdown_receiver),
             task_handles: Vec::new(),
         };
@@ -163,6 +167,7 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             local_event_receiver,
             connection_receiver,
             member_sender,
+            start_sender,
             shutdown_sender,
         )
     }
@@ -173,6 +178,21 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
             .shutdown_receiver
             .take()
             .expect("Failed to take shutdown receiver");
+        let mut start_receiver = self
+            .start_receiver
+            .take()
+            .expect("Failed to take network start receiver");
+
+        // Bind the internal socket during construction, but do not accept or
+        // initiate peer connections until replica bootstrap has completed.
+        // This keeps inbound anti-entropy from contending with recovery.
+        tokio::select! {
+            _ = &mut start_receiver => {}
+            _ = &mut shutdown_receiver => {
+                info!("network manager for replica {} shutdown before startup", self.pid);
+                return;
+            }
+        }
 
         loop {
             tokio::select! {

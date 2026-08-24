@@ -108,6 +108,7 @@ impl MinioHarness {
             sync_interval: timing.sync_interval,
             result_dir_path: self.result_dir.clone(),
             durability_path: None,
+            recovered_predecessor_pid: None,
             object_storage_config: self.object_storage_config(timing.discovery_interval),
         };
 
@@ -318,6 +319,7 @@ impl FilesystemHarness {
             sync_interval: timing.sync_interval,
             result_dir_path: self.result_dir.clone(),
             durability_path: None,
+            recovered_predecessor_pid: None,
             object_storage_config: self.object_storage_config(timing.discovery_interval),
         };
 

@@ -379,7 +379,10 @@ def system_latency_dataframe(data: ExperimentData) -> pd.DataFrame:
         start_us, end_us = init_start.iloc[0], init_end.iloc[0]
         if end_us < start_us:
             continue
-        recovered = (group["event"] == "persistent_state_fetch").any()
+        recovered = (
+            (group["event"] == "persistent_state_fetch")
+            & group["detail"].eq("recovered_from_durability_journal")
+        ).any()
         samples.append({
             "experiment_time_s": (start_us - origin_us) / 1_000_000,
             "latency_ms": (end_us - start_us) / 1_000,
@@ -425,6 +428,7 @@ def scatter_system_latencies(
     for index, (kind, group) in enumerate(dataframe.groupby("latency_type", sort=True)):
         axis.scatter(group["experiment_time_s"], group["latency_ms"], label=kind,
                      color=colors(index % 10), alpha=0.8, s=22, linewidths=0)
+        print(kind)
     change_colors = {"crash": "#d62728", "graceful_stop": "#9467bd", "spawn": "#2ca02c"}
     for _, change in topology_changes.iterrows():
         action = change["action"]

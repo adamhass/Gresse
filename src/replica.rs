@@ -19,7 +19,7 @@ use std::fs::{self, OpenOptions};
 use std::future::Future;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
@@ -29,6 +29,48 @@ use tokio::time::{Instant, Interval};
 const STABLE_REPLICA_PID: Pid = 0;
 const INITIAL_GC_COUNTER: Counter = 0;
 const DEFAULT_GC_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Return one current, connectable descriptor per peer PID.
+///
+/// Membership descriptors are immutable and a replica publishes a new one
+/// whenever its GC marker changes.  Sending every historical descriptor to
+/// the network manager creates redundant connection work and can overflow its
+/// bounded discovery channel during churn.  A final descriptor retires the
+/// entire PID, including any older non-final descriptors that remain listed.
+fn network_connection_candidates<'a>(
+    members: &'a [ReplicaDescriptor],
+    local_pid: Pid,
+    connected_pids: &HashSet<Pid>,
+) -> Vec<&'a ReplicaDescriptor> {
+    let shutdown_pids = members
+        .iter()
+        .filter(|descriptor| descriptor.is_shutdown())
+        .map(|descriptor| descriptor.pid)
+        .collect::<HashSet<_>>();
+    let mut newest_by_pid = HashMap::<Pid, &ReplicaDescriptor>::new();
+
+    for descriptor in members {
+        if descriptor.pid == local_pid
+            || descriptor.is_shutdown()
+            || shutdown_pids.contains(&descriptor.pid)
+            || connected_pids.contains(&descriptor.pid)
+        {
+            continue;
+        }
+        newest_by_pid
+            .entry(descriptor.pid)
+            .and_modify(|current| {
+                if descriptor.gc_counter > current.gc_counter {
+                    *current = descriptor;
+                }
+            })
+            .or_insert(descriptor);
+    }
+
+    let mut candidates = newest_by_pid.into_values().collect::<Vec<_>>();
+    candidates.sort_by_key(|descriptor| descriptor.pid);
+    candidates
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct CRDTWrapper {
@@ -123,9 +165,10 @@ struct RawDurabilityRecord {
     payload: serde_json::Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct DurabilityJournal {
     path: PathBuf,
+    append_lock: StdMutex<()>,
 }
 
 impl DurabilityJournal {
@@ -134,7 +177,10 @@ impl DurabilityJournal {
             fs::create_dir_all(parent)?;
         }
 
-        Ok(Self { path })
+        Ok(Self {
+            path,
+            append_lock: StdMutex::new(()),
+        })
     }
 
     fn recover<T: CRDT + Debug + Clone>(
@@ -145,16 +191,33 @@ impl DurabilityJournal {
         }
 
         let file = std::fs::File::open(&self.path)?;
-        let reader = BufReader::new(file);
+        let mut reader = BufReader::new(file);
         let mut recovered: Option<PersistentReplica<T>> = None;
 
-        for line in reader.lines() {
-            let line = line?;
-            if line.trim().is_empty() {
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            if reader.read_until(b'\n', &mut line)? == 0 {
+                break;
+            }
+
+            // A crash can interrupt append_record after it has written part of
+            // a JSON value but before the record terminator.  Every committed
+            // record has a trailing newline, so the unfinished tail can be
+            // safely ignored while preserving all prior synced records.
+            if !line.ends_with(b"\n") {
+                warn!(
+                    "discarding incomplete trailing durability record from {}",
+                    self.path.display()
+                );
+                break;
+            }
+
+            if line.iter().all(u8::is_ascii_whitespace) {
                 continue;
             }
 
-            let record: RawDurabilityRecord = serde_json::from_str(&line)?;
+            let record: RawDurabilityRecord = serde_json::from_slice(&line)?;
             match record.record_type.as_str() {
                 "snapshot" => {
                     recovered = Some(serde_json::from_value(record.payload)?);
@@ -184,7 +247,7 @@ impl DurabilityJournal {
         &self,
         snapshot: &PersistentReplica<T>,
     ) -> Result<(), DurabilityError> {
-        self.append_record(&RawDurabilityRecord {
+        self.replace_with_record(&RawDurabilityRecord {
             record_type: "snapshot".to_string(),
             payload: serde_json::to_value(snapshot)?,
         })
@@ -211,6 +274,13 @@ impl DurabilityJournal {
     }
 
     fn append_record(&self, record: &RawDurabilityRecord) -> Result<(), DurabilityError> {
+        // serde_json::to_writer can issue multiple writes.  O_APPEND only
+        // makes each individual write atomic, so concurrent appends would
+        // otherwise interleave and corrupt a newline-terminated record.
+        let _append_guard = self
+            .append_lock
+            .lock()
+            .expect("durability journal append lock poisoned");
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -218,6 +288,40 @@ impl DurabilityJournal {
         serde_json::to_writer(&mut file, record)?;
         file.write_all(b"\n")?;
         file.sync_data()?;
+        Ok(())
+    }
+
+    /// Atomically compact the journal to one complete snapshot.
+    ///
+    /// A snapshot already contains every preceding mutation and delta, so
+    /// retaining those records makes recovery and artifact collection grow
+    /// without bound.  Write and sync a replacement beside the journal, then
+    /// rename it atomically while holding the same append lock as mutations.
+    fn replace_with_record(&self, record: &RawDurabilityRecord) -> Result<(), DurabilityError> {
+        let _append_guard = self
+            .append_lock
+            .lock()
+            .expect("durability journal append lock poisoned");
+        let file_name = self
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("durability.journal");
+        let replacement_path = self
+            .path
+            .with_file_name(format!(".{file_name}.{}.tmp", std::process::id()));
+        let mut replacement = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&replacement_path)?;
+        serde_json::to_writer(&mut replacement, record)?;
+        replacement.write_all(b"\n")?;
+        replacement.sync_all()?;
+        fs::rename(&replacement_path, &self.path)?;
+        if let Some(parent) = self.path.parent() {
+            std::fs::File::open(parent)?.sync_all()?;
+        }
         Ok(())
     }
 }
@@ -299,12 +403,14 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     membership_poll_task: Option<tokio::task::JoinHandle<()>>,
     durability_journal: Option<Arc<DurabilityJournal>>,
     recovered_from_durability: bool,
+    recovered_predecessor_pid: Option<Pid>,
     startup_construction_metrics: StartupConstructionMetrics,
     replica_run_start_us: Option<u128>,
     startup_metrics_sender: Option<oneshot::Sender<StartupMetrics>>,
     // Shutdown channel
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     http_shutdown_sender: Option<oneshot::Sender<()>>,
+    network_start_sender: Option<oneshot::Sender<()>>,
     network_shutdown_sender: Option<oneshot::Sender<()>>,
 }
 
@@ -441,6 +547,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             replication_receiver,
             replication_writer_receiver,
             network_member_sender,
+            network_start_sender,
             network_shutdown_sender,
         ) = NetworkManager::<ReplicaMessage<T>>::launch_network_manager(config.address, pid).await;
         let network_manager_ready_us = now_micros();
@@ -487,6 +594,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 replication_receiver,
                 shutdown_receiver: Some(shutdown_receiver),
                 http_shutdown_sender: Some(http_shutdown_sender),
+                network_start_sender: Some(network_start_sender),
                 network_shutdown_sender: Some(network_shutdown_sender),
                 sync_interval: config.sync_interval,
                 gc_base_interval: DEFAULT_GC_INTERVAL,
@@ -500,6 +608,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 membership_poll_task: None,
                 durability_journal,
                 recovered_from_durability: recovered_replica.is_some(),
+                recovered_predecessor_pid: recovered_replica
+                    .as_ref()
+                    .and(config.recovered_predecessor_pid)
+                    .filter(|predecessor_pid| *predecessor_pid != pid),
                 startup_construction_metrics: StartupConstructionMetrics {
                     crdt_pid_set_us,
                     http_server_ready_us,
@@ -525,8 +637,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.address.internal(),
             self.advertised_address.internal(),
         );
-        self.init().await;
+        let initial_members = self.init().await;
         info!("replica {} startup completed", self.pid);
+        // Membership registration and the initial directory read are part of
+        // bootstrap.  Establishing peer sockets is deliberately deferred
+        // until that bootstrap is complete: connection attempts can trigger
+        // inbound replication and must not delay readiness.
+        if let Some(network_start_sender) = self.network_start_sender.take() {
+            let _ = network_start_sender.send(());
+        }
+        self.enqueue_network_members(&initial_members);
 
         // Take ownership of shutdown_receiver from self
         let mut shutdown_receiver = self
@@ -606,7 +726,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         tokio::time::interval_at(Instant::now() + interval, interval)
     }
 
-    async fn init(&mut self) {
+    async fn init(&mut self) -> Vec<ReplicaDescriptor> {
         debug!("replica {} initiating bootstrap", self.pid);
         let replica_init_start_us = self.metric_instant("replica_init", "start", None, None, None);
         let descriptor = self.replica_descriptor().await;
@@ -619,6 +739,27 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 descriptor,
             )
             .await;
+            if let Some(predecessor_pid) = self.recovered_predecessor_pid {
+                // The lifecycle controller has confirmed the predecessor is
+                // gone.  Once this replacement is registered, its old
+                // descriptors are no longer needed and would otherwise
+                // accumulate forever after crash recovery.
+                self.object_storage_client
+                    .delete_membership_descriptors_for_pid(predecessor_pid)
+                    .await
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "Failed to remove recovered predecessor membership descriptors: {error}"
+                        )
+                    });
+                self.metric_instant(
+                    "recovered_membership_cleanup",
+                    "completed",
+                    Some(predecessor_pid),
+                    None,
+                    None,
+                );
+            }
             self.record_membership_init_metrics(&membership_init);
             info!(
                 "replica {} restored local state from durability journal before startup",
@@ -636,7 +777,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid,
                 membership_init.members.len()
             );
-            self.enqueue_network_members(&membership_init.members);
         } else {
             let (persistent_replica_result, concurrent_membership_init) = tokio::join!(
                 Self::timed_storage_operation(
@@ -698,10 +838,15 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.pid,
                 membership_init.members.len()
             );
-            self.enqueue_network_members(&membership_init.members);
         }
 
-        self.persist_durable_snapshot().await;
+        // A journal recovery has already reconstructed the latest durable
+        // state. Re-appending that same full snapshot during bootstrap only
+        // delays readiness and grows the journal; subsequent mutations and
+        // GC operations continue to append their normal durable records.
+        if !self.recovered_from_durability {
+            self.persist_durable_snapshot().await;
+        }
         let replica_init_completed_us =
             self.metric_instant("replica_init", "completed", None, None, None);
         if let Some(startup_metrics_sender) = self.startup_metrics_sender.take() {
@@ -728,6 +873,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 replica_init_completed_us,
             });
         }
+
+        membership_init.members
     }
 
     async fn timed_storage_operation<F, R, D>(future: F, detail_fn: D) -> TimedResult<R>
@@ -829,22 +976,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     fn enqueue_network_members(&self, members: &[ReplicaDescriptor]) {
-        let shutdown_pids = members
-            .iter()
-            .filter(|descriptor| descriptor.is_shutdown())
-            .map(|descriptor| descriptor.pid)
-            .collect::<HashSet<_>>();
         let connected_pids = self.writers.keys().copied().collect::<HashSet<_>>();
 
-        for descriptor in members {
-            if descriptor.pid == self.pid
-                || descriptor.is_shutdown()
-                || shutdown_pids.contains(&descriptor.pid)
-                || connected_pids.contains(&descriptor.pid)
-            {
-                continue;
-            }
-
+        for descriptor in network_connection_candidates(members, self.pid, &connected_pids) {
             debug!(
                 "replica {} discovering member pid={} addr={} gc_counter={}",
                 self.pid, descriptor.pid, descriptor.address, descriptor.gc_counter
@@ -1691,6 +1825,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 mod tests {
     use super::*;
     use crate::orset::{ORSet, OrSetMutation, OrSetQuery, OrSetResponse};
+    use std::collections::HashSet;
+    use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_journal_path(name: &str) -> PathBuf {
@@ -1699,6 +1835,38 @@ mod tests {
             .expect("system clock drifted before unix epoch")
             .as_nanos();
         std::env::temp_dir().join(format!("gresse-{name}-{unique}.jsonl"))
+    }
+
+    fn membership_descriptor(
+        pid: Pid,
+        gc_counter: Counter,
+        final_counter: Option<Counter>,
+    ) -> ReplicaDescriptor {
+        ReplicaDescriptor {
+            pid,
+            address: "127.0.0.1:19080".parse().unwrap(),
+            gc_counter,
+            final_counter,
+        }
+    }
+
+    #[test]
+    fn network_connection_candidates_deduplicates_and_skips_departed_members() {
+        let members = vec![
+            membership_descriptor(1, 1, None),
+            membership_descriptor(1, 2, None),
+            membership_descriptor(2, 1, None),
+            membership_descriptor(2, 2, Some(9)),
+            membership_descriptor(3, 1, None),
+            membership_descriptor(4, 1, None),
+        ];
+        let connected_pids = HashSet::from([4]);
+
+        let candidates = network_connection_candidates(&members, 3, &connected_pids);
+
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].pid, 1);
+        assert_eq!(candidates[0].gc_counter, 2);
     }
 
     #[test]
@@ -1741,6 +1909,138 @@ mod tests {
                 .expect("failed to query recovered ORSet"),
             OrSetResponse::Elements(vec!["apple".into(), "banana".into()])
         );
+
+        std::fs::remove_file(journal_path).expect("failed to clean up durability journal");
+    }
+
+    #[test]
+    fn durability_snapshot_compacts_prior_history() {
+        let journal_path = temp_journal_path("snapshot-compaction");
+        let journal = DurabilityJournal::new(journal_path.clone())
+            .expect("failed to create durability journal");
+
+        let mut state = ORSet::<String>::new();
+        state.set_pid(1);
+        state.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+        journal
+            .append_snapshot(&PersistentReplica {
+                local_state: state.clone(),
+                crdt_wrapper: CRDTWrapper::new(),
+            })
+            .expect("failed to append initial snapshot");
+
+        journal
+            .append_mutation::<ORSet<String>>(&OrSetMutation::Insert("banana".into()))
+            .expect("failed to append mutation");
+        state
+            .mutate(OrSetMutation::Insert("banana".into()))
+            .unwrap();
+        journal
+            .append_snapshot(&PersistentReplica {
+                local_state: state,
+                crdt_wrapper: CRDTWrapper::new(),
+            })
+            .expect("failed to compact journal to snapshot");
+
+        let contents =
+            std::fs::read_to_string(&journal_path).expect("failed to read compacted journal");
+        assert_eq!(contents.lines().count(), 1);
+        let recovered = journal
+            .recover::<ORSet<String>>()
+            .expect("failed to recover compacted journal")
+            .expect("expected recovered replica");
+        assert_eq!(
+            recovered
+                .local_state
+                .query(OrSetQuery::Elements)
+                .expect("failed to query recovered ORSet"),
+            OrSetResponse::Elements(vec!["apple".into(), "banana".into()])
+        );
+
+        std::fs::remove_file(journal_path).expect("failed to clean up durability journal");
+    }
+
+    #[test]
+    fn durability_journal_discards_an_incomplete_trailing_record() {
+        let journal_path = temp_journal_path("torn-tail");
+        let journal = DurabilityJournal::new(journal_path.clone())
+            .expect("failed to create durability journal");
+
+        let mut base = ORSet::<String>::new();
+        base.set_pid(1);
+        base.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+        journal
+            .append_snapshot(&PersistentReplica {
+                local_state: base,
+                crdt_wrapper: CRDTWrapper::new(),
+            })
+            .expect("failed to append durability snapshot");
+
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(&journal_path)
+            .expect("failed to reopen durability journal");
+        file.write_all(br#"{"record_type":"mutation","payload":"#)
+            .expect("failed to write incomplete record");
+        file.sync_data().expect("failed to sync incomplete record");
+
+        let recovered = journal
+            .recover::<ORSet<String>>()
+            .expect("incomplete trailing record should be ignored")
+            .expect("expected recovered replica");
+        assert_eq!(
+            recovered
+                .local_state
+                .query(OrSetQuery::Elements)
+                .expect("failed to query recovered ORSet"),
+            OrSetResponse::Elements(vec!["apple".into()])
+        );
+
+        std::fs::remove_file(journal_path).expect("failed to clean up durability journal");
+    }
+
+    #[test]
+    fn durability_journal_serializes_concurrent_appends() {
+        let journal_path = temp_journal_path("concurrent-appends");
+        let journal = Arc::new(
+            DurabilityJournal::new(journal_path.clone())
+                .expect("failed to create durability journal"),
+        );
+        let mut base = ORSet::<String>::new();
+        base.set_pid(1);
+        journal
+            .append_snapshot(&PersistentReplica {
+                local_state: base,
+                crdt_wrapper: CRDTWrapper::new(),
+            })
+            .expect("failed to append durability snapshot");
+
+        let writers = (0..16)
+            .map(|index| {
+                let journal = journal.clone();
+                thread::spawn(move || {
+                    journal
+                        .append_mutation::<ORSet<String>>(&OrSetMutation::Insert(format!(
+                            "value-{index}"
+                        )))
+                        .expect("failed to append concurrent mutation");
+                })
+            })
+            .collect::<Vec<_>>();
+        for writer in writers {
+            writer.join().expect("concurrent writer panicked");
+        }
+
+        let contents =
+            std::fs::read_to_string(&journal_path).expect("failed to read durability journal");
+        assert_eq!(contents.lines().count(), 17);
+        for line in contents.lines() {
+            serde_json::from_str::<RawDurabilityRecord>(line)
+                .expect("concurrent append produced malformed JSON");
+        }
+        journal
+            .recover::<ORSet<String>>()
+            .expect("concurrent append journal should recover");
 
         std::fs::remove_file(journal_path).expect("failed to clean up durability journal");
     }
