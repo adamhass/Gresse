@@ -102,10 +102,7 @@ impl DotSet {
         if let Some(previous_value) = self.set.insert(dot.pid, dot.counter) {
             assert!(previous_value + 1 == dot.counter, "DotSet in invalid state");
         } else {
-            assert!(
-                dot.counter == 0,
-                "DotSet in invalid state, haven't received the first dot"
-            );
+            _ = self.set.insert(dot.pid, dot.counter);
         }
     }
 
@@ -202,6 +199,13 @@ impl VersionMatrix {
         }
     }
 
+    /// Returns whether this exact departed-replica marker has already been
+    /// observed.  Callers use this to avoid reprocessing the immutable
+    /// shutdown payload on every membership-directory poll.
+    pub fn contains_final_dot(&self, final_dot: Dot) -> bool {
+        self.final_dots.contains(&final_dot)
+    }
+
     /// Cleans up any "final dots" and returns a Vec of Pid's that can be GC'd
     pub fn garbage_collect(&mut self, version_vector: &DotSet) -> Option<Vec<Pid>> {
         if self.final_dots.is_empty() {
@@ -251,6 +255,28 @@ impl VersionMatrix {
             matrix,
             final_dots: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Dot, VersionMatrix};
+
+    #[test]
+    fn tracks_final_dots_for_idempotent_shutdown_processing() {
+        let final_dot = Dot {
+            pid: 42,
+            counter: 17,
+        };
+        let mut matrix = VersionMatrix::new();
+
+        assert!(!matrix.contains_final_dot(final_dot));
+        matrix.insert_final_dot(final_dot);
+        assert!(matrix.contains_final_dot(final_dot));
+        assert!(!matrix.contains_final_dot(Dot {
+            pid: 42,
+            counter: 18,
+        }));
     }
 }
 

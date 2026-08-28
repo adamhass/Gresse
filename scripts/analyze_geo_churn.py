@@ -15,8 +15,11 @@ def main() -> int:
     parser.add_argument("result_dir", type=Path)
     args = parser.parse_args()
     trace = args.result_dir / "controller_events.csv"
-    with trace.open() as handle:
-        rows = list(csv.DictReader(handle))
+    traces = [trace, *args.result_dir.glob("remote_artifacts/**/agent_events.csv")]
+    rows = []
+    for current_trace in traces:
+        with current_trace.open() as handle:
+            rows.extend(csv.DictReader(handle))
 
     requests = [row for row in rows if row["event"] == "client_request"]
     availability = {}

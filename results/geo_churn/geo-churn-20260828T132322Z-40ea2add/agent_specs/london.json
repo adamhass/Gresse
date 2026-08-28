@@ -1,0 +1,385 @@
+{
+  "version": 1,
+  "run_id": "acm-sec-geo-churn-20260828T132329Z-550e9e91",
+  "run_label": "acm-sec-geo-churn",
+  "pid_base": 178792343513164000,
+  "vm": {
+    "name": "london",
+    "region": "eu-west-2",
+    "bind_ip": "0.0.0.0",
+    "advertise_ip": "3.8.155.72",
+    "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+    "remote_root": "/home/ec2-user/gresse-runs",
+    "http_port_base": 18080,
+    "internal_port_base": 19080
+  },
+  "settings": {
+    "duration_seconds": 3600,
+    "bucket": "gresse-geo-035351467464-20260828124038-be821e",
+    "s3_region": "eu-north-1",
+    "replicas_per_vm": 5,
+    "sync_interval_ms": 1000,
+    "discovery_interval_ms": 5000,
+    "gc_interval_ms": 60000,
+    "workload_rate_per_server": 10.0,
+    "workload_value_domain_size": 1000,
+    "snapshot_interval_seconds": 30,
+    "final_convergence_seconds": 120,
+    "startup_timeout_seconds": 60,
+    "process_stop_timeout_seconds": 20,
+    "membership_settle_seconds": 30,
+    "durable_recovery": true
+  },
+  "events": [
+    {
+      "at_seconds": 300.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 300.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 300.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 360.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 360.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 360.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 420.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 420.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 480.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 480.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 780.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 780.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 840.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 840.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 900.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 900.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 900.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 960.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 960.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 960.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1260.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1320.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1380.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1380.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1380.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1380.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1440.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1440.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1440.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1440.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1860.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1860.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1860.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1860.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1860.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1920.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1920.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1920.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1920.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1920.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2340.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2340.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2340.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2340.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2340.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2400.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2400.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2400.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2400.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2400.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2820.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2820.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2820.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2820.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2880.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2880.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2880.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2880.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2940.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3000.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3300.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3300.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3300.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3360.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3360.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3360.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3420.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3420.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3480.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3480.0,
+      "action": "spawn",
+      "slot": 4
+    }
+  ]
+}

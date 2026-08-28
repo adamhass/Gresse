@@ -3,6 +3,7 @@ pub mod db;
 pub mod dots;
 pub mod http_client;
 pub(crate) mod http_server;
+pub(crate) mod journal;
 pub mod logging;
 pub(crate) mod network;
 pub(crate) mod object_storage;

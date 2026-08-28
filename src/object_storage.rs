@@ -3,11 +3,15 @@ use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
-use object_store::{Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, UpdateVersion};
+use object_store::{
+    ClientOptions, Error, ObjectStore, ObjectStoreExt, PutMode, PutPayload, RetryConfig,
+    UpdateVersion,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -19,6 +23,11 @@ use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
 
 const SLOW_DOWNLOAD_THRESHOLD: Duration = Duration::from_secs(1);
+const OBJECT_STORE_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const OBJECT_STORE_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const OBJECT_STORE_RETRY_TIMEOUT: Duration = Duration::from_secs(30);
+const OBJECT_STORE_OPERATION_TIMEOUT: Duration = Duration::from_secs(45);
+const OBJECT_STORE_MAX_RETRIES: usize = 2;
 
 pub struct ObjectStorageClient {
     store: Arc<dyn ObjectStore>,
@@ -43,11 +52,19 @@ impl ObjectStorageClient {
         })
     }
 
-    pub async fn read_persistent_replica<T: for<'de> Deserialize<'de>>(
+    /// Reads the persistent replica and preserves the exact JSON bytes that
+    /// were fetched.  Startup uses those bytes to seed its local durability
+    /// journal without cloning and serializing the recovered state again.
+    pub async fn read_persistent_replica_with_serialized_data<T: for<'de> Deserialize<'de>>(
         &self,
-    ) -> Result<Option<T>, ObjectStorageError> {
-        match self.download_data(&self.persistent_replica_path).await {
-            Ok((persistent_crdt, _)) => Ok(Some(persistent_crdt)),
+    ) -> Result<Option<(T, Vec<u8>)>, ObjectStorageError> {
+        match self
+            .download_data_with_serialized_data(&self.persistent_replica_path)
+            .await
+        {
+            Ok((persistent_crdt, serialized_data, _)) => {
+                Ok(Some((persistent_crdt, serialized_data)))
+            }
             Err(ObjectStorageError::FileNotFound) => Ok(None),
             Err(error) => Err(error),
         }
@@ -159,10 +176,15 @@ impl ObjectStorageClient {
     pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, ObjectStorageError> {
         let prefix_path = Path::from(prefix);
         let mut list_stream = self.store.list(Some(&prefix_path));
-        let mut file_names = Vec::new();
-        while let Some(meta) = list_stream.next().await.transpose()? {
-            file_names.push(meta.location.to_string());
-        }
+        let file_names = self
+            .with_operation_timeout("list", prefix, async {
+                let mut file_names = Vec::new();
+                while let Some(meta) = list_stream.next().await.transpose()? {
+                    file_names.push(meta.location.to_string());
+                }
+                Ok(file_names)
+            })
+            .await?;
         self.log_connection_established_once("list", prefix);
 
         Ok(file_names)
@@ -176,7 +198,8 @@ impl ObjectStorageClient {
         let serialized_data = serde_json::to_string(data)?;
         let path = Path::from(file_path);
         let payload = PutPayload::from(serialized_data);
-        self.store.put(&path, payload).await?;
+        self.with_operation_timeout("put", file_path, self.store.put(&path, payload))
+            .await?;
         self.log_connection_established_once("put", file_path);
         Ok(())
     }
@@ -185,13 +208,24 @@ impl ObjectStorageClient {
         &self,
         file_path: &str,
     ) -> Result<(T, UpdateVersion), ObjectStorageError> {
+        let (data, _, version) = self.download_data_with_serialized_data(file_path).await?;
+        Ok((data, version))
+    }
+
+    async fn download_data_with_serialized_data<T: for<'de> Deserialize<'de>>(
+        &self,
+        file_path: &str,
+    ) -> Result<(T, Vec<u8>, UpdateVersion), ObjectStorageError> {
         let path = Path::from(file_path);
         let download_started = Instant::now();
         let get_started = Instant::now();
-        let response = match self.store.get(&path).await {
+        let response = match self
+            .with_operation_timeout("get", file_path, self.store.get(&path))
+            .await
+        {
             Ok(response) => response,
             Err(error) => match error {
-                Error::NotFound { .. } => {
+                ObjectStorageError::StoreError(Error::NotFound { .. }) => {
                     self.log_connection_established_once("get", file_path);
                     return Err(ObjectStorageError::FileNotFound);
                 }
@@ -202,7 +236,7 @@ impl ObjectStorageClient {
                         get_started.elapsed().as_millis(),
                         error,
                     );
-                    return Err(ObjectStorageError::StoreError(error));
+                    return Err(error);
                 }
             },
         };
@@ -214,7 +248,10 @@ impl ObjectStorageClient {
 
         let get_elapsed = get_started.elapsed();
         let body_started = Instant::now();
-        let raw_data = match response.bytes().await {
+        let raw_data = match self
+            .with_operation_timeout("get-body", file_path, response.bytes())
+            .await
+        {
             Ok(raw_data) => raw_data,
             Err(error) => {
                 log::warn!(
@@ -224,7 +261,7 @@ impl ObjectStorageClient {
                     body_started.elapsed().as_millis(),
                     error,
                 );
-                return Err(ObjectStorageError::StoreError(error));
+                return Err(error);
             }
         };
         let body_elapsed = body_started.elapsed();
@@ -247,13 +284,14 @@ impl ObjectStorageClient {
             );
         }
 
-        Ok((data, version))
+        Ok((data, raw_data.to_vec(), version))
     }
 
     #[allow(unused)]
     pub async fn delete_data(&self, file_path: &str) -> Result<(), ObjectStorageError> {
         let path = Path::from(file_path);
-        self.store.delete(&path).await?;
+        self.with_operation_timeout("delete", file_path, self.store.delete(&path))
+            .await?;
         self.log_connection_established_once("delete", file_path);
         Ok(())
     }
@@ -265,19 +303,23 @@ impl ObjectStorageClient {
         let path = Path::from(file_path);
         let payload = PutPayload::from(Vec::new());
         let result = self
-            .store
-            .put_opts(&path, payload, PutMode::Create.into())
+            .with_operation_timeout(
+                "put-create",
+                file_path,
+                self.store.put_opts(&path, payload, PutMode::Create.into()),
+            )
             .await;
         match result {
             Ok(_) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(true)
             }
-            Err(Error::AlreadyExists { .. }) | Err(Error::Precondition { .. }) => {
+            Err(ObjectStorageError::StoreError(Error::AlreadyExists { .. }))
+            | Err(ObjectStorageError::StoreError(Error::Precondition { .. })) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(false)
             }
-            Err(error) => Err(ObjectStorageError::StoreError(error)),
+            Err(error) => Err(error),
         }
     }
 
@@ -290,19 +332,50 @@ impl ObjectStorageClient {
         let serialized_data = serde_json::to_string(data)?;
         let payload = PutPayload::from(serialized_data);
         let result = self
-            .store
-            .put_opts(&path, payload, PutMode::Create.into())
+            .with_operation_timeout(
+                "put-create",
+                file_path,
+                self.store.put_opts(&path, payload, PutMode::Create.into()),
+            )
             .await;
         match result {
             Ok(_) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(true)
             }
-            Err(Error::AlreadyExists { .. }) | Err(Error::Precondition { .. }) => {
+            Err(ObjectStorageError::StoreError(Error::AlreadyExists { .. }))
+            | Err(ObjectStorageError::StoreError(Error::Precondition { .. })) => {
                 self.log_connection_established_once("put-create", file_path);
                 Ok(false)
             }
-            Err(error) => Err(ObjectStorageError::StoreError(error)),
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn with_operation_timeout<T, F>(
+        &self,
+        operation: &'static str,
+        file_path: &str,
+        future: F,
+    ) -> Result<T, ObjectStorageError>
+    where
+        F: Future<Output = Result<T, Error>>,
+    {
+        match tokio::time::timeout(OBJECT_STORE_OPERATION_TIMEOUT, future).await {
+            Ok(result) => result.map_err(ObjectStorageError::StoreError),
+            Err(_) => {
+                log::warn!(
+                    "object storage operation timed out: operation={}, path={}, timeout_ms={}",
+                    operation,
+                    file_path,
+                    OBJECT_STORE_OPERATION_TIMEOUT.as_millis(),
+                );
+                Err(ObjectStorageError::OperationTimeout {
+                    operation,
+                    path: file_path.to_string(),
+                    timeout: OBJECT_STORE_OPERATION_TIMEOUT,
+                })
+            }
         }
     }
 
@@ -435,7 +508,18 @@ fn build_bucket(config: &ObjectStorageConfig) -> Result<AmazonS3, ObjectStorageE
         builder = builder.with_token(session_token);
     }
 
+    let client_options = ClientOptions::default()
+        .with_connect_timeout(OBJECT_STORE_CONNECT_TIMEOUT)
+        .with_timeout(OBJECT_STORE_REQUEST_TIMEOUT);
+    let retry_config = RetryConfig {
+        max_retries: OBJECT_STORE_MAX_RETRIES,
+        retry_timeout: OBJECT_STORE_RETRY_TIMEOUT,
+        ..Default::default()
+    };
+
     builder
+        .with_client_options(client_options)
+        .with_retry(retry_config)
         .build()
         .map_err(|error| ObjectStorageError::ConfigurationError(error.to_string()))
 }
@@ -554,6 +638,12 @@ pub enum ObjectStorageError {
     ConfigurationError(String),
     #[error("Object store error: {0}")]
     StoreError(#[from] Error),
+    #[error("Object storage {operation} timed out after {timeout:?}: {path}")]
+    OperationTimeout {
+        operation: &'static str,
+        path: String,
+        timeout: Duration,
+    },
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
     #[error("IO error: {0}")]

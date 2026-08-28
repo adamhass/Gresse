@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Run the multi-region GRESSE crash, recovery, and churn experiment.
+"""Coordinate the multi-region GRESSE crash, recovery, and churn experiment.
 
-The controller runs on the experimenter's laptop.  It uses SSH solely for
-process control and artifact collection; client traffic is sent directly to
-the HTTP addresses in the topology file.  Each replica process is assigned a
-fresh GRESSE PID whenever it is spawned, including when it replaces a failed
-process.
+By default the laptop stages one local lifecycle agent per VM.  Those agents
+own replica processes and workload traffic; the laptop only preflights, polls
+agent status, and collects artifacts.  ``execution_mode: laptop`` retains the
+older SSH-driven controller for comparison.
 
 See ``geo_churn_topology.example.json`` for the input format.
 """
@@ -85,10 +84,12 @@ class Replica:
 
 
 class CsvLog:
-    def __init__(self, path: Path) -> None:
-        self.handle = path.open("w", newline="")
+    def __init__(self, path: Path, append: bool = False) -> None:
+        write_header = not append or not path.exists() or path.stat().st_size == 0
+        self.handle = path.open("a" if append else "w", newline="")
         self.writer = csv.DictWriter(self.handle, fieldnames=CSV_FIELDS)
-        self.writer.writeheader()
+        if write_header:
+            self.writer.writeheader()
         self.lock = threading.Lock()
 
     def write(self, event: str, replica: Optional[Replica] = None, **values: Any) -> None:
@@ -118,6 +119,9 @@ class Controller:
         self.config = config
         self.result_dir = result_dir
         self.dry_run = dry_run
+        self.execution_mode = str(config.get("execution_mode", "remote_agents"))
+        if self.execution_mode not in {"remote_agents", "laptop"}:
+            raise ValueError("execution_mode must be 'remote_agents' or 'laptop'")
         run_label = str(config.get("run_label", config.get("run_id", "geo-churn")))
         if not run_label.replace("-", "").replace("_", "").isalnum():
             raise ValueError("run_label may contain only letters, digits, hyphens, and underscores")
@@ -130,7 +134,10 @@ class Controller:
         self.sync_interval_ms = int(config.get("sync_interval_ms", 1000))
         self.discovery_interval_ms = int(config.get("discovery_interval_ms", 5000))
         self.gc_interval_ms = int(config.get("gc_interval_ms", 60000))
-        self.workload_rate = float(config.get("workload_rate_per_replica", 1.0))
+        self.workload_rate = float(config.get("workload_rate_per_server", 1.0))
+        self.workload_value_domain_size = int(config.get("workload_value_domain_size", 1_000))
+        if self.workload_value_domain_size < 1:
+            raise ValueError("workload_value_domain_size must be positive")
         self.workload_max_in_flight = int(config.get("workload_max_in_flight", 512))
         self.workload_max_in_flight_per_replica = int(config.get("workload_max_in_flight_per_replica", 8))
         if self.workload_max_in_flight < 1:
@@ -166,7 +173,17 @@ class Controller:
             raise ValueError("ssh_options must be a list of SSH command-line arguments")
         self.duration = float(required(config, "duration_seconds"))
         self.remote_deadline_epoch = int(time.time() + self.duration + self.final_convergence_seconds + self.remote_deadline_slack_seconds)
-        self.log = CsvLog(result_dir / "controller_events.csv")
+        self.agent_start_delay_seconds = float(config.get("agent_start_delay_seconds", 45.0))
+        self.agent_monitor_interval_seconds = float(config.get("agent_monitor_interval_seconds", 15.0))
+        self.agent_completion_grace_seconds = float(config.get("agent_completion_grace_seconds", 120.0))
+        self.agent_arm_timeout_seconds = float(config.get("agent_arm_timeout_seconds", 180.0))
+        if self.agent_start_delay_seconds < 5:
+            raise ValueError("agent_start_delay_seconds must be at least 5 seconds")
+        if self.agent_monitor_interval_seconds <= 0:
+            raise ValueError("agent_monitor_interval_seconds must be positive")
+        if self.agent_arm_timeout_seconds <= 0:
+            raise ValueError("agent_arm_timeout_seconds must be positive")
+        self.log = CsvLog(result_dir / "controller_events.csv", append=(result_dir / "controller_events.csv").exists())
         self.pid_counter = int(time.time_ns() // 1_000) * 100
         self.pid_lock = threading.Lock()
         self.random = random.Random(int(config.get("seed", 0)))
@@ -200,9 +217,9 @@ class Controller:
             if vm.name in result:
                 raise ValueError(f"duplicate VM name: {vm.name}")
             result[vm.name] = vm
-        if len(result) != 6:
-            raise ValueError("this experiment requires exactly six VMs (one per cloud region)")
-        if len({vm.region for vm in result.values()}) != 6:
+        if len(result) != 5:
+            raise ValueError("this experiment requires exactly five VMs (one per cloud region)")
+        if len({vm.region for vm in result.values()}) != 5:
             raise ValueError("each VM must name a distinct region")
         return result
 
@@ -334,7 +351,7 @@ class Controller:
                 continue
             command = (
                 "command -v setsid >/dev/null && command -v nohup >/dev/null && "
-                "command -v sha256sum >/dev/null && command -v grep >/dev/null && command -v date >/dev/null && "
+                "command -v sha256sum >/dev/null && command -v grep >/dev/null && command -v date >/dev/null && command -v python3 >/dev/null && "
                 f"test -x {shlex.quote(vm.binary_path)} && date -u +%s%N && sha256sum {shlex.quote(vm.binary_path)}"
             )
             before_ns = time.time_ns()
@@ -623,13 +640,16 @@ class Controller:
         self.log.write("client_request", replica, status_code=status, latency_us=latency, operation=operation, value=value, expected_live=replica.live, detail=detail)
 
     def workload(self) -> None:
-        """Dispatch each replica's mutations independently at the configured rate."""
-        replicas = list(self.replicas.values())
+        """Dispatch the configured aggregate rate once per VM, round-robin over live replicas."""
+        replicas_by_vm: dict[str, list[Replica]] = {}
+        for replica in self.replicas.values():
+            replicas_by_vm.setdefault(replica.vm.name, []).append(replica)
         if self.workload_rate <= 0:
             return
 
         period = 1.0 / self.workload_rate
         next_dispatch = time.monotonic()
+        next_replica_index = {vm_name: 0 for vm_name in replicas_by_vm}
         # Bound slow/unavailable replicas independently.  Without this, a
         # 5-second HTTP timeout turns a 10/s schedule into 50 queued requests
         # for one replica, which can starve its startup work and the laptop's
@@ -642,18 +662,24 @@ class Controller:
                     if future.done():
                         del in_flight[future]
                         in_flight_per_replica[replica_key] -= 1
-                for replica in replicas:
+                for vm_name, replicas in replicas_by_vm.items():
                     if len(in_flight) >= self.workload_max_in_flight:
                         break
-                    # HTTP readiness is intentionally weaker than bootstrap
-                    # readiness, so do not queue mutations during startup.
-                    if replica.bootstrapping:
+                    eligible = [
+                        replica
+                        for replica in replicas
+                        if replica.live
+                        and not replica.bootstrapping
+                        and in_flight_per_replica.get((replica.vm.name, replica.slot), 0)
+                        < self.workload_max_in_flight_per_replica
+                    ]
+                    if not eligible:
                         continue
+                    replica = eligible[next_replica_index[vm_name] % len(eligible)]
+                    next_replica_index[vm_name] += 1
                     replica_key = (replica.vm.name, replica.slot)
-                    if in_flight_per_replica.get(replica_key, 0) >= self.workload_max_in_flight_per_replica:
-                        continue
                     operation = "Remove" if self.random.random() < 0.5 else "Insert"
-                    payload = {"type": "Mutation", "params": {operation: self.random.randint(-10_000, 10_000)}}
+                    payload = {"type": "Mutation", "params": {operation: self.random.randrange(self.workload_value_domain_size)}}
                     future = pool.submit(self.request, replica, payload)
                     in_flight[future] = replica_key
                     in_flight_per_replica[replica_key] = in_flight_per_replica.get(replica_key, 0) + 1
@@ -687,20 +713,297 @@ class Controller:
                 self.log.write("state_snapshot_failed", replica, detail=f"{type(error).__name__}: {error}")
         self.log.write("state_snapshot_summary", detail=json.dumps(digests, sort_keys=True))
 
+    @staticmethod
+    def remote_agent_source() -> Path:
+        return Path(__file__).with_name("geo_churn_remote_agent.py")
+
+    def agent_remote_paths(self, vm: Vm) -> tuple[str, str, str, str]:
+        root = f"{vm.remote_root}/{self.run_id}"
+        return (
+            root,
+            f"{root}/geo_churn_remote_agent.py",
+            f"{root}/agent_spec.json",
+            f"{root}/agent_status.json",
+        )
+
+    def agent_start_signal_path(self, vm: Vm) -> str:
+        return f"{vm.remote_root}/{self.run_id}/agent_start_epoch"
+
+    def agent_abort_path(self, vm: Vm) -> str:
+        return f"{vm.remote_root}/{self.run_id}/agent_abort"
+
+    @property
+    def run_state_path(self) -> Path:
+        return self.result_dir / "run_state.json"
+
+    def write_run_state(self, state: str, start_epoch: int) -> None:
+        payload = {"run_id": self.run_id, "start_epoch": start_epoch, "state": state}
+        temporary_path = self.run_state_path.with_suffix(".tmp")
+        temporary_path.write_text(json.dumps(payload, indent=2) + "\n")
+        temporary_path.replace(self.run_state_path)
+
+    def agent_spec(self, vm: Vm, vm_index: int) -> dict[str, Any]:
+        settings = {
+            key: self.config[key]
+            for key in (
+                "duration_seconds", "bucket", "s3_region", "replicas_per_vm",
+                "sync_interval_ms", "discovery_interval_ms", "gc_interval_ms",
+                "workload_rate_per_server", "workload_value_domain_size", "workload_max_in_flight",
+                "workload_max_in_flight_per_replica", "snapshot_interval_seconds",
+                "final_convergence_seconds", "startup_timeout_seconds",
+                "startup_max_attempts", "startup_retry_delay_seconds",
+                "process_stop_timeout_seconds", "membership_settle_seconds",
+                "durable_recovery", "seed",
+            )
+            if key in self.config
+        }
+        vm_spec = {
+            "name": vm.name, "region": vm.region, "bind_ip": vm.bind_ip,
+            "advertise_ip": vm.advertise_ip, "binary_path": vm.binary_path,
+            "remote_root": vm.remote_root, "http_port_base": vm.http_port_base,
+            "internal_port_base": vm.internal_port_base,
+        }
+        return {
+            "version": 1,
+            "run_id": self.run_id,
+            "run_label": self.run_label,
+            # Leave plenty of headroom between VMs while retaining an easily
+            # recognisable, globally unique GRESSE PID range.
+            "pid_base": (int(time.time_ns() // 1_000) * 100) + vm_index * 1_000_000,
+            "vm": vm_spec,
+            "settings": settings,
+            "events": [
+                {"at_seconds": event.at_seconds, "action": event.action, "slot": event.slot}
+                for event in self.events if event.vm == vm.name
+            ],
+        }
+
+    def scp_to_vm(self, vm: Vm, source: Path, destination: str) -> None:
+        if self.dry_run:
+            self.log.write("agent_stage_requested", detail=f"{source} -> {vm.name}:{destination}")
+            return
+        try:
+            subprocess.run(
+                ["scp", *self.connection_options(), str(source), f"{vm.ssh_host}:{destination}"],
+                text=True, capture_output=True, check=True, timeout=self.collection_timeout_seconds,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            detail = getattr(error, "stderr", "") or str(error)
+            self.log.write("agent_stage_failed", detail=f"{vm.name}: {detail}")
+            raise RuntimeError(f"failed to stage remote agent on {vm.name}: {detail}") from error
+
+    def prepare_remote_agents(self) -> int:
+        """Copy the agent program, then assign all per-VM schedules before arming."""
+        source = self.remote_agent_source()
+        if not source.is_file():
+            raise RuntimeError(f"remote agent program is missing: {source}")
+        self.progress("staging per-VM experiment agents")
+        for vm in self.vms.values():
+            root, remote_agent, _, _ = self.agent_remote_paths(vm)
+            self.ssh(vm, f"mkdir -p {shlex.quote(root)}")
+            self.scp_to_vm(vm, source, remote_agent)
+            self.ssh(vm, f"chmod 0755 {shlex.quote(remote_agent)}")
+
+        specs_dir = self.result_dir / "agent_specs"
+        specs_dir.mkdir(exist_ok=True)
+        for index, vm in enumerate(self.vms.values()):
+            _, _, remote_spec, _ = self.agent_remote_paths(vm)
+            local_spec = specs_dir / f"{vm.name}.json"
+            local_spec.write_text(json.dumps(self.agent_spec(vm, index), indent=2) + "\n")
+            self.scp_to_vm(vm, local_spec, remote_spec)
+            self.log.write("agent_schedule_assigned", detail=f"{vm.name}: {remote_spec}")
+
+        for vm in self.vms.values():
+            root, remote_agent, remote_spec, _ = self.agent_remote_paths(vm)
+            command = (
+                f"mkdir -p {shlex.quote(root)} && "
+                "("
+                f"nohup env {self.process_tag_env}={shlex.quote(self.process_tag_value)} "
+                f"{shlex.quote(remote_agent)} --spec {shlex.quote(remote_spec)} "
+                f"> {shlex.quote(root + '/agent.stdout.log')} "
+                f"2> {shlex.quote(root + '/agent.stderr.log')} < /dev/null & "
+                f"agent_pid=$!; echo \"$agent_pid\" > {shlex.quote(root + '/agent.pid')}"
+                ")"
+            )
+            self.ssh(vm, command, timeout_seconds=self.launch_timeout_seconds)
+            self.log.write("agent_launch_requested", detail=vm.name)
+
+        if self.dry_run:
+            return int(time.time() + self.agent_start_delay_seconds)
+
+        # Each agent has its schedule on disk but cannot execute it until the
+        # shared start signal below is published.  This removes sequential SSH
+        # launch latency from the experiment's timing.
+        arm_deadline = time.monotonic() + self.agent_arm_timeout_seconds
+        armed: set[str] = set()
+        while time.monotonic() < arm_deadline:
+            for vm in self.vms.values():
+                if vm.name in armed:
+                    continue
+                status = self.read_agent_status(vm)
+                if status is not None and status.get("state") == "armed":
+                    armed.add(vm.name)
+                    self.log.write("agent_armed", detail=vm.name)
+            if len(armed) == len(self.vms):
+                break
+            time.sleep(min(1.0, max(0.0, arm_deadline - time.monotonic())))
+        if len(armed) != len(self.vms):
+            missing = sorted(set(self.vms) - armed)
+            self.cancel_remote_agent_start()
+            raise RuntimeError(f"remote agents did not arm before timeout: {', '.join(missing)}")
+
+        start_epoch = int(time.time() + self.agent_start_delay_seconds)
+        failures: list[str] = []
+        def publish_start(vm: Vm) -> None:
+            signal_path = self.agent_start_signal_path(vm)
+            command = (
+                f"printf '%s\\n' {shlex.quote(str(start_epoch))} > {shlex.quote(signal_path + '.tmp')} && "
+                f"mv {shlex.quote(signal_path + '.tmp')} {shlex.quote(signal_path)}"
+            )
+            self.ssh(vm, command, timeout_seconds=self.launch_timeout_seconds)
+            self.log.write("agent_start_assigned", detail=f"{vm.name}: {start_epoch}")
+
+        with ThreadPoolExecutor(max_workers=len(self.vms), thread_name_prefix="agent-start") as pool:
+            futures = {pool.submit(publish_start, vm): vm for vm in self.vms.values()}
+            for future, vm in futures.items():
+                try:
+                    future.result()
+                except Exception as error:
+                    failures.append(f"{vm.name}: {type(error).__name__}: {error}")
+        if failures:
+            self.cancel_remote_agent_start()
+            raise RuntimeError("failed to publish remote-agent start signal: " + "; ".join(failures))
+        return start_epoch
+
+    def abort_remote_agents(self) -> None:
+        """Tell every remote agent to stop, both before and after its start time."""
+        def cancel(vm: Vm) -> None:
+            self.ssh(vm, f"touch {shlex.quote(self.agent_abort_path(vm))}", check=False, timeout_seconds=min(5.0, self.ssh_timeout_seconds))
+        with ThreadPoolExecutor(max_workers=len(self.vms), thread_name_prefix="agent-cancel") as pool:
+            futures = [pool.submit(cancel, vm) for vm in self.vms.values()]
+            for future in futures:
+                future.result()
+
+    def cancel_remote_agent_start(self) -> None:
+        """Best-effort cancellation prevents a late launch from starting alone."""
+        self.abort_remote_agents()
+
+    def read_agent_status(self, vm: Vm) -> Optional[dict[str, Any]]:
+        _, _, _, status_path = self.agent_remote_paths(vm)
+        result = self.ssh(vm, f"test -f {shlex.quote(status_path)} && cat {shlex.quote(status_path)}", check=False, timeout_seconds=min(5.0, self.ssh_timeout_seconds))
+        if result.returncode != 0:
+            self.log.write("agent_status_unavailable", detail=f"{vm.name}: SSH/status return code {result.returncode}")
+            return None
+        try:
+            status = json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            self.log.write("agent_status_invalid", detail=f"{vm.name}: {error}")
+            return None
+        self.log.write("agent_status", detail=f"{vm.name}: {json.dumps(status, sort_keys=True)}")
+        return status
+
+    def monitor_remote_agents(self, start_epoch: int, resumed: bool = False) -> list[str]:
+        deadline = start_epoch + self.duration + self.final_convergence_seconds + self.agent_completion_grace_seconds
+        if resumed:
+            deadline = max(deadline, time.time() + self.agent_completion_grace_seconds)
+        final_states: dict[str, str] = {}
+        abort_sent = False
+        self.progress(f"remote agents armed; experiment starts at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(start_epoch))}")
+        while time.time() < deadline:
+            for vm in self.vms.values():
+                status = self.read_agent_status(vm)
+                if status is not None:
+                    final_states[vm.name] = str(status.get("state", "unknown"))
+            failed_agents = sorted(name for name, state in final_states.items() if state == "failed")
+            if failed_agents and not abort_sent:
+                self.progress(f"remote agent failure detected ({', '.join(failed_agents)}); aborting remaining agents")
+                self.log.write("remote_agent_abort_requested", detail=", ".join(failed_agents))
+                self.abort_remote_agents()
+                abort_sent = True
+            if len(final_states) == len(self.vms) and all(
+                state in {"completed", "failed", "aborted", "cancelled"}
+                for state in final_states.values()
+            ):
+                break
+            time.sleep(self.agent_monitor_interval_seconds)
+        failed = [name for name, state in final_states.items() if state != "completed"]
+        for vm in self.vms.values():
+            if vm.name not in final_states:
+                failed.append(vm.name)
+        return failed
+
+    def run_remote_agents(self) -> None:
+        started = False
+        try:
+            self.progress("preflight: cleaning prior tracked processes and validating hosts")
+            self.preflight()
+            start_epoch = self.prepare_remote_agents()
+            started = True
+            self.write_run_state("running", start_epoch)
+            if self.dry_run:
+                self.log.write("remote_agent_plan_validated", detail=f"start_epoch={start_epoch}")
+                self.log.close()
+                self.progress("remote-agent experiment plan validated")
+                return
+            failed = self.monitor_remote_agents(start_epoch)
+            if failed:
+                raise RuntimeError(f"remote agent did not complete successfully: {', '.join(sorted(set(failed)))}")
+            self.write_run_state("completed", start_epoch)
+            self.progress("all remote agents completed")
+        except BaseException:
+            # Do not use SSH to stop agents here: each agent owns its local
+            # process tree and has a deadline.  The laptop only observes.
+            self.collect()
+            self.log.close()
+            self.progress("remote-agent experiment failed; artifacts collected")
+            raise
+        self.collect()
+        self.log.close()
+        self.progress("remote-agent experiment completed")
+
+    def resume_remote_agents(self) -> None:
+        if not self.run_state_path.exists():
+            raise RuntimeError(f"cannot resume without {self.run_state_path}")
+        state = json.loads(self.run_state_path.read_text())
+        self.run_id = required(state, "run_id")
+        start_epoch = int(required(state, "start_epoch"))
+        self.progress(f"resuming remote-agent monitoring for run {self.run_id}")
+        try:
+            failed = self.monitor_remote_agents(start_epoch, resumed=True)
+            if failed:
+                raise RuntimeError(f"remote agent did not complete successfully: {', '.join(sorted(set(failed)))}")
+            self.write_run_state("completed", start_epoch)
+            self.progress("all remote agents completed")
+        finally:
+            self.collect()
+            self.log.close()
+
     def collect(self) -> None:
         artifacts = self.result_dir / "remote_artifacts"
         artifacts.mkdir(exist_ok=True)
         self.progress("collecting remote logs and metrics")
         for vm in self.vms.values():
             destination = artifacts / vm.name
+            staging = artifacts / f".{vm.name}.{self.run_id}.collecting"
             if self.dry_run:
                 self.log.write("collect_requested", detail=f"{vm.name} -> {destination}")
                 continue
             try:
+                # SCP copies a source directory *inside* an existing
+                # destination.  A resumed collection used to leave the first
+                # partial copy in ``destination`` and create
+                # ``destination/<run_id>`` for the fresh copy.  Fetch into a
+                # sibling first, then replace the VM directory only after a
+                # complete successful transfer.
+                if staging.exists():
+                    shutil.rmtree(staging)
                 subprocess.run(
-                    ["scp", *self.connection_options(), "-r", f"{vm.ssh_host}:{vm.remote_root}/{self.run_id}", str(destination)],
+                    ["scp", *self.connection_options(), "-r", f"{vm.ssh_host}:{vm.remote_root}/{self.run_id}", str(staging)],
                     text=True, capture_output=True, check=True, timeout=self.collection_timeout_seconds,
                 )
+                if destination.exists():
+                    shutil.rmtree(destination)
+                staging.replace(destination)
                 self.log.write("collected", detail=f"{vm.name} -> {destination}")
                 self.progress(f"collected artifacts from {vm.name}")
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
@@ -708,6 +1011,9 @@ class Controller:
                 self.progress(f"artifact collection failed for {vm.name}; continuing")
 
     def run(self) -> None:
+        if self.execution_mode == "remote_agents":
+            self.run_remote_agents()
+            return
         try:
             self.progress("preflight: cleaning prior tracked processes and validating hosts")
             self.preflight()
@@ -790,6 +1096,7 @@ def main() -> int:
     parser.add_argument("--result-dir", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true", help="validate and print remote control actions without SSH or HTTP")
     parser.add_argument("--collect-run-id", help="recover artifacts for an existing remote run without starting processes")
+    parser.add_argument("--resume", action="store_true", help="resume monitoring and artifact collection for an interrupted remote-agent run")
     parser.add_argument("--preflight-only", action="store_true", help="clean tracked replicas and validate remote hosts without starting the experiment")
     parser.add_argument("--deploy-binary", type=Path, help="release binary to copy to every VM before preflight")
     parser.add_argument("--expected-binary-sha256", help="override expected_binary_sha256 from the topology")
@@ -798,18 +1105,25 @@ def main() -> int:
         config = json.load(handle)
     if args.expected_binary_sha256:
         config["expected_binary_sha256"] = args.expected_binary_sha256
-    if args.collect_run_id and (args.preflight_only or args.deploy_binary):
-        raise SystemExit("--collect-run-id cannot be combined with preflight or binary deployment")
+    if args.collect_run_id and (args.preflight_only or args.deploy_binary or args.resume):
+        raise SystemExit("--collect-run-id cannot be combined with preflight, binary deployment, or --resume")
+    if args.resume and (args.preflight_only or args.deploy_binary or args.dry_run or args.expected_binary_sha256):
+        raise SystemExit("--resume cannot be combined with preflight, binary deployment, dry-run, or binary-hash override")
     if args.deploy_binary and not args.preflight_only:
         raise SystemExit("--deploy-binary requires --preflight-only")
-    if args.result_dir.exists():
+    if args.result_dir.exists() and not args.resume:
         raise SystemExit(f"result directory already exists: {args.result_dir}")
-    args.result_dir.mkdir(parents=True)
-    shutil.copy2(args.topology, args.result_dir / "topology.json")
+    if not args.resume:
+        args.result_dir.mkdir(parents=True)
+        shutil.copy2(args.topology, args.result_dir / "topology.json")
     controller = Controller(config, args.result_dir, args.dry_run)
     if args.collect_run_id:
         controller.run_id = args.collect_run_id
-    (args.result_dir / "manifest.json").write_text(json.dumps({"run_id": controller.run_id, "config": config, "collect_only": bool(args.collect_run_id)}, indent=2))
+    if not args.resume:
+        (args.result_dir / "manifest.json").write_text(json.dumps({"run_id": controller.run_id, "config": config, "collect_only": bool(args.collect_run_id)}, indent=2))
+    if args.resume:
+        controller.resume_remote_agents()
+        return 0
     if args.collect_run_id:
         controller.collect()
         controller.log.close()

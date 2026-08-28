@@ -254,17 +254,29 @@ The throughput-vs-replicas experiment uses:
 
 ## Six-region crash and churn experiment
 
-`scripts/geo_churn_experiment.py` is a laptop-run orchestrator for the ACM SEC
-geo-distributed evaluation. It controls 30 independent replica processes (five
-on each of six VMs), injects hard process crashes and graceful replica churn,
-drives a deliberately light client workload from the laptop, periodically
-checks canonical OR-Set state digests, and collects all remote artifacts.
+`scripts/geo_churn_experiment.py` is the laptop-side coordinator for the ACM
+SEC geo-distributed evaluation. It stages one `geo_churn_remote_agent.py` on
+each VM, assigns that VM its filtered lifecycle schedule before the run is
+armed, and gives all agents one absolute UTC start time. Each agent owns its
+five local replica processes, local workload, bootstrap checks, and shutdown;
+the laptop only preflights, periodically reads agent status, and collects
+artifacts.
+
+`workload_rate_per_server` is the aggregate request rate for each VM. The
+default topology sets it to 10 operations/sec, distributed round-robin across
+that VM's live replicas. If the laptop running `run.sh` is interrupted after
+the remote agents have been armed, run `./scripts/geo-experiment/run.sh
+--resume` later to reopen the saved run, monitor its agents, collect artifacts,
+and regenerate the summary. Resume deliberately skips build, preflight, and
+all remote lifecycle actions. Use `--resume --result-dir PATH` when the local
+active-run marker is unavailable.
 
 Copy and edit `scripts/geo_churn_topology.example.json`: each VM must have a
 routable `advertise_ip` for replica-to-replica traffic, an SSH target, and an
 already installed release `orset_bench_replica` binary. The VM's AWS identity
-must have access to the configured shared bucket. The `client_host` value must
-be reachable from the laptop (or be reached through an established tunnel).
+must have access to the configured shared bucket. `client_host` is retained
+for legacy laptop-controller mode; remote agents send their workload to their
+own loopback HTTP ports.
 Use an SSH host alias in `ssh_host` (configured with its user, key, and any
 `ProxyJump` in `~/.ssh/config`); the controller runs SSH/SCP in noninteractive
 `BatchMode` and never accepts passwords. Prefer an IAM instance role for S3
@@ -273,9 +285,9 @@ Set `expected_binary_sha256` to the SHA-256 of the release binary copied to
 the VMs; preflight rejects a mixed or unexpected binary. Preflight also checks
 the midpoint-estimated VM clock offset against `max_clock_skew_ms`. The
 experiment uses a per-VM-slot durable journal by default, retaining local
-state across a hard-crashed process and its replacement. It waits for each
-replica's completed bootstrap metric and a membership stabilization interval
-before starting the workload.
+state across a hard-crashed process and its replacement. An agent verifies
+bootstrap from its local generation-specific metrics file and local child PID,
+not through SSH.
 
 ```sh
 python3 scripts/geo_churn_experiment.py \
@@ -288,7 +300,7 @@ python3 scripts/analyze_geo_churn.py ./results/acm-sec-geo-churn
 Run `--dry-run` first to validate the topology and lifecycle schedule without
 connecting to hosts. The result directory contains the controller event trace,
 state-digest snapshots, topology/manifest, and a `remote_artifacts/` directory
-with metrics and logs collected from all six VMs. `crash` sends `SIGKILL`;
+with metrics and logs collected from all five VMs. `crash` sends `SIGKILL`;
 `graceful_stop` sends `SIGTERM`, which intentionally exercises GRESSE's normal
 shutdown path. A subsequent `spawn` always receives a fresh GRESSE PID.
 The analyzer writes `summary.json` with availability split by expected process
@@ -299,12 +311,13 @@ Every invocation creates a timestamp-and-random-suffixed run ID from
 `run_label`; this isolates the S3 prefix and remote log directory from all
 previous attempts. Result directories are refused when they already exist.
 At preflight the controller terminates processes recorded by any previous
-controller run on the six VMs, without deleting prior artifacts. Every started
-process also has a remote watchdog that gracefully terminates it at the global
-deadline and force-kills it after the configured grace period if the laptop
-controller stalls or disappears. SSH/SCP operations have bounded timeouts and
-artifact collection continues when one VM is unavailable. Recover artifacts
-after a laptop failure with a fresh local result directory:
+controller run on the five VMs, without deleting prior artifacts. Every started
+agent has its own deadline-based lifecycle loop, so a laptop interruption does
+not stop a running experiment. SSH/SCP operations have bounded timeouts and
+artifact collection continues when one VM is unavailable. Set
+`execution_mode` to `"laptop"` only to use the legacy laptop lifecycle
+controller. Recover artifacts after a laptop failure with a fresh local result
+directory:
 
 ```sh
 python3 scripts/geo_churn_experiment.py \

@@ -1,5 +1,10 @@
 {
   "run_label": "acm-sec-geo-churn",
+  "execution_mode": "remote_agents",
+  "agent_start_delay_seconds": 45,
+  "agent_monitor_interval_seconds": 15,
+  "agent_arm_timeout_seconds": 180,
+  "agent_completion_grace_seconds": 120,
   "duration_seconds": 1800,
   "bucket": "gresse",
   "s3_region": "eu-north-1",
@@ -7,7 +12,7 @@
   "sync_interval_ms": 1000,
   "discovery_interval_ms": 5000,
   "gc_interval_ms": 60000,
-  "workload_rate_per_replica": 1.0,
+  "workload_rate_per_server": 10.0,
   "snapshot_interval_seconds": 30,
   "final_convergence_seconds": 120,
   "startup_timeout_seconds": 10,
@@ -27,21 +32,20 @@
   "vms": [
     {"name": "stockholm", "region": "eu-north-1", "ssh_host": "ubuntu@STOCKHOLM_VM", "bind_ip": "0.0.0.0", "advertise_ip": "10.0.0.11", "client_host": "STOCKHOLM_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
     {"name": "frankfurt", "region": "eu-central-1", "ssh_host": "ubuntu@FRANKFURT_VM", "advertise_ip": "10.0.1.11", "client_host": "FRANKFURT_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
-    {"name": "virginia", "region": "us-east-1", "ssh_host": "ubuntu@VIRGINIA_VM", "advertise_ip": "10.0.2.11", "client_host": "VIRGINIA_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
-    {"name": "oregon", "region": "us-west-2", "ssh_host": "ubuntu@OREGON_VM", "advertise_ip": "10.0.3.11", "client_host": "OREGON_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
-    {"name": "singapore", "region": "ap-southeast-1", "ssh_host": "ubuntu@SINGAPORE_VM", "advertise_ip": "10.0.4.11", "client_host": "SINGAPORE_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
-    {"name": "tokyo", "region": "ap-northeast-1", "ssh_host": "ubuntu@TOKYO_VM", "advertise_ip": "10.0.5.11", "client_host": "TOKYO_VM", "binary_path": "/opt/gresse/orset_bench_replica"}
+    {"name": "ireland", "region": "eu-west-1", "ssh_host": "ubuntu@IRELAND_VM", "advertise_ip": "10.0.2.11", "client_host": "IRELAND_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
+    {"name": "london", "region": "eu-west-2", "ssh_host": "ubuntu@LONDON_VM", "advertise_ip": "10.0.3.11", "client_host": "LONDON_VM", "binary_path": "/opt/gresse/orset_bench_replica"},
+    {"name": "paris", "region": "eu-west-3", "ssh_host": "ubuntu@PARIS_VM", "advertise_ip": "10.0.4.11", "client_host": "PARIS_VM", "binary_path": "/opt/gresse/orset_bench_replica"}
   ],
   "events": [
     {"at_seconds": 300, "action": "crash", "vm": "stockholm", "slot": 0},
     {"at_seconds": 360, "action": "spawn", "vm": "stockholm", "slot": 0},
     {"at_seconds": 420, "action": "graceful_stop", "vm": "frankfurt", "slot": 1},
     {"at_seconds": 480, "action": "spawn", "vm": "frankfurt", "slot": 1},
-    {"at_seconds": 540, "action": "crash", "vm": "virginia", "slot": 2},
-    {"at_seconds": 600, "action": "spawn", "vm": "virginia", "slot": 2},
-    {"at_seconds": 660, "action": "graceful_stop", "vm": "oregon", "slot": 3},
-    {"at_seconds": 720, "action": "spawn", "vm": "oregon", "slot": 3},
-    {"at_seconds": 780, "action": "crash", "vm": "singapore", "slot": 4},
-    {"at_seconds": 840, "action": "spawn", "vm": "singapore", "slot": 4}
+    {"at_seconds": 540, "action": "crash", "vm": "ireland", "slot": 2},
+    {"at_seconds": 600, "action": "spawn", "vm": "ireland", "slot": 2},
+    {"at_seconds": 660, "action": "graceful_stop", "vm": "london", "slot": 3},
+    {"at_seconds": 720, "action": "spawn", "vm": "london", "slot": 3},
+    {"at_seconds": 780, "action": "crash", "vm": "paris", "slot": 4},
+    {"at_seconds": 840, "action": "spawn", "vm": "paris", "slot": 4}
   ]
 }
