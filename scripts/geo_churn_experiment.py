@@ -231,6 +231,10 @@ class Controller:
                 raise ValueError(f"invalid event action {event.action!r}")
             if event.vm not in self.vms or not 0 <= event.slot < int(self.config.get("replicas_per_vm", 5)):
                 raise ValueError(f"event target is invalid: {raw}")
+            if not 0 <= event.at_seconds <= self.duration:
+                raise ValueError(
+                    f"event time must fall within the experiment duration (0..{self.duration}): {raw}"
+                )
             events.append(event)
         return sorted(events, key=lambda item: item.at_seconds)
 

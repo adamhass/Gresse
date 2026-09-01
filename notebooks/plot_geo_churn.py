@@ -394,20 +394,39 @@ def system_latency_dataframe(data: ExperimentData) -> pd.DataFrame:
             "latency_type": "Replica recovery" if recovered else "Replica initialization",
         })
 
-    starts = replica.loc[(replica["event"] == "gc_init") & (replica["phase"] == "start")]
-    finals = replica.loc[(replica["event"] == "gc_finalize") & (replica["phase"] == "completed")]
-    final_by_round = {
-        (row["replica_pid"], row["gc_marker"]): row["timestamp_us"]
-        for _, row in finals.iterrows()
-    }
-    for _, start in starts.iterrows():
-        end_us = final_by_round.get((start["replica_pid"], start["gc_marker"]))
-        if end_us is not None and end_us >= start["timestamp_us"]:
-            samples.append({
-                "experiment_time_s": (start["timestamp_us"] - origin_us) / 1_000_000,
-                "latency_ms": (end_us - start["timestamp_us"]) / 1_000,
-                "latency_type": "GC round",
-            })
+    # A GC marker is scoped to one replica trace.  Require one start and one
+    # final record for that key; duplicate or aborted rounds are ambiguous and
+    # must not silently overwrite each other in a dictionary lookup.
+    gc_key = ["source_file", "replica_pid", "gc_marker"]
+    starts = replica.loc[
+        (replica["event"] == "gc_init") & (replica["phase"] == "start"),
+        [*gc_key, "timestamp_us"],
+    ].dropna(subset=[*gc_key, "timestamp_us"])
+    finals = replica.loc[
+        (replica["event"] == "gc_finalize") & (replica["phase"] == "completed"),
+        [*gc_key, "timestamp_us"],
+    ].dropna(subset=[*gc_key, "timestamp_us"])
+    aborted = replica.loc[
+        (replica["event"] == "gc_init") & (replica["phase"] == "aborted"), gc_key
+    ].dropna(subset=gc_key)
+    duplicate_keys = pd.concat([
+        starts.loc[starts.duplicated(gc_key, keep=False), gc_key],
+        finals.loc[finals.duplicated(gc_key, keep=False), gc_key],
+    ], ignore_index=True).drop_duplicates()
+    excluded_keys = pd.concat([aborted, duplicate_keys], ignore_index=True).drop_duplicates()
+    if not excluded_keys.empty:
+        starts = starts.merge(excluded_keys.assign(_excluded=True), on=gc_key, how="left")
+        finals = finals.merge(excluded_keys.assign(_excluded=True), on=gc_key, how="left")
+        starts = starts.loc[starts["_excluded"].isna()].drop(columns="_excluded")
+        finals = finals.loc[finals["_excluded"].isna()].drop(columns="_excluded")
+    rounds = starts.merge(finals, on=gc_key, how="inner", validate="one_to_one", suffixes=("_start", "_final"))
+    rounds = rounds.loc[rounds["timestamp_us_final"] >= rounds["timestamp_us_start"]]
+    for _, round_ in rounds.iterrows():
+        samples.append({
+            "experiment_time_s": (round_["timestamp_us_start"] - origin_us) / 1_000_000,
+            "latency_ms": (round_["timestamp_us_final"] - round_["timestamp_us_start"]) / 1_000,
+            "latency_type": "GC round",
+        })
     return pd.DataFrame(samples)
 
 

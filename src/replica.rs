@@ -180,8 +180,11 @@ impl CRDTWrapper {
         self.current_stable() != Some(stable)
     }
 
-    fn push_gc_marker(&mut self, marker: Dot, stable: DotSet) {
-        self.gc_markers.push(GcMarker { marker, stable });
+    fn push_gc_marker(&mut self, marker: GcMarker) {
+        if let Some(departed) = &marker.departed_pids {
+            self.version_matrix.remove_pids(departed)
+        }
+        self.gc_markers.push(marker);
     }
 
     fn gc_metadata(&self) -> Option<GcMarker> {
@@ -338,8 +341,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             let metric_sender = client_mutation_metric_sender.clone();
             Box::pin(async move {
                 let received_us = now_micros();
-                let _commit = commit_gate.lock().await;
                 let start_us = now_micros();
+                let _commit = commit_gate.lock().await;
                 if let Some(journal) = &journal {
                     journal
                         .append_mutation::<T>(&mutation)
@@ -347,7 +350,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                             panic!("Failed to append durable client mutation: {error}")
                         });
                 }
-                let response = crdt.write().await.mutate(mutation);
+                let response: <T as CRDT>::ClientResponse = crdt.write().await.mutate(mutation);
                 let end_us = now_micros();
                 let _ = metric_sender.send(ClientMutationMetric {
                     received_us,
@@ -1362,7 +1365,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         );
         let local_state = {
             let mut writable = self.crdt.write().await;
-            writable.gc(stable.clone(), departed_pids.clone());
+            writable.gc(&stable, &departed_pids);
             writable.clone()
         };
         let gc_end = now_micros();
@@ -1380,7 +1383,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         );
 
         // DONE
-        self.crdt_wrapper.push_gc_marker(new_marker, stable.clone());
+        self.crdt_wrapper.push_gc_marker(GcMarker{
+            marker: new_marker,
+            stable: stable.clone(),
+            departed_pids: departed_pids.clone()
+        });
         let persistent_replica = PersistentReplica {
             local_state,
             crdt_wrapper: self.crdt_wrapper.clone(),
@@ -1515,7 +1522,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         {
             return;
         }
-
+        let counter = metadata.marker.counter;
         debug!(
             "replica {} observing gc marker {} with stable frontier {:?}",
             self.pid, metadata.marker.counter, metadata.stable
@@ -1524,33 +1531,19 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             "gc_observed",
             "start",
             None,
-            Some(metadata.marker.counter),
+            Some(counter),
             None,
         );
-        self.crdt.write().await.gc(metadata.stable.clone(), None);
+        self.crdt.write().await.gc(&metadata.stable, &metadata.departed_pids);
         self.crdt_wrapper
-            .push_gc_marker(metadata.marker, metadata.stable.clone());
+            .push_gc_marker(metadata);
         self.persist_durable_snapshot().await;
-        if self
-            .change_own_gc_counter(metadata.marker.counter)
-            .await
-            .is_none()
-        {
-            self.metric_instant(
-                "gc_observed",
-                "failed",
-                None,
-                Some(metadata.marker.counter),
-                Some("failed to publish observed GC marker".to_string()),
-            );
-            return;
-        }
         self.gc_interval.reset();
         self.metric_instant(
             "gc_observed",
             "completed",
             None,
-            Some(metadata.marker.counter),
+            Some(counter),
             None,
         );
     }

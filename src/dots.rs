@@ -86,8 +86,8 @@ impl DotSet {
         self.set.insert(pid, counter);
     }
 
-    pub fn remove_pid(&mut self, pid: &Pid) {
-        self.set.remove(pid);
+    pub fn remove_pid(&mut self, pid: Pid) {
+        self.set.remove(&pid);
     }
 
     pub fn pids(&self) -> impl Iterator<Item = Pid> + '_ {
@@ -236,6 +236,15 @@ impl VersionMatrix {
             }
         }
         Some(dots_to_remove.iter().map(|dot| dot.pid).collect())
+    }
+
+    pub fn remove_pids(&mut self, pids: &Vec<Pid>) {
+        for pid in pids {
+            self.matrix.remove(pid);
+            for version_vector in self.matrix.values_mut() {
+                version_vector.set.remove(pid);
+            }
+        }
     }
 
     fn filtered_matrix(&self) -> VersionMatrix {

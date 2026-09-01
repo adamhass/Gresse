@@ -238,12 +238,18 @@ where
         }
     }
 
-    fn gc(&mut self, version_vector: DotSet, departed_pids: Option<Vec<Pid>>) {
+    fn gc(&mut self, version_vector: &DotSet, departed_pids: &Option<Vec<Pid>>) {
         let departed_pids = departed_pids
+            .as_deref()
             .unwrap_or_default()
-            .into_iter()
+            .iter()
+            .copied()
             .collect::<HashSet<_>>();
 
+        // A delta is needed only when it is neither covered by the stable
+        // frontier nor owned by a replica whose final dot has been globally
+        // acknowledged.  The conjunction is intentional: either condition
+        // is sufficient to discard the delta.
         self.delta_log
             .retain(|dot, _| !version_vector.contains(dot) && !departed_pids.contains(&dot.pid));
 
@@ -252,7 +258,7 @@ where
         }
 
         for pid in &departed_pids {
-            self.version_vector.remove_pid(pid);
+            self.version_vector.remove_pid(*pid);
         }
     }
 }
@@ -306,7 +312,7 @@ mod tests {
     }
 
     #[test]
-    fn gc_for_departed_pid_preserves_live_entries() {
+    fn gc_discards_departed_pid_history_not_covered_by_stable_frontier() {
         let mut set = ORSet::<String>::new();
         set.set_pid(1);
 
@@ -325,8 +331,9 @@ mod tests {
 
         let mut stable = DotSet::new();
         stable.set_counter(1, 0);
-        stable.set_counter(2, 0);
-        set.gc(stable, Some(vec![2]));
+        // Replica 2's dot is deliberately absent: departure alone must
+        // reclaim its history after its final dot was globally acknowledged.
+        set.gc(&stable, &Some(vec![2]));
 
         assert_eq!(
             set.query(OrSetQuery::Elements).unwrap(),

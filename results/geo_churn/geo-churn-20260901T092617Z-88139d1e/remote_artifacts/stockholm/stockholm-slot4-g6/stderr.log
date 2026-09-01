@@ -1,0 +1,149 @@
+[2026-09-01T10:03:42.882Z INFO  gresse::http_server] running CRDT HTTP server
+[2026-09-01T10:03:42.882Z INFO  gresse::http_server] listening for HTTP on 0.0.0.0:18084
+[2026-09-01T10:03:42.911Z INFO  gresse::replica] replica 178825480714267206 initiating runtime at bind_http=0.0.0.0:18084 bind_internal=0.0.0.0:19084 advertised_internal=16.170.108.158:19084
+[2026-09-01T10:03:42.946Z INFO  gresse::object_storage] object storage connection established: backend=s3, bucket=gresse-geo-035351467464-20260901084800-ec90d0, region=eu-north-1, endpoint=AWS default endpoint resolution, first_operation=get, object_path=acm-sec-geo-churn-20260901T092623Z-21106dd4/persistent.json
+[2026-09-01T10:03:43.221Z INFO  gresse::replica] replica 178825480714267206 discovered 141 membership descriptors during init
+[2026-09-01T10:03:43.221Z INFO  gresse::replica] replica 178825480714267206 startup completed
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480714263206, address: 16.170.108.158:19080, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480714264206, address: 16.170.108.158:19081, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480714265206, address: 16.170.108.158:19082, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480714266206, address: 16.170.108.158:19083, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759179606, address: 3.68.220.182:19080, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046241405
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759180605, address: 3.68.220.182:19081, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759181605, address: 3.68.220.182:19082, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759182605, address: 3.68.220.182:19083, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759183605, address: 3.68.220.182:19084, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843462705, address: 34.245.195.69:19080, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843463705, address: 34.245.195.69:19081, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843464705, address: 34.245.195.69:19082, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843465705, address: 34.245.195.69:19083, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843466705, address: 34.245.195.69:19084, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957157905, address: 18.130.228.25:19080, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957158905, address: 18.130.228.25:19081, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957159905, address: 18.130.228.25:19082, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957160905, address: 18.130.228.25:19083, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957161905, address: 18.130.228.25:19084, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825481046239405, address: 13.38.41.188:19080, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825481046240405, address: 13.38.41.188:19081, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843463705
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825481046242405, address: 13.38.41.188:19083, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825481046243405, address: 13.38.41.188:19084, final_counter: None }
+[2026-09-01T10:03:43.221Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046241405
+[2026-09-01T10:03:43.221Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843463705
+[2026-09-01T10:03:43.222Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480714264206
+[2026-09-01T10:03:43.222Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480714264206
+[2026-09-01T10:03:43.222Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480714265206
+[2026-09-01T10:03:43.222Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480714265206
+[2026-09-01T10:03:43.222Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480714266206
+[2026-09-01T10:03:43.222Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480714266206
+[2026-09-01T10:03:43.222Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480714263206
+[2026-09-01T10:03:43.222Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480714263206
+[2026-09-01T10:03:43.245Z WARN  gresse::network] replica 178825480714267206 peer connection attempt failed: could not connect to 3.68.220.182:19081: Connection refused (os error 111)
+[2026-09-01T10:03:43.245Z WARN  gresse::network] replica 178825480714267206 peer connection attempt failed: could not connect to 3.68.220.182:19082: Connection refused (os error 111)
+[2026-09-01T10:03:43.269Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759179606
+[2026-09-01T10:03:43.269Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759179606
+[2026-09-01T10:03:43.269Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759182605
+[2026-09-01T10:03:43.269Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759183605
+[2026-09-01T10:03:43.269Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759182605
+[2026-09-01T10:03:43.269Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759183605
+[2026-09-01T10:03:43.276Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957159905
+[2026-09-01T10:03:43.276Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957159905
+[2026-09-01T10:03:43.277Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957161905
+[2026-09-01T10:03:43.277Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957161905
+[2026-09-01T10:03:43.279Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957160905
+[2026-09-01T10:03:43.279Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957160905
+[2026-09-01T10:03:43.279Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957157905
+[2026-09-01T10:03:43.279Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957158905
+[2026-09-01T10:03:43.279Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957157905
+[2026-09-01T10:03:43.279Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957158905
+[2026-09-01T10:03:43.283Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046243405
+[2026-09-01T10:03:43.284Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046243405
+[2026-09-01T10:03:43.284Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046242405
+[2026-09-01T10:03:43.284Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046242405
+[2026-09-01T10:03:43.284Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046240405
+[2026-09-01T10:03:43.284Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046240405
+[2026-09-01T10:03:43.284Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046239405
+[2026-09-01T10:03:43.284Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046239405
+[2026-09-01T10:03:43.306Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843466705
+[2026-09-01T10:03:43.306Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843466705
+[2026-09-01T10:03:43.306Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843462705
+[2026-09-01T10:03:43.306Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843462705
+[2026-09-01T10:03:43.306Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843465705
+[2026-09-01T10:03:43.306Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843464705
+[2026-09-01T10:03:43.307Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843465705
+[2026-09-01T10:03:43.307Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843464705
+[2026-09-01T10:03:43.822Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759180606
+[2026-09-01T10:03:43.822Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759180606
+[2026-09-01T10:03:45.058Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759181606
+[2026-09-01T10:03:45.649Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759181606
+[2026-09-01T10:03:47.936Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480714265205 with final counter Some(1237)
+[2026-09-01T10:03:48.325Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480714266205 with final counter Some(921)
+[2026-09-01T10:03:48.743Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480714267205 with final counter Some(921)
+[2026-09-01T10:03:49.126Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046240404 with final counter Some(1284)
+[2026-09-01T10:03:49.424Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046241404 with final counter Some(871)
+[2026-09-01T10:03:49.717Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046242404 with final counter Some(871)
+[2026-09-01T10:04:42.939Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480759182605 with final counter Some(1290)
+[2026-09-01T10:04:43.289Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480843462705 with final counter Some(849)
+[2026-09-01T10:04:47.941Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480759183605 with final counter Some(1022)
+[2026-09-01T10:05:07.222Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:05:16.224Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:05:21.222Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825480843464705: channel closed
+[2026-09-01T10:05:22.221Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825480843463705: channel closed
+[2026-09-01T10:05:42.732Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759182606
+[2026-09-01T10:05:42.732Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759182606
+[2026-09-01T10:05:42.877Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843462706
+[2026-09-01T10:05:42.877Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843462706
+[2026-09-01T10:05:42.935Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480759183606, address: 3.68.220.182:19084, final_counter: None }
+[2026-09-01T10:05:43.478Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480759183606
+[2026-09-01T10:05:43.478Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480759183606
+[2026-09-01T10:05:44.374Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843463706
+[2026-09-01T10:05:44.374Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843463706
+[2026-09-01T10:05:45.435Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843464706
+[2026-09-01T10:05:45.435Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843464706
+[2026-09-01T10:05:46.591Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843465706
+[2026-09-01T10:05:46.591Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843465706
+[2026-09-01T10:06:42.947Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480957157905 with final counter Some(847)
+[2026-09-01T10:06:47.942Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480843466705 with final counter Some(1553)
+[2026-09-01T10:06:48.632Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480957158905 with final counter Some(842)
+[2026-09-01T10:06:58.223Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:07:06.222Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825480957159905: channel closed
+[2026-09-01T10:07:30.222Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:07:39.221Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825480957160905: channel closed
+[2026-09-01T10:07:42.702Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957157906
+[2026-09-01T10:07:42.702Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957157906
+[2026-09-01T10:07:42.941Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480843466706, address: 34.245.195.69:19084, final_counter: None }
+[2026-09-01T10:07:42.941Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957158906, address: 18.130.228.25:19081, final_counter: None }
+[2026-09-01T10:07:42.943Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480843466706
+[2026-09-01T10:07:42.943Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480843466706
+[2026-09-01T10:07:43.470Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957158906
+[2026-09-01T10:07:43.470Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957158906
+[2026-09-01T10:07:45.787Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957159906
+[2026-09-01T10:07:45.788Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957159906
+[2026-09-01T10:07:46.925Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957160906
+[2026-09-01T10:07:46.925Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957160906
+[2026-09-01T10:07:47.939Z INFO  gresse::network] replica 178825480714267206 discovered network member NetworkMember { pid: 178825480957161906, address: 18.130.228.25:19084, final_counter: None }
+[2026-09-01T10:07:48.000Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480957161906
+[2026-09-01T10:07:48.000Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480957161906
+[2026-09-01T10:08:42.941Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046239405 with final counter Some(1550)
+[2026-09-01T10:08:47.933Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046240405 with final counter Some(843)
+[2026-09-01T10:08:48.510Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825481046241405 with final counter Some(840)
+[2026-09-01T10:08:55.222Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:09:13.222Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:09:15.222Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825481046243405: channel closed
+[2026-09-01T10:09:40.222Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825481046242405: channel closed
+[2026-09-01T10:09:42.845Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046239406
+[2026-09-01T10:09:42.845Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046239406
+[2026-09-01T10:09:43.345Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825480714263207
+[2026-09-01T10:09:43.345Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825480714263207
+[2026-09-01T10:09:43.732Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046240406
+[2026-09-01T10:09:43.732Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046240406
+[2026-09-01T10:09:44.842Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046241406
+[2026-09-01T10:09:44.842Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046241406
+[2026-09-01T10:09:47.681Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046242406
+[2026-09-01T10:09:47.681Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046242406
+[2026-09-01T10:09:48.221Z WARN  gresse::network] peer connection write failed: Broken pipe (os error 32)
+[2026-09-01T10:09:50.407Z INFO  gresse::network] replica 178825480714267206 registered bidirectional network channel for replica 178825481046243406
+[2026-09-01T10:09:50.407Z INFO  gresse::replica] replica 178825480714267206 established peer replication connection with replica 178825481046243406
+[2026-09-01T10:10:15.222Z WARN  gresse::replica] replica 178825480714267206 deferred pull request to peer 178825480714263206: channel closed
+[2026-09-01T10:10:42.940Z INFO  gresse::replica] replica 178825480714267206 observed shutdown descriptor for replica 178825480714264206 with final counter Some(1285)

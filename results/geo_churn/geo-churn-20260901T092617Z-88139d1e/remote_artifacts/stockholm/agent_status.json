@@ -1,0 +1,1 @@
+{"completed_events": 80, "error": "ValueError: sleep length must be non-negative", "live_replicas": [], "run_id": "acm-sec-geo-churn-20260901T092623Z-21106dd4", "start_epoch": 1788254862.0, "state": "failed", "total_events": 80, "updated_epoch": 1788258582.0737674, "vm": "stockholm"}

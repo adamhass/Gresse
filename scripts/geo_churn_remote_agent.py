@@ -33,6 +33,13 @@ CSV_FIELDS = [
 ]
 
 
+def sleep_until(deadline: float, maximum_seconds: float, clock: Any) -> None:
+    """Sleep until a deadline without passing a negative duration to sleep."""
+    remaining = deadline - clock()
+    if remaining > 0:
+        time.sleep(min(maximum_seconds, remaining))
+
+
 @dataclass
 class Replica:
     slot: int
@@ -127,6 +134,7 @@ class Agent:
         self.durable_recovery = bool(self.settings.get("durable_recovery", True))
         self.pid_base = int(required(spec, "pid_base"))
         self.events = sorted(required(spec, "events"), key=lambda event: float(event["at_seconds"]))
+        self.completed_events = 0
         self.random = random.Random(int(self.settings.get("seed", 0)) + self.pid_base)
         self.workload_stop = threading.Event()
         self.workload_next_slot = 0
@@ -153,9 +161,7 @@ class Agent:
             "start_epoch": self.start_epoch,
             "updated_epoch": time.time(),
             "live_replicas": [replica.name for replica in self.replicas.values() if replica.live],
-            "completed_events": 0 if self.start_epoch is None else sum(
-                1 for event in self.events if float(event["at_seconds"]) <= time.time() - self.start_epoch
-            ),
+            "completed_events": self.completed_events,
             "total_events": len(self.events),
         }
         temporary = self.status_path.with_suffix(".json.tmp")
@@ -414,7 +420,7 @@ class Agent:
                 self.log.close()
                 return
             self.write_status("armed")
-            time.sleep(min(1, self.start_epoch - time.time()))
+            sleep_until(self.start_epoch, 1, time.time)
         try:
             self.write_status("initializing")
             for replica in self.replicas.values():
@@ -427,7 +433,7 @@ class Agent:
                         self.abort_active_run()
                         return
                     self.ensure_live_replicas_healthy()
-                    time.sleep(min(0.1, settle_deadline - time.monotonic()))
+                    sleep_until(settle_deadline, 0.1, time.monotonic)
             self.write_status("running")
             worker = threading.Thread(target=self.workload, name="agent-workload", daemon=True)
             worker.start()
@@ -442,11 +448,19 @@ class Agent:
                 while event_index < len(self.events) and float(self.events[event_index]["at_seconds"]) <= elapsed:
                     self.execute_event(self.events[event_index])
                     event_index += 1
+                    self.completed_events = event_index
                     self.write_status("running")
                 if elapsed >= next_snapshot:
                     self.snapshot_states()
                     next_snapshot += self.snapshot_interval
                 time.sleep(0.1)
+            # Events scheduled exactly at the workload deadline can otherwise
+            # be skipped when the last loop iteration wakes up just after it.
+            while event_index < len(self.events) and float(self.events[event_index]["at_seconds"]) <= self.duration:
+                self.execute_event(self.events[event_index])
+                event_index += 1
+                self.completed_events = event_index
+                self.write_status("running")
             self.workload_stop.set()
             worker.join(timeout=15)
             if self.final_convergence_seconds:
@@ -456,7 +470,7 @@ class Agent:
                         self.abort_active_run()
                         return
                     self.ensure_live_replicas_healthy()
-                    time.sleep(min(0.1, convergence_deadline - time.monotonic()))
+                    sleep_until(convergence_deadline, 0.1, time.monotonic)
             self.snapshot_states()
             for replica in self.replicas.values():
                 self.stop(replica, graceful=True)
