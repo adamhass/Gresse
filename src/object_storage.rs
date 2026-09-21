@@ -93,6 +93,18 @@ impl ObjectStorageClient {
         self.upload_empty_atomic_create(&descriptor_path).await
     }
 
+    /// Registers a replica and returns the resulting membership view.
+    pub(crate) async fn register_and_list_members(
+        &self,
+        descriptor: ReplicaDescriptor,
+    ) -> Option<Vec<ReplicaDescriptor>> {
+        if let Err(error) = self.write_membership_descriptor(descriptor).await {
+            log::warn!("could not register replica membership: {error}");
+            return None;
+        }
+        self.list_membership_descriptors().await
+    }
+
     pub async fn write_membership_descriptor_payload<T: Serialize>(
         &self,
         descriptor: ReplicaDescriptor,
@@ -150,13 +162,17 @@ impl ObjectStorageClient {
         Ok(())
     }
 
-    pub async fn list_membership_descriptors(
-        &self,
-    ) -> Result<Vec<ReplicaDescriptor>, ObjectStorageError> {
-        let membership_descriptors = self.fetch_membership_descriptors().await?;
+    pub async fn list_membership_descriptors(&self) -> Option<Vec<ReplicaDescriptor>> {
+        let membership_descriptors = match self.fetch_membership_descriptors().await {
+            Ok(descriptors) => descriptors,
+            Err(error) => {
+                log::warn!("could not list replica membership: {error}");
+                return None;
+            }
+        };
         self.update_membership_cache(membership_descriptors.clone())
             .await;
-        Ok(membership_descriptors)
+        Some(membership_descriptors)
     }
 
     /// Fetch membership descriptors without changing the shared cache. This is

@@ -8,7 +8,7 @@ use crate::{
     crdt::*,
     prelude::{new_pid, Pid},
 };
-use log::{debug, info, trace, warn};
+use log::{debug, info, warn};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -244,11 +244,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let mut restored_from_storage = false;
 
         if recovered_from_durability {
-            members = Self::register_and_list_members_during_bootstrap(
-                &self.object_storage_client,
-                descriptor,
-            )
-            .await;
+            members = self
+                .object_storage_client
+                .register_and_list_members(descriptor)
+                .await
+                .expect("Failed to register and list replica membership");
             info!(
                 "replica {} restored local state from durability journal before startup",
                 self.pid
@@ -259,15 +259,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 members.len()
             );
         } else {
-            let (persistent_replica_result, concurrent_membership) = tokio::join!(
-                Self::read_persistent_replica_from_storage(&self.object_storage_client),
-                Self::register_and_list_members_during_bootstrap(
-                    &self.object_storage_client,
-                    descriptor
-                )
+            let (persistent_replica_result, membership_result) = tokio::join!(
+                self.object_storage_client
+                    .read_persistent_replica::<PersistentReplica<T>>(),
+                self.object_storage_client
+                    .register_and_list_members(descriptor)
             );
 
-            members = concurrent_membership;
+            let persistent_replica_result = persistent_replica_result
+                .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"));
+            members = membership_result.expect("Failed to register and list replica membership");
             restored_from_storage = persistent_replica_result.is_some();
 
             match persistent_replica_result {
@@ -311,29 +312,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.persist_durable_snapshot().await;
         }
         info!("replica {} startup completed", self.pid);
-    }
-
-    async fn read_persistent_replica_from_storage(
-        object_storage_client: &ObjectStorageClient,
-    ) -> Option<PersistentReplica<T>> {
-        object_storage_client
-            .read_persistent_replica()
-            .await
-            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"))
-    }
-
-    async fn register_and_list_members_during_bootstrap(
-        object_storage_client: &ObjectStorageClient,
-        descriptor: ReplicaDescriptor,
-    ) -> Vec<ReplicaDescriptor> {
-        object_storage_client
-            .write_membership_descriptor(descriptor)
-            .await
-            .unwrap_or_else(|error| panic!("Failed to create replica descriptor: {error}"));
-        object_storage_client
-            .list_membership_descriptors()
-            .await
-            .unwrap_or_else(|error| panic!("Failed to list replica membership: {error}"))
     }
 
     fn enqueue_network_members(&mut self, members: &[ReplicaDescriptor]) {
@@ -410,21 +388,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn list_members(&self) -> Option<Vec<ReplicaDescriptor>> {
-        let members = match self
-            .object_storage_client
-            .list_membership_descriptors()
-            .await
-        {
-            Ok(members) => members,
-            Err(error) => {
-                warn!("replica {} could not list membership: {}", self.pid, error);
-                return None;
-            }
-        };
-        Some(members)
-    }
-
     async fn apply_membership_poll(&mut self, result: MembershipPollResult) {
         self.object_storage_client.finish_membership_poll().await;
         let members = match result.members {
@@ -437,11 +400,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.object_storage_client
             .update_membership_cache(members.clone())
             .await;
-        trace!(
-            "replica {} polling membership directory saw {} descriptors",
-            self.pid,
-            members.len()
-        );
         let previous_writer_count = self.writers.len();
         debug!(
             "replica {} scanning membership directory for new members and shutdown descriptors",
@@ -472,12 +430,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 .expect("shutdown descriptor missing final counter"),
         };
         if !self.crdt_wrapper.should_fetch_departed_replica(final_dot) {
-            trace!(
-                "replica {} already processed shutdown descriptor for replica {} with final counter {}",
-                self.pid,
-                descriptor.pid,
-                final_dot.counter,
-            );
             return;
         }
         info!(
@@ -683,7 +635,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         };
 
         // 2. Read the Membership directory and check that: no new replicas have appeared, no other replicas have incremented their GC marker.
-        let Some(current_members) = self.list_members().await else {
+        let Some(current_members) = self
+            .object_storage_client
+            .list_membership_descriptors()
+            .await
+        else {
             if let Err(error) = self
                 .object_storage_client
                 .delete_membership_descriptor(new_descriptor)
@@ -712,7 +668,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.pid, error
                 );
             }
-            let _ = self.list_members().await;
+            let _ = self
+                .object_storage_client
+                .list_membership_descriptors()
+                .await;
             return;
         }
 
