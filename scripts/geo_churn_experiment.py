@@ -38,6 +38,26 @@ CSV_FIELDS = [
 ]
 
 
+def durability_journal_files(base_path: str) -> tuple[str, ...]:
+    """Return every remote file owned by the split durability journal."""
+    path = Path(base_path)
+    return (
+        str(path),
+        str(path.with_name(f"{path.name}.snapshot.json")),
+        str(path.with_name(f"{path.name}.mutations.jsonl")),
+        str(path.with_name(f".{path.name}.lock")),
+    )
+
+
+def replica_pid_from_probe(output: str) -> int | None:
+    """Extract the effective replica PID printed by a bootstrap probe."""
+    for line in reversed(output.splitlines()):
+        candidate = line.strip()
+        if candidate.isdigit() and int(candidate) > 0:
+            return int(candidate)
+    return None
+
+
 @dataclass(frozen=True)
 class Vm:
     name: str
@@ -511,14 +531,36 @@ class Controller:
         if self.dry_run:
             self.log.write("bootstrap_ready", replica, detail="dry-run")
             return
-        metrics_path = f"{replica.remote_dir}/server_{replica.pid}.csv"
-        command = f"test -f {shlex.quote(metrics_path)} && grep -q '^server,replica_init,completed,' {shlex.quote(metrics_path)}"
+        metrics_glob = f"{shlex.quote(replica.remote_dir)}/server_*.csv"
+        command = (
+            f"for metrics_file in {metrics_glob}; do "
+            "[ -f \"$metrics_file\" ] || continue; "
+            "if grep -q '^server,replica_init,completed,' \"$metrics_file\"; then "
+            "metrics_name=${metrics_file##*/}; metrics_pid=${metrics_name#server_}; "
+            "printf '%s\\n' \"${metrics_pid%.csv}\"; exit 0; fi; "
+            "done; exit 1"
+        )
         deadline = deadline if deadline is not None else time.monotonic() + self.startup_timeout_seconds
         while time.monotonic() < deadline:
             # This is a lightweight status probe.  A stalled SSH session must
             # not consume the full replica-bootstrap allowance.
             probe_timeout = min(5.0, self.ssh_timeout_seconds, max(0.1, deadline - time.monotonic()))
-            if self.ssh(replica.vm, command, check=False, timeout_seconds=probe_timeout).returncode == 0:
+            result = self.ssh(
+                replica.vm,
+                command,
+                check=False,
+                timeout_seconds=probe_timeout,
+            )
+            effective_pid = replica_pid_from_probe(result.stdout) if result.returncode == 0 else None
+            if effective_pid is not None:
+                if effective_pid != replica.pid:
+                    requested_pid = replica.pid
+                    self.log.write(
+                        "replica_pid_recovered",
+                        replica,
+                        detail=f"requested_pid={requested_pid},effective_pid={effective_pid}",
+                    )
+                    replica.pid = effective_pid
                 self.log.write("bootstrap_ready", replica)
                 return
             time.sleep(0.5)
@@ -561,7 +603,11 @@ class Controller:
         replica.live = False
         self.log.write("process_stopped", replica)
         if retire_durability and self.durable_recovery:
-            self.ssh(replica.vm, f"rm -f {shlex.quote(self.durability_path(replica))}", check=False)
+            journal_files = " ".join(
+                shlex.quote(path)
+                for path in durability_journal_files(self.durability_path(replica))
+            )
+            self.ssh(replica.vm, f"rm -f {journal_files}", check=False)
             self.log.write("durability_journal_retired", replica)
         self.progress(f"stopped {replica.name}")
 

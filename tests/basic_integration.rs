@@ -1,17 +1,10 @@
 mod harness;
 
-use gresse::dots::{DotSet, VersionMatrix};
 use gresse::orset::{ORSet, OrSetMeta, OrSetMutation, OrSetQuery, OrSetResponse};
 use gresse::prelude::ServerAddr;
 use harness::{FilesystemHarness, MinioHarness, ReplicaTimingConfig};
 use serial_test::serial;
 use std::time::Duration;
-
-#[test]
-fn integration_test_harness_runs() {
-    let stable = VersionMatrix::new().get_stable();
-    assert_eq!(stable, DotSet::new());
-}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
@@ -57,6 +50,57 @@ async fn replica_bootstraps_against_local_filesystem_directory() {
         .await;
 
     harness.wait_for_bootstrap(Duration::from_secs(10)).await;
+    replica.shutdown().await;
+    harness.cleanup().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
+async fn single_replica_gc_progresses_without_replication_writers() {
+    let harness = FilesystemHarness::new().await;
+    let timing = ReplicaTimingConfig {
+        sync_interval: Duration::from_millis(100),
+        discovery_interval: Duration::from_millis(100),
+        gc_interval: Duration::from_millis(200),
+    };
+    let replica = harness
+        .spawn_replica_with_timing(
+            1,
+            ServerAddr {
+                ip: "127.0.0.1"
+                    .parse()
+                    .expect("failed to parse loopback address"),
+                http_port: 19190,
+                internal_port: 18180,
+            },
+            ORSet::<String>::new(),
+            timing,
+        )
+        .await;
+
+    harness.wait_for_bootstrap(Duration::from_secs(10)).await;
+    assert_eq!(
+        replica
+            .mutate(OrSetMutation::Insert("apple".to_string()))
+            .await,
+        Ok(OrSetResponse::Acknowledged)
+    );
+
+    let expected = OrSetResponse::Meta(OrSetMeta {
+        entry_count: 1,
+        delta_log_count: 0,
+    });
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            if replica.query(OrSetQuery::Meta).await == Ok(expected.clone()) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for single-replica GC progress");
+
     replica.shutdown().await;
     harness.cleanup().await;
 }

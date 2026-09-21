@@ -2,11 +2,116 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{error::Error, fmt::Debug};
 
 use crate::{
-    dots::{Dot, DotSet},
+    dots::{Counter, Dot, DotSet, VersionMatrix},
     prelude::Pid,
 };
 
-pub type Epoch = u64;
+pub(crate) const STABLE_REPLICA_PID: Pid = 0;
+const INITIAL_GC_COUNTER: Counter = 0;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CRDTWrapper {
+    pub(crate) version_matrix: VersionMatrix,
+    gc_markers: Vec<GcMarker>,
+}
+
+impl CRDTWrapper {
+    pub(crate) fn new(own_pid: Pid) -> Self {
+        CRDTWrapper {
+            version_matrix: VersionMatrix::new(own_pid),
+            gc_markers: Vec::new(),
+        }
+    }
+
+    pub(crate) fn current_gc_marker(&self) -> Dot {
+        self.gc_markers
+            .last()
+            .map(|gc_marker| gc_marker.marker)
+            .unwrap_or(Dot {
+                pid: STABLE_REPLICA_PID,
+                counter: INITIAL_GC_COUNTER,
+            })
+    }
+
+    pub(crate) fn last_stable(&self) -> Option<&DotSet> {
+        self.gc_markers.last().map(|gc_marker| &gc_marker.stable)
+    }
+
+    pub(crate) fn own_pid(&self) -> Pid {
+        self.version_matrix.own_pid()
+    }
+
+    pub(crate) fn update_own_version_vector(&mut self, mut version_vector: DotSet) -> DotSet {
+        version_vector.set_counter(STABLE_REPLICA_PID, self.current_gc_marker().counter);
+        self.version_matrix
+            .update(self.own_pid(), version_vector.clone());
+        version_vector
+    }
+
+    pub(crate) fn rebind_own_pid(&mut self, pid: Pid, mut version_vector: DotSet) {
+        version_vector.set_counter(STABLE_REPLICA_PID, self.current_gc_marker().counter);
+        self.version_matrix.rebind_own_pid(pid, version_vector);
+    }
+
+    pub(crate) fn observe_active_replica(&mut self, pid: Pid, gc_counter: Counter) {
+        if pid != self.own_pid() {
+            self.version_matrix.insert_pid(pid, gc_counter);
+        }
+    }
+
+    pub(crate) fn should_fetch_departed_replica(&self, final_dot: Dot) -> bool {
+        !self.version_matrix.contains_final_dot(final_dot)
+    }
+
+    pub(crate) fn observe_departed_replica(&mut self, final_dot: Dot) {
+        self.version_matrix.insert_final_dot(final_dot);
+    }
+
+    pub(crate) fn needs_gc(&self) -> bool {
+        let (now_stable, departed_pids) = self.version_matrix.get_stable();
+        now_stable
+            .as_ref()
+            .is_some_and(|stable| self.last_stable() != Some(stable))
+            || departed_pids.is_some()
+    }
+
+    pub(crate) fn push_gc_marker(&mut self, marker: GcMarker) {
+        self.version_matrix.apply_gc_marker(
+            &marker.stable,
+            &marker.departed_pids,
+            marker.marker.counter,
+        );
+        self.gc_markers.push(marker);
+    }
+
+    pub(crate) fn gc_metadata(&self) -> GcMarker {
+        self.gc_markers.last().cloned().unwrap_or_else(|| GcMarker {
+            marker: self.current_gc_marker(),
+            stable: self.version_matrix.get_stable().0.unwrap_or_default(),
+            departed_pids: None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PersistentReplica<T> {
+    pub(crate) local_state: T,
+    pub(crate) crdt_wrapper: CRDTWrapper,
+}
+
+impl<T: CRDT> PersistentReplica<T> {
+    /// Assigns a fresh identity to state used to bootstrap a new replica.
+    ///
+    /// Object-storage state carries the identity of whichever replica wrote
+    /// it, but that identity is not authoritative for a new replica. Local
+    /// journal recovery deliberately does not call this method because the
+    /// journal's identity must be retained.
+    pub(crate) fn rebind_own_pid(&mut self, pid: Pid) {
+        self.local_state.set_pid(pid);
+        let local_version_vector = self.local_state.get_version_vector().clone();
+        self.crdt_wrapper.rebind_own_pid(pid, local_version_vector);
+    }
+}
 
 pub trait CRDTData: Serialize + DeserializeOwned + Send + Sync + Clone + Debug {}
 
@@ -70,7 +175,7 @@ pub struct GcMarker {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReplicaMessage<T: CRDT + Debug + Clone> {
-    DeltaGroup(DeltaGroup<T::Delta, T::SideEffects>, Option<GcMarker>, u128),
+    DeltaGroup(DeltaGroup<T::Delta, T::SideEffects>, GcMarker, u128),
     VersionVector(Pid, DotSet, u128),
 }
 
@@ -79,4 +184,41 @@ pub enum ReplicaMessage<T: CRDT + Debug + Clone> {
 pub enum CRDTClientRequest<T: CRDT + Debug + Clone> {
     Mutation(T::Mutation),
     Query(T::Query),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CRDTWrapper, GcMarker, STABLE_REPLICA_PID};
+    use crate::dots::{Dot, DotSet};
+
+    #[test]
+    fn outgoing_version_vectors_include_current_gc_marker() {
+        let mut wrapper = CRDTWrapper::new(7);
+        let mut local = DotSet::new();
+        local.set_counter(7, 3);
+
+        let outgoing = wrapper.update_own_version_vector(local);
+        assert_eq!(outgoing.counter(&STABLE_REPLICA_PID), Some(0));
+
+        wrapper.push_gc_marker(GcMarker {
+            marker: Dot {
+                pid: STABLE_REPLICA_PID,
+                counter: 1,
+            },
+            stable: outgoing,
+            departed_pids: None,
+        });
+        let outgoing = wrapper.update_own_version_vector(DotSet::new());
+        assert_eq!(outgoing.counter(&STABLE_REPLICA_PID), Some(1));
+    }
+
+    #[test]
+    fn delta_metadata_always_has_an_initial_gc_marker() {
+        let wrapper = CRDTWrapper::new(7);
+        let metadata = wrapper.gc_metadata();
+
+        assert_eq!(metadata.marker.pid, STABLE_REPLICA_PID);
+        assert_eq!(metadata.marker.counter, 0);
+        assert_eq!(metadata.departed_pids, None);
+    }
 }

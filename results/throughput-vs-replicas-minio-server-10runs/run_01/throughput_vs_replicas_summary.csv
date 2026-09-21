@@ -1,9 +1,0 @@
-replicas,clients_per_replica,stable_window_seconds,combined_stable_throughput_ops_per_sec,average_replica_stable_throughput_ops_per_sec,min_replica_stable_throughput_ops_per_sec,max_replica_stable_throughput_ops_per_sec,run_dir
-1,8,60.430338,427.43431287774695,427.43431287774695,427.43431287774695,427.43431287774695,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_1
-2,8,61.934481,592.14187973901,296.070939869505,257.9661562030366,334.1757235359735,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_2
-3,8,63.459267,689.37134114707,229.79044704902333,196.70885892835796,281.48765096829754,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_3
-4,8,65.247367,745.087537402084,186.27188435052102,161.7076747326831,239.88707467689846,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_4
-5,8,66.604821,878.2097019673696,175.64194039347393,161.82011809625612,196.7425150801021,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_5
-6,8,67.79691,898.6102758960549,149.76837931600917,138.97388538799188,159.3287953684025,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_6
-7,8,70.654991,927.7617769422687,132.53739670603838,120.45858161669004,138.32002328045021,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_7
-8,8,71.724673,985.8811067706089,123.2351383463261,120.13996912889377,127.26443521046099,/home/adamhass/Gresse/results/throughput-vs-replicas-minio-server-10runs/run_01/replicas_8

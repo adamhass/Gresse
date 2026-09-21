@@ -1,0 +1,1135 @@
+{
+  "version": 1,
+  "run_id": "acm-sec-geo-churn-20260903T091329Z-d96b4f84",
+  "run_label": "acm-sec-geo-churn",
+  "pid_base": 178842683956181200,
+  "vm": {
+    "name": "frankfurt",
+    "region": "eu-central-1",
+    "bind_ip": "0.0.0.0",
+    "advertise_ip": "52.59.198.67",
+    "binary_path": "/home/ec2-user/gresse/orset_bench_replica",
+    "remote_root": "/home/ec2-user/gresse-runs",
+    "http_port_base": 18080,
+    "internal_port_base": 19080
+  },
+  "settings": {
+    "duration_seconds": 10800,
+    "bucket": "gresse-geo-035351467464-20260903085118-6fb999",
+    "s3_region": "eu-north-1",
+    "replicas_per_vm": 5,
+    "sync_interval_ms": 1000,
+    "discovery_interval_ms": 5000,
+    "gc_interval_ms": 60000,
+    "workload_rate_per_server": 10.0,
+    "workload_value_domain_size": 1000,
+    "snapshot_interval_seconds": 30,
+    "final_convergence_seconds": 120,
+    "startup_timeout_seconds": 60,
+    "process_stop_timeout_seconds": 20,
+    "membership_settle_seconds": 30,
+    "durable_recovery": true
+  },
+  "events": [
+    {
+      "at_seconds": 60.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 120.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 180.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 180.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 180.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 180.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 240.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 240.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 240.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 240.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 660.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 660.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 660.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 660.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 660.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 720.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 720.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 720.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 720.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 720.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1140.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1140.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1140.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1140.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1140.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1200.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1200.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1200.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1200.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1200.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1620.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1620.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1620.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1620.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1680.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 1680.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 1680.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 1680.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 1740.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 1800.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2100.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2100.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2100.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2160.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2160.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2160.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2220.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2220.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2280.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2280.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2580.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2580.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2640.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 2640.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 2700.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2700.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2700.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 2760.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 2760.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 2760.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3060.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3120.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3180.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3180.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3180.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3180.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3240.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3240.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3240.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3240.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3660.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3660.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3660.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3660.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3660.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 3720.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 3720.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 3720.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 3720.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 3720.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 4140.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 4140.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 4140.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 4140.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 4140.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 4200.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 4200.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 4200.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 4200.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 4200.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 4620.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 4620.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 4620.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 4620.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 4680.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 4680.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 4680.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 4680.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 4740.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 4800.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 5100.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 5100.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 5100.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 5160.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 5160.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 5160.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 5220.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 5220.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 5280.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 5280.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 5580.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 5580.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 5640.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 5640.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 5700.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 5700.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 5700.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 5760.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 5760.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 5760.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 6060.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 6120.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 6180.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 6180.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 6180.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 6180.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 6240.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 6240.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 6240.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 6240.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 6660.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 6660.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 6660.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 6660.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 6660.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 6720.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 6720.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 6720.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 6720.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 6720.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 7140.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 7140.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 7140.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 7140.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 7140.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 7200.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 7200.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 7200.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 7200.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 7200.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 7620.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 7620.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 7620.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 7620.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 7680.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 7680.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 7680.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 7680.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 7740.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 7800.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 8100.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 8100.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 8100.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 8160.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 8160.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 8160.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 8220.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 8220.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 8280.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 8280.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 8580.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 8580.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 8640.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 8640.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 8700.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 8700.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 8700.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 8760.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 8760.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 8760.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 9060.0,
+      "action": "crash",
+      "slot": 0
+    },
+    {
+      "at_seconds": 9120.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 9180.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 9180.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 9180.0,
+      "action": "graceful_stop",
+      "slot": 3
+    },
+    {
+      "at_seconds": 9180.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 9240.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 9240.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 9240.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 9240.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 9660.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 9660.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 9660.0,
+      "action": "graceful_stop",
+      "slot": 2
+    },
+    {
+      "at_seconds": 9660.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 9660.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 9720.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 9720.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 9720.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 9720.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 9720.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 10140.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 10140.0,
+      "action": "graceful_stop",
+      "slot": 1
+    },
+    {
+      "at_seconds": 10140.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 10140.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 10140.0,
+      "action": "crash",
+      "slot": 4
+    },
+    {
+      "at_seconds": 10200.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 10200.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 10200.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 10200.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 10200.0,
+      "action": "spawn",
+      "slot": 4
+    },
+    {
+      "at_seconds": 10620.0,
+      "action": "graceful_stop",
+      "slot": 0
+    },
+    {
+      "at_seconds": 10620.0,
+      "action": "crash",
+      "slot": 1
+    },
+    {
+      "at_seconds": 10620.0,
+      "action": "crash",
+      "slot": 2
+    },
+    {
+      "at_seconds": 10620.0,
+      "action": "crash",
+      "slot": 3
+    },
+    {
+      "at_seconds": 10680.0,
+      "action": "spawn",
+      "slot": 0
+    },
+    {
+      "at_seconds": 10680.0,
+      "action": "spawn",
+      "slot": 1
+    },
+    {
+      "at_seconds": 10680.0,
+      "action": "spawn",
+      "slot": 2
+    },
+    {
+      "at_seconds": 10680.0,
+      "action": "spawn",
+      "slot": 3
+    },
+    {
+      "at_seconds": 10740.0,
+      "action": "graceful_stop",
+      "slot": 4
+    },
+    {
+      "at_seconds": 10800.0,
+      "action": "spawn",
+      "slot": 4
+    }
+  ]
+}

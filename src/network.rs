@@ -1,5 +1,6 @@
 use crate::dots::Counter;
 use crate::prelude::{Pid, ServerAddr};
+use crate::replica_helpers::ReplicaDescriptor;
 use log::{debug, info, warn};
 use rand::Rng;
 // use crate::prelude::*;
@@ -24,6 +25,45 @@ use tokio::{
 
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_CONNECTION_RETRY_BACKOFF: Duration = Duration::from_secs(30);
+
+/// Return one current, connectable descriptor per peer PID.
+///
+/// Membership descriptors are immutable and a replica publishes a new one
+/// whenever its GC marker changes. A final descriptor retires the entire PID.
+pub(crate) fn network_connection_candidates<'a>(
+    members: &'a [ReplicaDescriptor],
+    local_pid: Pid,
+    connected_pids: &HashSet<Pid>,
+) -> Vec<&'a ReplicaDescriptor> {
+    let shutdown_pids = members
+        .iter()
+        .filter(|descriptor| descriptor.is_shutdown())
+        .map(|descriptor| descriptor.pid)
+        .collect::<HashSet<_>>();
+    let mut newest_by_pid = HashMap::<Pid, &ReplicaDescriptor>::new();
+
+    for descriptor in members {
+        if descriptor.pid == local_pid
+            || descriptor.is_shutdown()
+            || shutdown_pids.contains(&descriptor.pid)
+            || connected_pids.contains(&descriptor.pid)
+        {
+            continue;
+        }
+        newest_by_pid
+            .entry(descriptor.pid)
+            .and_modify(|current| {
+                if descriptor.gc_counter > current.gc_counter {
+                    *current = descriptor;
+                }
+            })
+            .or_insert(descriptor);
+    }
+
+    let mut candidates = newest_by_pid.into_values().collect::<Vec<_>>();
+    candidates.sort_by_key(|descriptor| descriptor.pid);
+    candidates
+}
 
 struct EstablishedConnection<T> {
     peer_pid: Pid,

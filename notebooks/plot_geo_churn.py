@@ -193,6 +193,30 @@ def request_latency_dataframe(events: pd.DataFrame) -> pd.DataFrame:
     return result.loc[result["request_latency_us"].ge(0)].copy()
 
 
+def state_size_dataframe(data: ExperimentData) -> pd.DataFrame:
+    """Extract the serialized state size recorded after completed GC writes."""
+    replica = data.replicas
+    event = replica.get("event", pd.Series(index=replica.index, dtype="object"))
+    phase = replica.get("phase", pd.Series(index=replica.index, dtype="object"))
+    frame = replica.loc[
+        event.eq("gc_persistent_state_write") & phase.eq("completed")
+    ].copy()
+    if frame.empty or "detail" not in frame:
+        return pd.DataFrame(columns=[
+            "experiment_time_s", "replica_pid", "gc_marker", "state_bytes", "state_mib"
+        ])
+
+    frame["state_bytes"] = pd.to_numeric(
+        frame["detail"].astype("string").str.extract(r"state_bytes=(\d+)", expand=False),
+        errors="coerce",
+    )
+    frame = frame.dropna(subset=["experiment_time_s", "state_bytes"]).copy()
+    frame["state_mib"] = frame["state_bytes"] / (1024 ** 2)
+    return frame.loc[:, [
+        "experiment_time_s", "replica_pid", "gc_marker", "state_bytes", "state_mib"
+    ]].sort_values("experiment_time_s")
+
+
 def scatter_latency(
     figure: matplotlib.figure.Figure,
     dataframe: pd.DataFrame,
@@ -342,7 +366,7 @@ def plot_replication_rate(figure: matplotlib.figure.Figure, dataframe: pd.DataFr
 
 
 def system_latency_dataframe(data: ExperimentData) -> pd.DataFrame:
-    """Build P2P, initialization/recovery, and completed-GC latency samples.
+    """Build P2P, initialization/recovery, and GC-attempt latency samples.
 
     A pull request does not currently carry a request identifier.  P2P samples
     therefore pair each pull with the next local delta merge for that replica.
@@ -394,31 +418,59 @@ def system_latency_dataframe(data: ExperimentData) -> pd.DataFrame:
             "latency_type": "Replica recovery" if recovered else "Replica initialization",
         })
 
-    # A GC marker is scoped to one replica trace.  Require one start and one
-    # final record for that key; duplicate or aborted rounds are ambiguous and
-    # must not silently overwrite each other in a dictionary lookup.
+    # A GC marker is scoped to one replica trace. Require one start and one
+    # terminal record for that key; duplicate attempts are ambiguous and must
+    # not silently overwrite each other in a dictionary lookup.
     gc_key = ["source_file", "replica_pid", "gc_marker"]
     starts = replica.loc[
         (replica["event"] == "gc_init") & (replica["phase"] == "start"),
+        [*gc_key, "timestamp_us"],
+    ].dropna(subset=[*gc_key, "timestamp_us"])
+    aborts = replica.loc[
+        (replica["event"] == "gc_init") & (replica["phase"] == "aborted"),
         [*gc_key, "timestamp_us"],
     ].dropna(subset=[*gc_key, "timestamp_us"])
     finals = replica.loc[
         (replica["event"] == "gc_finalize") & (replica["phase"] == "completed"),
         [*gc_key, "timestamp_us"],
     ].dropna(subset=[*gc_key, "timestamp_us"])
-    aborted = replica.loc[
-        (replica["event"] == "gc_init") & (replica["phase"] == "aborted"), gc_key
-    ].dropna(subset=gc_key)
     duplicate_keys = pd.concat([
         starts.loc[starts.duplicated(gc_key, keep=False), gc_key],
+        aborts.loc[aborts.duplicated(gc_key, keep=False), gc_key],
         finals.loc[finals.duplicated(gc_key, keep=False), gc_key],
     ], ignore_index=True).drop_duplicates()
-    excluded_keys = pd.concat([aborted, duplicate_keys], ignore_index=True).drop_duplicates()
-    if not excluded_keys.empty:
-        starts = starts.merge(excluded_keys.assign(_excluded=True), on=gc_key, how="left")
-        finals = finals.merge(excluded_keys.assign(_excluded=True), on=gc_key, how="left")
-        starts = starts.loc[starts["_excluded"].isna()].drop(columns="_excluded")
-        finals = finals.loc[finals["_excluded"].isna()].drop(columns="_excluded")
+    if not duplicate_keys.empty:
+        starts = starts.merge(duplicate_keys.assign(_duplicate=True), on=gc_key, how="left")
+        aborts = aborts.merge(duplicate_keys.assign(_duplicate=True), on=gc_key, how="left")
+        finals = finals.merge(duplicate_keys.assign(_duplicate=True), on=gc_key, how="left")
+        starts = starts.loc[starts["_duplicate"].isna()].drop(columns="_duplicate")
+        aborts = aborts.loc[aborts["_duplicate"].isna()].drop(columns="_duplicate")
+        finals = finals.loc[finals["_duplicate"].isna()].drop(columns="_duplicate")
+
+    cancelled = starts.merge(
+        aborts,
+        on=gc_key,
+        how="inner",
+        validate="one_to_one",
+        suffixes=("_start", "_aborted"),
+    )
+    cancelled = cancelled.loc[
+        cancelled["timestamp_us_aborted"] >= cancelled["timestamp_us_start"]
+    ]
+    for _, attempt in cancelled.iterrows():
+        samples.append({
+            "experiment_time_s": (attempt["timestamp_us_start"] - origin_us) / 1_000_000,
+            "latency_ms": (attempt["timestamp_us_aborted"] - attempt["timestamp_us_start"]) / 1_000,
+            "latency_type": "Cancelled GC attempt",
+        })
+
+    # A marker that aborted cannot also count as a completed GC round.
+    aborted_keys = aborts[gc_key].drop_duplicates()
+    if not aborted_keys.empty:
+        starts = starts.merge(aborted_keys.assign(_aborted=True), on=gc_key, how="left")
+        finals = finals.merge(aborted_keys.assign(_aborted=True), on=gc_key, how="left")
+        starts = starts.loc[starts["_aborted"].isna()].drop(columns="_aborted")
+        finals = finals.loc[finals["_aborted"].isna()].drop(columns="_aborted")
     rounds = starts.merge(finals, on=gc_key, how="inner", validate="one_to_one", suffixes=("_start", "_final"))
     rounds = rounds.loc[rounds["timestamp_us_final"] >= rounds["timestamp_us_start"]]
     for _, round_ in rounds.iterrows():

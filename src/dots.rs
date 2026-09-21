@@ -1,6 +1,10 @@
+use crate::crdt::STABLE_REPLICA_PID;
 use crate::prelude::Pid;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashMap};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 pub type Counter = i64;
 
@@ -82,6 +86,13 @@ impl DotSet {
         }
     }
 
+    fn pointwise_min(&mut self, other: &DotSet) {
+        let pids = self.pids().chain(other.pids()).collect::<HashSet<_>>();
+        for pid in pids {
+            self.set_counter(pid, *self.get(&pid).min(other.get(&pid)));
+        }
+    }
+
     pub fn set_counter(&mut self, pid: Pid, counter: Counter) {
         self.set.insert(pid, counter);
     }
@@ -121,7 +132,7 @@ impl DotSet {
     }
 
     pub fn get(&self, pid: &Pid) -> &Counter {
-        self.set.get(pid).unwrap_or(&0)
+        self.set.get(pid).unwrap_or(&-1)
     }
 
     /// Returns true iff self and other are concurrent
@@ -137,139 +148,383 @@ impl DotSet {
             false
         }
     }
+
+    pub fn gc_counter(&self) -> &Counter {
+        self.get(&STABLE_REPLICA_PID)
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionMatrix {
+    own_pid: Pid,
     matrix: HashMap<Pid, DotSet>,
-    final_dots: Vec<Dot>,
+    final_dots: HashMap<Pid, Counter>,
 }
 
 impl VersionMatrix {
-    pub fn new() -> Self {
+    pub fn new(own_pid: Pid) -> Self {
+        let mut matrix = HashMap::new();
+        let mut initial_vector = DotSet::new();
+        initial_vector.set_counter(own_pid, -1);
+        initial_vector.set_counter(STABLE_REPLICA_PID, -1);
+        matrix.insert(own_pid, initial_vector);
         Self {
-            matrix: HashMap::new(),
-            final_dots: Vec::new(),
+            own_pid,
+            matrix,
+            final_dots: HashMap::new(),
         }
     }
 
     pub fn update(&mut self, pid: Pid, version_vector: DotSet) {
+        if self.matrix.get(&self.own_pid).unwrap().gc_counter() <= version_vector.gc_counter() {
+            self.matrix.insert(pid, version_vector);
+        }
+    }
+
+    pub fn insert_pid(&mut self, pid: Pid, gc_counter: Counter) {
+        if pid == STABLE_REPLICA_PID {
+            return;
+        }
+
+        self.matrix.entry(pid).or_insert_with(|| {
+            let mut version_vector = DotSet::new();
+            version_vector.set_counter(pid, -1);
+            version_vector.set_counter(STABLE_REPLICA_PID, gc_counter);
+            version_vector
+        });
+    }
+
+    pub(crate) fn own_pid(&self) -> Pid {
+        self.own_pid
+    }
+
+    pub(crate) fn rebind_own_pid(&mut self, pid: Pid, version_vector: DotSet) {
+        self.own_pid = pid;
         self.matrix.insert(pid, version_vector);
     }
 
-    /// Returns a DotSet
-    pub fn get_stable(&self) -> DotSet {
-        let mut stable = DotSet::new();
-        for pid in self.pids() {
-            let counter = self
-                .matrix
-                .values()
-                .map(|version_vector| version_vector.counter(&pid).unwrap_or(-1))
-                .min()
-                .unwrap_or(-1);
-            stable.set_counter(pid, counter);
-        }
-        stable
+    pub fn own_gc_counter(&self) -> &Counter {
+        self.matrix
+            .get(&self.own_pid)
+            .unwrap()
+            .get(&STABLE_REPLICA_PID)
     }
 
-    fn pids(&self) -> impl Iterator<Item = Pid> + '_ {
-        let row_pids = self.matrix.keys().copied();
-        let column_pids = self
+    pub fn remove_pids(&mut self, pids: &Vec<Pid>) {
+        if let Some(stable_vv) = self.matrix.get(&STABLE_REPLICA_PID).cloned() {
+            for pid in pids {
+                if let Some(counter) = self.final_dots.get(pid) {
+                    let final_dot = Dot {
+                        pid: *pid,
+                        counter: *counter,
+                    };
+                    if !stable_vv.contains(&final_dot) {
+                        continue;
+                    }
+                }
+                self.matrix.remove(pid);
+                self.final_dots.remove(pid);
+                for version_vector in self.matrix.values_mut() {
+                    version_vector.set.remove(pid);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn apply_gc_marker(
+        &mut self,
+        stable: &DotSet,
+        departed_pids: &Option<Vec<Pid>>,
+        gc_counter: Counter,
+    ) {
+        if let Some(departed_pids) = departed_pids {
+            self.remove_pids(departed_pids);
+        }
+
+        let mut stable_vv = stable.clone();
+        stable_vv.set_counter(STABLE_REPLICA_PID, gc_counter);
+        self.matrix.insert(STABLE_REPLICA_PID, stable_vv);
+        self.matrix
+            .get_mut(&self.own_pid)
+            .expect("version matrix must contain its own row")
+            .set_counter(STABLE_REPLICA_PID, gc_counter);
+    }
+
+    /// Returns a DotSet and a list of departed_pids that can now be GC'd
+    pub fn get_stable(&self) -> (Option<DotSet>, Option<Vec<Pid>>) {
+        // 1. Determine which rows still participate in the stability computation.
+        // A shutdown replica i is excluded once *we* have observed its final dot.
+        let observer_rows = self.get_observer_rows();
+        if observer_rows.is_empty() {
+            return (None, None);
+        }
+
+        // 2. Compute the pointwise minimum across all remaining observer rows.
+        //
+        // IMPORTANT: missing entries must be interpreted as counter -1 because
+        // the first dot generated by a replica has counter 0.
+        //
+        // Start with one row, then lower every column according to every other row.
+        let mut stable = observer_rows[0].1.clone();
+
+        for (_, vv) in observer_rows.iter().skip(1) {
+            stable.pointwise_min(vv);
+        }
+
+        // A row can exist before its replica has generated a dot. Preserve
+        // those replica columns at -1, matching the old matrix semantics.
+        for (pid, _) in &observer_rows {
+            if stable.counter(pid).is_none() {
+                stable.set_counter(*pid, -1);
+            }
+        }
+
+        // 3. Determine which departed replicas can now be removed completely.
+        //
+        // The newly calculated frontier is not sufficient evidence: it must
+        // first complete a GC round and become the stable replica's version
+        // vector. This makes departure removal a two-phase operation.
+        let mut departed_pids = self
             .matrix
-            .values()
-            .flat_map(|version_vector| version_vector.pids());
-        row_pids.chain(column_pids)
+            .get(&STABLE_REPLICA_PID)
+            .map(|stable_vv| {
+                self.final_dots
+                    .iter()
+                    .filter_map(|(pid, final_counter)| {
+                        stable_vv
+                            .contains(&Dot {
+                                pid: *pid,
+                                counter: *final_counter,
+                            })
+                            .then_some(*pid)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        departed_pids.sort_unstable();
+
+        // 4. Their columns are no longer relevant and should not be returned
+        // as part of the stable frontier.
+        for pid in &departed_pids {
+            stable.remove_pid(*pid);
+        }
+
+        (
+            Some(stable),
+            (!departed_pids.is_empty()).then_some(departed_pids),
+        )
+    }
+
+    // Ignore pids that we have seen all mutations from.
+    fn get_observer_rows(&self) -> Vec<(Pid, &DotSet)> {
+        let own_vv = self.matrix.get(&self.own_pid).unwrap();
+        self.matrix
+            .iter()
+            .filter_map(|(pid, vv)| {
+                if *pid == STABLE_REPLICA_PID {
+                    return None;
+                }
+                let exclude = self.final_dots.get(pid).is_some_and(|final_counter| {
+                    own_vv.contains(&Dot {
+                        pid: *pid,
+                        counter: *final_counter,
+                    })
+                });
+                if exclude {
+                    None
+                } else {
+                    Some((*pid, vv))
+                }
+            })
+            .collect()
     }
 
     /// We must wait for final count for this Pid to stabilize before we can remove it completely
-    pub fn insert_final_dot(&mut self, final_dot: Dot) {
-        self.matrix
-            .entry(final_dot.pid)
-            .and_modify(|version_vector| {
-                version_vector.set_counter(final_dot.pid, final_dot.counter)
-            })
-            .or_insert_with(|| {
-                let mut version_vector = DotSet::new();
-                version_vector.set_counter(final_dot.pid, final_dot.counter);
-                version_vector
-            });
-
-        if !self.final_dots.contains(&final_dot) {
-            self.final_dots.push(final_dot);
-        }
+    pub fn insert_final_dot(&mut self, dot: Dot) {
+        let _ = self.final_dots.insert(dot.pid, dot.counter);
     }
 
     /// Returns whether this exact departed-replica marker has already been
     /// observed.  Callers use this to avoid reprocessing the immutable
     /// shutdown payload on every membership-directory poll.
-    pub fn contains_final_dot(&self, final_dot: Dot) -> bool {
-        self.final_dots.contains(&final_dot)
-    }
-
-    /// Cleans up any "final dots" and returns a Vec of Pid's that can be GC'd
-    pub fn garbage_collect(&mut self, version_vector: &DotSet) -> Option<Vec<Pid>> {
-        if self.final_dots.is_empty() {
-            return None;
-        }
-
-        let filtered_matrix = self.filtered_matrix();
-        let filtered_stable = filtered_matrix.get_stable();
-        let dots_to_remove = self
-            .final_dots
-            .iter()
-            .copied()
-            .filter(|final_dot| {
-                version_vector.contains(final_dot) && filtered_stable.contains(final_dot)
-            })
-            .collect::<Vec<_>>();
-
-        if dots_to_remove.is_empty() {
-            return None;
-        }
-
-        self.final_dots.retain(|dot| !dots_to_remove.contains(dot));
-
-        for dot in &dots_to_remove {
-            self.matrix.remove(&dot.pid);
-            for version_vector in self.matrix.values_mut() {
-                version_vector.set.remove(&dot.pid);
-            }
-        }
-        Some(dots_to_remove.iter().map(|dot| dot.pid).collect())
-    }
-
-    pub fn remove_pids(&mut self, pids: &Vec<Pid>) {
-        for pid in pids {
-            self.matrix.remove(pid);
-            for version_vector in self.matrix.values_mut() {
-                version_vector.set.remove(pid);
-            }
-        }
-    }
-
-    fn filtered_matrix(&self) -> VersionMatrix {
-        let final_pids = self
-            .final_dots
-            .iter()
-            .map(|dot| dot.pid)
-            .collect::<Vec<_>>();
-        let matrix = self
-            .matrix
-            .iter()
-            .filter(|(pid, _)| !final_pids.contains(pid))
-            .map(|(pid, version_vector)| (*pid, version_vector.clone()))
-            .collect();
-
-        VersionMatrix {
-            matrix,
-            final_dots: Vec::new(),
-        }
+    pub fn contains_final_dot(&self, dot: Dot) -> bool {
+        self.final_dots.get(&dot.pid) == Some(&dot.counter)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Dot, VersionMatrix};
+    use super::{Counter, Dot, DotSet, Pid, VersionMatrix, STABLE_REPLICA_PID};
+
+    fn dot_set(entries: &[(Pid, Counter)]) -> DotSet {
+        let mut dots = DotSet::new();
+        for (pid, counter) in entries {
+            dots.set_counter(*pid, *counter);
+        }
+        dots
+    }
+
+    fn apply_gc(
+        matrix: &mut VersionMatrix,
+        stable: DotSet,
+        departed_pids: Option<Vec<Pid>>,
+        gc_counter: Counter,
+    ) {
+        matrix.apply_gc_marker(&stable, &departed_pids, gc_counter);
+    }
+
+    #[test]
+    fn stable_is_the_pointwise_minimum_and_missing_means_unseen() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.update(1, dot_set(&[(1, 4), (2, 2)]));
+        matrix.update(2, dot_set(&[(1, 3)]));
+
+        let (stable, departed) = matrix.get_stable();
+        let stable = stable.expect("matrix has observer rows");
+
+        assert_eq!(stable.counter(&1), Some(3));
+        assert_eq!(stable.counter(&2), Some(-1));
+        assert_eq!(departed, None);
+    }
+
+    #[test]
+    fn discovered_replica_starts_with_a_conservative_row() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.insert_pid(2, 0);
+
+        let discovered = matrix.matrix.get(&2).expect("discovered replica row");
+        assert_eq!(discovered.counter(&2), Some(-1));
+        assert_eq!(discovered.counter(&STABLE_REPLICA_PID), Some(0));
+
+        let observed = dot_set(&[(STABLE_REPLICA_PID, 0), (1, 3), (2, 2)]);
+        matrix.update(2, observed.clone());
+        matrix.insert_pid(2, 0);
+        assert_eq!(matrix.matrix.get(&2), Some(&observed));
+    }
+
+    #[test]
+    fn applying_gc_marker_advances_own_epoch_and_rejects_stale_rows() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.update(1, dot_set(&[(STABLE_REPLICA_PID, 0), (1, 2)]));
+        matrix.update(2, dot_set(&[(STABLE_REPLICA_PID, 0), (1, 1), (2, 1)]));
+        let stable = matrix.get_stable().0.expect("stable frontier");
+
+        matrix.apply_gc_marker(&stable, &None, 1);
+        assert_eq!(
+            matrix
+                .matrix
+                .get(&1)
+                .expect("own row")
+                .counter(&STABLE_REPLICA_PID),
+            Some(1)
+        );
+
+        matrix.update(2, dot_set(&[(STABLE_REPLICA_PID, 0), (1, 2), (2, 2)]));
+        assert_eq!(
+            matrix.matrix.get(&2).expect("peer row").counter(&2),
+            Some(1)
+        );
+        matrix.update(2, dot_set(&[(STABLE_REPLICA_PID, 1), (1, 2), (2, 2)]));
+        assert_eq!(
+            matrix.matrix.get(&2).expect("peer row").counter(&2),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn departed_row_stops_blocking_other_columns_after_local_final_dot() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.update(1, dot_set(&[(1, 4), (2, 5), (3, 2)]));
+        matrix.update(2, dot_set(&[(1, 1), (2, 5)]));
+        matrix.update(3, dot_set(&[(1, 3), (2, 4), (3, 2)]));
+        matrix.insert_final_dot(Dot { pid: 2, counter: 5 });
+
+        let (stable, departed) = matrix.get_stable();
+        let stable = stable.expect("matrix has observer rows");
+        assert_eq!(stable.counter(&1), Some(3));
+        assert_eq!(stable.counter(&2), Some(4));
+        assert_eq!(departed, None);
+
+        matrix.update(3, dot_set(&[(1, 3), (2, 5), (3, 2)]));
+        let (stable, departed) = matrix.get_stable();
+        let stable = stable.expect("matrix has observer rows");
+        assert_eq!(stable.counter(&1), Some(3));
+        assert_eq!(stable.counter(&2), Some(5));
+        assert_eq!(departed, None);
+    }
+
+    #[test]
+    fn removed_departure_is_not_reported_again() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.update(1, dot_set(&[(STABLE_REPLICA_PID, 0), (1, 0), (2, -1)]));
+        matrix.insert_final_dot(Dot {
+            pid: 2,
+            counter: -1,
+        });
+
+        // A missing entry defaults to -1 for frontier calculations, but that
+        // does not mean the stable replica has explicitly observed this dot.
+        assert_eq!(matrix.get_stable().1, None);
+        matrix.update(
+            STABLE_REPLICA_PID,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 0)]),
+        );
+        assert_eq!(matrix.get_stable().1, None);
+
+        matrix.update(
+            STABLE_REPLICA_PID,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 0), (2, -1)]),
+        );
+        assert_eq!(matrix.get_stable().1, Some(vec![2]));
+        matrix.remove_pids(&vec![2]);
+        assert_eq!(matrix.get_stable().1, None);
+    }
+
+    #[test]
+    fn stable_frontier_progresses_across_two_gc_rounds_before_removing_departure() {
+        let mut matrix = VersionMatrix::new(1);
+        matrix.update(
+            1,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 4), (2, 5), (3, 2)]),
+        );
+        matrix.update(
+            2,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 1), (2, 5), (3, 0)]),
+        );
+        matrix.update(
+            3,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 3), (2, 5), (3, 2)]),
+        );
+        matrix.update(
+            STABLE_REPLICA_PID,
+            dot_set(&[(STABLE_REPLICA_PID, 0), (1, 1), (2, 4), (3, 0)]),
+        );
+        matrix.insert_final_dot(Dot { pid: 2, counter: 5 });
+
+        // The current frontier covers replica 2's final dot and advances past
+        // the older stable frontier, but removal must wait for one GC round.
+        let (first_stable, first_departed) = matrix.get_stable();
+        let first_stable = first_stable.expect("matrix has observer rows");
+        assert_eq!(first_stable.counter(&1), Some(3));
+        assert_eq!(first_stable.counter(&2), Some(5));
+        assert_eq!(first_stable.counter(&3), Some(2));
+        assert_eq!(first_departed, None);
+        apply_gc(&mut matrix, first_stable, first_departed, 1);
+
+        // Once the first frontier is installed as the stable replica's row,
+        // the next round can announce and remove the departed replica.
+        let (second_stable, second_departed) = matrix.get_stable();
+        let second_stable = second_stable.expect("matrix has observer rows");
+        assert_eq!(second_stable.counter(&1), Some(3));
+        assert_eq!(second_stable.counter(&2), None);
+        assert_eq!(second_stable.counter(&3), Some(2));
+        assert_eq!(second_departed, Some(vec![2]));
+        apply_gc(&mut matrix, second_stable.clone(), second_departed, 2);
+
+        let (settled_stable, settled_departed) = matrix.get_stable();
+        assert_eq!(settled_stable, Some(second_stable));
+        assert_eq!(settled_departed, None);
+    }
 
     #[test]
     fn tracks_final_dots_for_idempotent_shutdown_processing() {
@@ -277,7 +532,7 @@ mod tests {
             pid: 42,
             counter: 17,
         };
-        let mut matrix = VersionMatrix::new();
+        let mut matrix = VersionMatrix::new(0);
 
         assert!(!matrix.contains_final_dot(final_dot));
         matrix.insert_final_dot(final_dot);

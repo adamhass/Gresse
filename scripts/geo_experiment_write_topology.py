@@ -40,7 +40,7 @@ def main() -> int:
     # three others. At the following even minute, start three fresh replicas
     # and recover the three crashed replicas. Rotate across all VM/slot pairs
     # so the five-region topology experiences balanced churn.
-    duration_seconds = 60 * 60
+    duration_seconds = 3 * 60 * 60
     events = []
     slots = [(name, slot) for name, _, _ in records for slot in range(5)]
     for wave, stop_time in enumerate(range(60, duration_seconds, 120)):

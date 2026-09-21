@@ -19,8 +19,11 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
+use crate::prelude::now_micros;
 use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 
 const SLOW_DOWNLOAD_THRESHOLD: Duration = Duration::from_secs(1);
 const OBJECT_STORE_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -29,18 +32,29 @@ const OBJECT_STORE_RETRY_TIMEOUT: Duration = Duration::from_secs(30);
 const OBJECT_STORE_OPERATION_TIMEOUT: Duration = Duration::from_secs(45);
 const OBJECT_STORE_MAX_RETRIES: usize = 2;
 
+pub(crate) struct MembershipPollResult {
+    pub(crate) start_us: u128,
+    pub(crate) end_us: u128,
+    pub(crate) members: Result<Vec<ReplicaDescriptor>, String>,
+}
+
 pub struct ObjectStorageClient {
     store: Arc<dyn ObjectStore>,
     backend: StorageBackend,
     persistent_replica_path: String,
     membership_directory_path: String,
     membership_descriptors: RwLock<Vec<ReplicaDescriptor>>,
+    membership_poll_in_flight: AtomicBool,
+    membership_poll_sender: UnboundedSender<MembershipPollResult>,
+    membership_poll_receiver: Mutex<UnboundedReceiver<MembershipPollResult>>,
+    membership_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     connection_logged: AtomicBool,
 }
 
 impl ObjectStorageClient {
     pub fn new(config: ObjectStorageConfig) -> Result<Self, ObjectStorageError> {
         let backend = StorageBackend::from_config(&config)?;
+        let (membership_poll_sender, membership_poll_receiver) = unbounded_channel();
 
         Ok(ObjectStorageClient {
             store: backend.store(),
@@ -48,23 +62,20 @@ impl ObjectStorageClient {
             persistent_replica_path: config.persistent_replica_path,
             membership_directory_path: config.membership_directory_path,
             membership_descriptors: RwLock::new(Vec::new()),
+            membership_poll_in_flight: AtomicBool::new(false),
+            membership_poll_sender,
+            membership_poll_receiver: Mutex::new(membership_poll_receiver),
+            membership_poll_task: Mutex::new(None),
             connection_logged: AtomicBool::new(false),
         })
     }
 
-    /// Reads the persistent replica and preserves the exact JSON bytes that
-    /// were fetched.  Startup uses those bytes to seed its local durability
-    /// journal without cloning and serializing the recovered state again.
-    pub async fn read_persistent_replica_with_serialized_data<T: for<'de> Deserialize<'de>>(
+    /// Reads state used to bootstrap a replica from object storage.
+    pub async fn read_persistent_replica<T: for<'de> Deserialize<'de>>(
         &self,
-    ) -> Result<Option<(T, Vec<u8>)>, ObjectStorageError> {
-        match self
-            .download_data_with_serialized_data(&self.persistent_replica_path)
-            .await
-        {
-            Ok((persistent_crdt, serialized_data, _)) => {
-                Ok(Some((persistent_crdt, serialized_data)))
-            }
+    ) -> Result<Option<T>, ObjectStorageError> {
+        match self.download_data(&self.persistent_replica_path).await {
+            Ok((persistent_crdt, _)) => Ok(Some(persistent_crdt)),
             Err(ObjectStorageError::FileNotFound) => Ok(None),
             Err(error) => Err(error),
         }
@@ -75,6 +86,14 @@ impl ObjectStorageClient {
         crdt: &T,
     ) -> Result<(), ObjectStorageError> {
         self.upload_data(&self.persistent_replica_path, crdt).await
+    }
+
+    pub(crate) async fn write_persistent_replica_with_size<T: Serialize>(
+        &self,
+        crdt: &T,
+    ) -> Result<usize, ObjectStorageError> {
+        self.upload_data_with_size(&self.persistent_replica_path, crdt)
+            .await
     }
 
     pub async fn write_membership_descriptor(
@@ -168,6 +187,53 @@ impl ObjectStorageClient {
         *self.membership_descriptors.write().await = membership_descriptors.clone();
     }
 
+    /// Begins a background membership listing unless the prior listing has not
+    /// yet been consumed. Keeping this lifecycle beside the storage client
+    /// prevents overlapping object-store reads from staleing its cache.
+    pub(crate) fn start_membership_poll(self: &Arc<Self>) {
+        if self.membership_poll_in_flight.swap(true, Ordering::AcqRel) {
+            log::debug!("skipped membership poll; previous poll is still in flight");
+            return;
+        }
+        let client = self.clone();
+        let result_sender = self.membership_poll_sender.clone();
+        let task = tokio::spawn(async move {
+            let start_us = now_micros();
+            let members = client
+                .fetch_membership_descriptors()
+                .await
+                .map_err(|error| error.to_string());
+            let end_us = now_micros();
+            let _ = result_sender.send(MembershipPollResult {
+                start_us,
+                end_us,
+                members,
+            });
+        });
+        *self
+            .membership_poll_task
+            .try_lock()
+            .expect("membership poll task lock unexpectedly held") = Some(task);
+    }
+
+    pub(crate) async fn recv_membership_poll(&self) -> Option<MembershipPollResult> {
+        self.membership_poll_receiver.lock().await.recv().await
+    }
+
+    pub(crate) async fn finish_membership_poll(&self) {
+        self.membership_poll_in_flight
+            .store(false, Ordering::Release);
+        self.membership_poll_task.lock().await.take();
+    }
+
+    pub(crate) async fn abort_membership_poll(&self) {
+        if let Some(task) = self.membership_poll_task.lock().await.take() {
+            task.abort();
+        }
+        self.membership_poll_in_flight
+            .store(false, Ordering::Release);
+    }
+
     #[allow(unused)]
     pub async fn membership_descriptors(&self) -> Vec<ReplicaDescriptor> {
         self.membership_descriptors.read().await.clone()
@@ -195,13 +261,24 @@ impl ObjectStorageClient {
         file_path: &str,
         data: &T,
     ) -> Result<(), ObjectStorageError> {
+        self.upload_data_with_size(file_path, data)
+            .await
+            .map(|_| ())
+    }
+
+    async fn upload_data_with_size<T: Serialize>(
+        &self,
+        file_path: &str,
+        data: &T,
+    ) -> Result<usize, ObjectStorageError> {
         let serialized_data = serde_json::to_string(data)?;
+        let serialized_bytes = serialized_data.len();
         let path = Path::from(file_path);
         let payload = PutPayload::from(serialized_data);
         self.with_operation_timeout("put", file_path, self.store.put(&path, payload))
             .await?;
         self.log_connection_established_once("put", file_path);
-        Ok(())
+        Ok(serialized_bytes)
     }
 
     pub async fn download_data<T: for<'de> Deserialize<'de>>(
@@ -653,7 +730,8 @@ pub enum ObjectStorageError {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_profile_file, resolve_profile_credentials, SharedProfileCredentials, StorageBackend,
+        parse_profile_file, resolve_profile_credentials, ObjectStorageClient,
+        SharedProfileCredentials, StorageBackend,
     };
     use crate::prelude::ObjectStorageConfig;
     use std::fs;
@@ -769,5 +847,34 @@ mod tests {
         if Path::new(&root).exists() {
             fs::remove_dir_all(root).expect("failed to clean up local backend root");
         }
+    }
+
+    #[tokio::test]
+    async fn persistent_replica_write_reports_uploaded_bytes() {
+        let root = std::env::temp_dir().join(format!(
+            "gresse-persistent-size-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock drifted before unix epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("failed to create local object store");
+        let config = ObjectStorageConfig {
+            local_dir: Some(root.clone()),
+            ..test_config()
+        };
+        let client = ObjectStorageClient::new(config).expect("failed to create storage client");
+
+        let state = vec!["alpha", "bravo", "café"];
+        let uploaded_bytes = client
+            .write_persistent_replica_with_size(&state)
+            .await
+            .expect("failed to write persistent state");
+        let stored_bytes = fs::metadata(root.join("experiment1/persistent.json"))
+            .expect("persistent state was not written")
+            .len();
+
+        assert_eq!(uploaded_bytes as u64, stored_bytes);
+        fs::remove_dir_all(root).expect("failed to clean up local object store");
     }
 }

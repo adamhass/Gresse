@@ -1,0 +1,1 @@
+{"completed_events": 140, "error": "RuntimeError: replica exited unexpectedly: paris-slot4-g15: status -9", "live_replicas": [], "run_id": "acm-sec-geo-churn-20260903T091329Z-d96b4f84", "start_epoch": 1788426898.0, "state": "failed", "total_events": 210, "updated_epoch": 1788434080.682282, "vm": "paris"}

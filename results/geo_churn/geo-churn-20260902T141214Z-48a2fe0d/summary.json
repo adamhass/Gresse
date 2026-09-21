@@ -1,0 +1,28 @@
+{
+  "availability": {
+    "expected_live": {
+      "requests": 171427,
+      "successful": 171367,
+      "success_rate": 0.9996499967916372
+    },
+    "intentionally_down": {
+      "requests": 0,
+      "successful": 0,
+      "success_rate": null
+    }
+  },
+  "lifecycle_events": {
+    "spawn_requested": 205,
+    "graceful_stop_requested": 115,
+    "crash_requested": 90
+  },
+  "recovery_to_first_success_us": {
+    "samples": 114,
+    "min": 160148,
+    "median": 1428374,
+    "max": 31525075
+  },
+  "state_snapshots": [],
+  "final_snapshot_converged": false,
+  "note": "GC completion and departed-membership cleanup are in the collected per-replica CSV traces, correlated by gc_marker."
+}

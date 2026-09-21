@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/ec2-user/gresse-runs/acm-sec-geo-churn-20260903T091329Z-d96b4f84/geo_churn_remote_agent.py", line 548, in <module>
+    sys.exit(main())
+  File "/home/ec2-user/gresse-runs/acm-sec-geo-churn-20260903T091329Z-d96b4f84/geo_churn_remote_agent.py", line 543, in main
+    agent.run()
+  File "/home/ec2-user/gresse-runs/acm-sec-geo-churn-20260903T091329Z-d96b4f84/geo_churn_remote_agent.py", line 484, in run
+    self.ensure_live_replicas_healthy()
+  File "/home/ec2-user/gresse-runs/acm-sec-geo-churn-20260903T091329Z-d96b4f84/geo_churn_remote_agent.py", line 327, in ensure_live_replicas_healthy
+    raise RuntimeError(f"replica exited unexpectedly: {replica.name}: status {returncode}")
+RuntimeError: replica exited unexpectedly: stockholm-slot2-g16: status -9
