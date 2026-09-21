@@ -5,7 +5,6 @@ pub mod http_client;
 pub(crate) mod http_server;
 pub(crate) mod journal;
 pub mod logging;
-pub(crate) mod metrics;
 pub(crate) mod network;
 pub(crate) mod object_storage;
 pub mod orset;
@@ -19,7 +18,6 @@ pub mod prelude {
     use std::net::SocketAddr;
     use std::path::PathBuf;
     use std::time::Duration;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     pub type Pid = u128;
 
@@ -93,13 +91,6 @@ pub mod prelude {
                 internal_port: 8080,
             }
         }
-    }
-
-    pub fn now_micros() -> u128 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_micros()
     }
 
     #[derive(Clone, Debug)]

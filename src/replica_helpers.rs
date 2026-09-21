@@ -1,12 +1,17 @@
 use crate::crdt::CRDT;
 use crate::dots::Counter;
 use crate::prelude::{ObjectStorageConfig, Pid, ServerAddr};
+use rand::Rng;
 use std::env;
 use std::fmt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
+use tokio::sync::oneshot;
+use tokio::time::{Instant, Interval};
+
+const DEFAULT_GC_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
 pub struct ReplicaConfig {
@@ -16,15 +21,14 @@ pub struct ReplicaConfig {
     /// but may differ when a replica binds `0.0.0.0` behind NAT or a tunnel.
     pub advertised_address: ServerAddr,
     pub sync_interval: Duration,
-    pub result_dir_path: PathBuf,
+    pub gc_interval: Duration,
     pub durability_path: Option<PathBuf>,
-    /// PID of the process this slot replaces, supplied by the lifecycle
-    /// controller.  It is used only after successful journal recovery.
-    pub recovered_predecessor_pid: Option<Pid>,
     pub object_storage_config: ObjectStorageConfig,
 }
 
 impl ReplicaConfig {
+    /// Load replica, storage, durability, synchronization, and GC settings
+    /// from the `GRESSE_*` environment variables documented in the README.
     pub fn from_env() -> Self {
         let durable = env_bool("GRESSE_DURABLE").unwrap_or(false);
         let address = ServerAddr::from_env();
@@ -39,19 +43,11 @@ impl ReplicaConfig {
         Self {
             address,
             advertised_address,
-            result_dir_path: env_path("GRESSE_RESULT_DIR_PATH"),
             durability_path: if durable {
                 Some(env_path("GRESSE_DURABILITY_PATH"))
             } else {
                 None
             },
-            recovered_predecessor_pid: env_optional_string("GRESSE_RECOVERED_PREDECESSOR_PID").map(
-                |value| {
-                    value
-                        .parse()
-                        .expect("GRESSE_RECOVERED_PREDECESSOR_PID must be an integer")
-                },
-            ),
             sync_interval: env::var("GRESSE_SYNC_INTERVAL_MS")
                 .ok()
                 .map(|value| {
@@ -62,7 +58,130 @@ impl ReplicaConfig {
                     )
                 })
                 .unwrap_or(Duration::from_secs(1)),
+            gc_interval: env::var("GRESSE_GC_INTERVAL_MS")
+                .ok()
+                .map(|value| {
+                    Duration::from_millis(
+                        value
+                            .parse()
+                            .expect("GRESSE_GC_INTERVAL_MS must be an integer"),
+                    )
+                })
+                .unwrap_or(DEFAULT_GC_INTERVAL),
             object_storage_config: object_storage_config_from_env(),
+        }
+    }
+}
+
+pub(crate) struct ReplicaRuntimeConfig {
+    /// Local listener address.
+    address: ServerAddr,
+    /// Routable listener address written to membership descriptors.
+    advertised_address: ServerAddr,
+    sync_interval: Duration,
+    gc_base_interval: Duration,
+    gc_interval: Interval,
+    membership_poll_interval: Interval,
+}
+
+impl ReplicaRuntimeConfig {
+    pub(crate) fn new(config: &ReplicaConfig) -> Self {
+        let gc_base_interval = config.gc_interval;
+        Self {
+            address: config.address,
+            advertised_address: config.advertised_address,
+            sync_interval: config.sync_interval,
+            gc_base_interval,
+            gc_interval: Self::interval(gc_base_interval),
+            membership_poll_interval: Self::interval(
+                config.object_storage_config.discovery_interval,
+            ),
+        }
+    }
+
+    fn interval(period: Duration) -> Interval {
+        tokio::time::interval_at(Instant::now() + period, period)
+    }
+
+    pub(crate) fn address(&self) -> ServerAddr {
+        self.address
+    }
+
+    pub(crate) fn advertised_address(&self) -> ServerAddr {
+        self.advertised_address
+    }
+
+    pub(crate) fn sync_interval(&self) -> Duration {
+        self.sync_interval
+    }
+
+    pub(crate) fn timers_mut(&mut self) -> (&mut Interval, &mut Interval) {
+        (&mut self.gc_interval, &mut self.membership_poll_interval)
+    }
+
+    pub(crate) fn reset_gc_interval(&mut self) {
+        self.gc_interval.reset();
+    }
+
+    pub(crate) fn reschedule_gc(&mut self, peer_count: usize) {
+        let replica_count = peer_count.saturating_add(1);
+        let base_nanos = self.gc_base_interval.as_nanos();
+        if base_nanos == 0 {
+            self.gc_interval = Self::interval(Duration::from_nanos(1));
+            return;
+        }
+
+        let jitter_nanos = base_nanos / replica_count as u128;
+        let lower_bound = base_nanos.saturating_sub(jitter_nanos).max(1);
+        let upper_bound = base_nanos.saturating_add(jitter_nanos).max(lower_bound + 1);
+        let interval_nanos = rand::rng().random_range(lower_bound..=upper_bound);
+        let interval_nanos = interval_nanos.min(u64::MAX as u128) as u64;
+
+        self.gc_interval = Self::interval(Duration::from_nanos(interval_nanos));
+    }
+}
+
+/// Coordinates the lifecycle signals for the replica and its child services.
+pub(crate) struct ReplicaLifecycle {
+    shutdown_receiver: Option<oneshot::Receiver<()>>,
+    http_shutdown_sender: Option<oneshot::Sender<()>>,
+    network_start_sender: Option<oneshot::Sender<()>>,
+    network_shutdown_sender: Option<oneshot::Sender<()>>,
+}
+
+impl ReplicaLifecycle {
+    pub(crate) fn new(
+        shutdown_receiver: oneshot::Receiver<()>,
+        http_shutdown_sender: oneshot::Sender<()>,
+        network_start_sender: oneshot::Sender<()>,
+        network_shutdown_sender: oneshot::Sender<()>,
+    ) -> Self {
+        Self {
+            shutdown_receiver: Some(shutdown_receiver),
+            http_shutdown_sender: Some(http_shutdown_sender),
+            network_start_sender: Some(network_start_sender),
+            network_shutdown_sender: Some(network_shutdown_sender),
+        }
+    }
+
+    pub(crate) fn start_network(&mut self) {
+        if let Some(sender) = self.network_start_sender.take() {
+            let _ = sender.send(());
+        }
+    }
+
+    pub(crate) fn take_shutdown_receiver(&mut self) -> oneshot::Receiver<()> {
+        self.shutdown_receiver
+            .take()
+            .expect("Failed to take shutdown receiver")
+    }
+
+    pub(crate) fn stop_services(&mut self) {
+        if let Some(sender) = self.http_shutdown_sender.take() {
+            let _ = sender.send(());
+        }
+        if let Some(sender) = self.network_shutdown_sender.take() {
+            let _ = sender.send(());
         }
     }
 }

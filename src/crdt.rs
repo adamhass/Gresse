@@ -175,8 +175,8 @@ pub struct GcMarker {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReplicaMessage<T: CRDT + Debug + Clone> {
-    DeltaGroup(DeltaGroup<T::Delta, T::SideEffects>, GcMarker, u128),
-    VersionVector(Pid, DotSet, u128),
+    DeltaGroup(DeltaGroup<T::Delta, T::SideEffects>, GcMarker),
+    VersionVector(Pid, DotSet),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

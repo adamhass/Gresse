@@ -28,7 +28,6 @@ pub struct FilesystemHarness {
     root_dir: PathBuf,
     persistent_replica_path: String,
     membership_directory_path: String,
-    result_dir: PathBuf,
 }
 
 pub struct MinioHarness {
@@ -36,7 +35,6 @@ pub struct MinioHarness {
     run_prefix: String,
     persistent_replica_path: String,
     membership_directory_path: String,
-    result_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,16 +64,12 @@ impl MinioHarness {
             .duration_since(UNIX_EPOCH)
             .expect("system clock drifted before unix epoch")
             .as_nanos();
-        let result_dir = std::env::temp_dir().join(format!("gresse-minio-test-{unique}"));
-        fs::create_dir_all(&result_dir).expect("failed to create test result directory");
-
         Some(Self {
             bucket: std::env::var("GRESSE_TEST_MINIO_BUCKET")
                 .unwrap_or_else(|_| DEFAULT_MINIO_BUCKET.to_string()),
             run_prefix: format!("test-runs/{unique}"),
             persistent_replica_path: format!("test-runs/{unique}/persistent.json"),
             membership_directory_path: format!("test-runs/{unique}/membership"),
-            result_dir,
         })
     }
 
@@ -106,14 +100,12 @@ impl MinioHarness {
             address,
             advertised_address: address,
             sync_interval: timing.sync_interval,
-            result_dir_path: self.result_dir.clone(),
+            gc_interval: timing.gc_interval,
             durability_path: None,
-            recovered_predecessor_pid: None,
             object_storage_config: self.object_storage_config(timing.discovery_interval),
         };
 
         let (mut replica, shutdown_sender) = Replica::with_config(pid, crdt, config).await;
-        replica.set_gc_interval(timing.gc_interval);
         let join_handle = tokio::spawn(async move {
             replica.run().await;
         });
@@ -196,10 +188,6 @@ impl MinioHarness {
                 .await
                 .expect("failed to delete test object from MinIO");
         }
-
-        if FsPath::new(&self.result_dir).exists() {
-            fs::remove_dir_all(&self.result_dir).expect("failed to remove test result directory");
-        }
     }
 
     fn object_storage_config(&self, discovery_interval: Duration) -> ObjectStorageConfig {
@@ -278,15 +266,12 @@ impl FilesystemHarness {
             .as_nanos();
         let test_root = repo_local_test_root();
         let root_dir = test_root.join(format!("filesystem-store-{unique}"));
-        let result_dir = test_root.join(format!("filesystem-results-{unique}"));
         fs::create_dir_all(&root_dir).expect("failed to create filesystem store root");
-        fs::create_dir_all(&result_dir).expect("failed to create test result directory");
 
         Self {
             root_dir,
             persistent_replica_path: "persistent.json".to_string(),
             membership_directory_path: "membership".to_string(),
-            result_dir,
         }
     }
 
@@ -317,14 +302,12 @@ impl FilesystemHarness {
             address,
             advertised_address: address,
             sync_interval: timing.sync_interval,
-            result_dir_path: self.result_dir.clone(),
+            gc_interval: timing.gc_interval,
             durability_path: None,
-            recovered_predecessor_pid: None,
             object_storage_config: self.object_storage_config(timing.discovery_interval),
         };
 
         let (mut replica, shutdown_sender) = Replica::with_config(pid, crdt, config).await;
-        replica.set_gc_interval(timing.gc_interval);
         let join_handle = tokio::spawn(async move {
             replica.run().await;
         });
@@ -391,9 +374,6 @@ impl FilesystemHarness {
     pub async fn cleanup(&self) {
         if FsPath::new(&self.root_dir).exists() {
             fs::remove_dir_all(&self.root_dir).expect("failed to remove filesystem store root");
-        }
-        if FsPath::new(&self.result_dir).exists() {
-            fs::remove_dir_all(&self.result_dir).expect("failed to remove test result directory");
         }
     }
 

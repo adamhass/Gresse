@@ -19,7 +19,6 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::RwLock;
 
-use crate::prelude::now_micros;
 use crate::prelude::ObjectStorageConfig;
 use crate::replica_helpers::ReplicaDescriptor;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -33,8 +32,6 @@ const OBJECT_STORE_OPERATION_TIMEOUT: Duration = Duration::from_secs(45);
 const OBJECT_STORE_MAX_RETRIES: usize = 2;
 
 pub(crate) struct MembershipPollResult {
-    pub(crate) start_us: u128,
-    pub(crate) end_us: u128,
     pub(crate) members: Result<Vec<ReplicaDescriptor>, String>,
 }
 
@@ -86,14 +83,6 @@ impl ObjectStorageClient {
         crdt: &T,
     ) -> Result<(), ObjectStorageError> {
         self.upload_data(&self.persistent_replica_path, crdt).await
-    }
-
-    pub(crate) async fn write_persistent_replica_with_size<T: Serialize>(
-        &self,
-        crdt: &T,
-    ) -> Result<usize, ObjectStorageError> {
-        self.upload_data_with_size(&self.persistent_replica_path, crdt)
-            .await
     }
 
     pub async fn write_membership_descriptor(
@@ -198,17 +187,11 @@ impl ObjectStorageClient {
         let client = self.clone();
         let result_sender = self.membership_poll_sender.clone();
         let task = tokio::spawn(async move {
-            let start_us = now_micros();
             let members = client
                 .fetch_membership_descriptors()
                 .await
                 .map_err(|error| error.to_string());
-            let end_us = now_micros();
-            let _ = result_sender.send(MembershipPollResult {
-                start_us,
-                end_us,
-                members,
-            });
+            let _ = result_sender.send(MembershipPollResult { members });
         });
         *self
             .membership_poll_task
@@ -730,8 +713,7 @@ pub enum ObjectStorageError {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_profile_file, resolve_profile_credentials, ObjectStorageClient,
-        SharedProfileCredentials, StorageBackend,
+        parse_profile_file, resolve_profile_credentials, SharedProfileCredentials, StorageBackend,
     };
     use crate::prelude::ObjectStorageConfig;
     use std::fs;
@@ -847,34 +829,5 @@ mod tests {
         if Path::new(&root).exists() {
             fs::remove_dir_all(root).expect("failed to clean up local backend root");
         }
-    }
-
-    #[tokio::test]
-    async fn persistent_replica_write_reports_uploaded_bytes() {
-        let root = std::env::temp_dir().join(format!(
-            "gresse-persistent-size-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("system clock drifted before unix epoch")
-                .as_nanos()
-        ));
-        fs::create_dir_all(&root).expect("failed to create local object store");
-        let config = ObjectStorageConfig {
-            local_dir: Some(root.clone()),
-            ..test_config()
-        };
-        let client = ObjectStorageClient::new(config).expect("failed to create storage client");
-
-        let state = vec!["alpha", "bravo", "café"];
-        let uploaded_bytes = client
-            .write_persistent_replica_with_size(&state)
-            .await
-            .expect("failed to write persistent state");
-        let stored_bytes = fs::metadata(root.join("experiment1/persistent.json"))
-            .expect("persistent state was not written")
-            .len();
-
-        assert_eq!(uploaded_bytes as u64, stored_bytes);
-        fs::remove_dir_all(root).expect("failed to clean up local object store");
     }
 }
