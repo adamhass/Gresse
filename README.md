@@ -4,6 +4,9 @@ Geo-replicated Stateful Serverless for the Edge.
 
 Gresse lets an application define its state as a custom CRDT, then run that CRDT as a replicated server. The application owns the data type and merge semantics. Gresse owns the replica runtime: HTTP client requests, peer-to-peer delta synchronization, membership discovery, and object-storage-backed bootstrap state.
 
+# SEC_2026 Branch
+Checkout the SEC_2026 branch to view all the results, experiments and code that were used for the SEC 2026 Paper.
+
 ## Usage
 
 Define a custom CRDT by implementing the `CRDT` trait:
