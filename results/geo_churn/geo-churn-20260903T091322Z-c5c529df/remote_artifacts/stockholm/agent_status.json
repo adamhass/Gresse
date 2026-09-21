@@ -1,0 +1,1 @@
+{"completed_events": 150, "error": "RuntimeError: replica exited unexpectedly: stockholm-slot2-g16: status -9", "live_replicas": [], "run_id": "acm-sec-geo-churn-20260903T091329Z-d96b4f84", "start_epoch": 1788426898.0, "state": "failed", "total_events": 220, "updated_epoch": 1788434115.2178543, "vm": "stockholm"}
