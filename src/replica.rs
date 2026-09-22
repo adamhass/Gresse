@@ -43,68 +43,54 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         crdt: T,
         config: ReplicaConfig,
     ) -> (Self, oneshot::Sender<()>) {
-        let durability_journal = Arc::new(
-            config
-                .durability_path
-                .clone()
-                .map(DiskJournal::new)
-                .transpose()
-                .unwrap_or_else(|error| panic!("Failed to initialize durability journal: {error}"))
-                .unwrap_or_else(DiskJournal::disabled),
-        );
+        let durability_journal = Arc::new(DiskJournal::open_or_disabled(
+            config.durability_path.clone(),
+        ));
         let recovered_replica = durability_journal
             .recover::<T>()
             .unwrap_or_else(|error| panic!("Failed to recover durable replica state: {error}"));
+        let recovered_from_durability = recovered_replica.is_some();
 
         // A durability journal belongs to one logical replica. Reuse that
         // replica's persisted identity instead of assigning a fresh PID after
         // process recovery.
         let pid = Self::effective_pid(pid, recovered_replica.as_ref());
-
-        let mut effective_crdt = recovered_replica
-            .as_ref()
-            .map(|replica| replica.local_state.clone())
-            .unwrap_or(crdt);
+        let (mut effective_crdt, mut crdt_wrapper) = match recovered_replica {
+            Some(recovered) => (recovered.local_state, recovered.crdt_wrapper),
+            None => (crdt, CRDTWrapper::new(pid)),
+        };
         effective_crdt.set_pid(pid);
+        crdt_wrapper.rebind_own_pid(pid, effective_crdt.get_version_vector().clone());
         let crdt = Arc::new(RwLock::new(effective_crdt));
-        Self::with_config_internal(pid, crdt, config, durability_journal, recovered_replica).await
-    }
-
-    async fn with_config_internal(
-        pid: Pid,
-        crdt: Arc<RwLock<T>>,
-        config: ReplicaConfig,
-        durability_journal: Arc<DiskJournal>,
-        recovered_replica: Option<PersistentReplica<T>>,
-    ) -> (Self, oneshot::Sender<()>) {
-        crdt.write().await.set_pid(pid);
 
         // The HTTP data plane applies local mutations directly.  It must not
         // wait behind membership, GC, or anti-entropy work in Replica::run.
         // The shared gate preserves durable-before-apply ordering with remote
         // delta merges.
         let commit_gate = Arc::new(Mutex::new(()));
-        let mutation_crdt = crdt.clone();
-        let mutation_journal = durability_journal.clone();
-        let mutation_commit_gate = commit_gate.clone();
         let (local_mutation_sender, local_mutation_receiver) = unbounded_channel();
-        let mutation_handler: ClientMutationHandler<T> = Arc::new(move |mutation| {
-            let crdt = mutation_crdt.clone();
-            let journal = mutation_journal.clone();
-            let commit_gate = mutation_commit_gate.clone();
-            let local_mutation_sender = local_mutation_sender.clone();
-            Box::pin(async move {
-                let _commit = commit_gate.lock().await;
-                journal
-                    .append_mutation::<T>(&mutation)
-                    .unwrap_or_else(|error| {
-                        panic!("Failed to append durable client mutation: {error}")
-                    });
-                let response = crdt.write().await.mutate(mutation);
-                let _ = local_mutation_sender.send(());
-                response
+        let mutation_handler: ClientMutationHandler<T> = {
+            let crdt = crdt.clone();
+            let journal = durability_journal.clone();
+            let commit_gate = commit_gate.clone();
+            Arc::new(move |mutation| {
+                let crdt = crdt.clone();
+                let journal = journal.clone();
+                let commit_gate = commit_gate.clone();
+                let local_mutation_sender = local_mutation_sender.clone();
+                Box::pin(async move {
+                    let _commit = commit_gate.lock().await;
+                    journal
+                        .append_mutation::<T>(&mutation)
+                        .unwrap_or_else(|error| {
+                            panic!("Failed to append durable client mutation: {error}")
+                        });
+                    let response = crdt.write().await.mutate(mutation);
+                    let _ = local_mutation_sender.send(());
+                    response
+                })
             })
-        });
+        };
         let http_shutdown_sender =
             launch_http_server::<T>(&config.address, crdt.clone(), mutation_handler).await;
 
@@ -112,22 +98,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             NetworkManager::<ReplicaMessage<T>>::launch_network_manager(config.address, pid).await;
 
         let runtime_config = ReplicaRuntimeConfig::new(&config);
-        let object_storage_client = Arc::new(
-            ObjectStorageClient::new(config.object_storage_config).unwrap_or_else(|error| {
-                panic!("Failed to initialize object storage client: {error}")
-            }),
-        );
-
-        let mut crdt_wrapper = recovered_replica
-            .as_ref()
-            .map(|replica| replica.crdt_wrapper.clone())
-            .unwrap_or(CRDTWrapper::new(pid));
-        let local_version_vector = { crdt.read().await.get_version_vector().clone() };
-        crdt_wrapper.rebind_own_pid(pid, local_version_vector);
-
-        // Create shutdown channel for the CRDT server itself
-        let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
-        let recovered_from_durability = recovered_replica.is_some();
+        let object_storage_client =
+            Arc::new(ObjectStorageClient::new(config.object_storage_config));
+        let (lifecycle, shutdown_sender) = ReplicaLifecycle::new(http_shutdown_sender);
 
         let mut replica = Replica {
             pid,
@@ -137,11 +110,17 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             network,
             local_mutation_receiver,
             crdt_wrapper,
-            lifecycle: ReplicaLifecycle::new(shutdown_receiver, http_shutdown_sender),
+            lifecycle,
             object_storage_client,
             durability_journal,
         };
-        replica.bootstrap(recovered_from_durability).await;
+        debug!("replica {} initiating bootstrap", replica.pid);
+        if recovered_from_durability {
+            replica.bootstrap_from_durability().await;
+        } else {
+            replica.bootstrap_from_object_storage().await;
+        }
+        info!("replica {} startup completed", replica.pid);
 
         (replica, shutdown_sender)
     }
@@ -170,7 +149,14 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.refresh_own_version_vector().await;
                 }
                 Some(remote_event) = self.network.poll() => {
-                    self.handle_remote_event(remote_event).await;
+                    match remote_event {
+                        ReplicaMessage::DeltaGroup(delta, gc_metadata) => {
+                            self.handle_delta(delta, gc_metadata).await;
+                        }
+                        ReplicaMessage::VersionVector(pid, version_vector) => {
+                            self.handle_version_vector(pid, version_vector).await;
+                        }
+                    }
                 }
                 _ = interval.tick() => {
                     self.pull_delta().await;
@@ -193,77 +179,64 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn bootstrap(&mut self, recovered_from_durability: bool) {
-        debug!("replica {} initiating bootstrap", self.pid);
+    async fn bootstrap_from_durability(&mut self) {
         let descriptor = self.replica_descriptor();
-        let members;
-        let mut restored_from_storage = false;
+        let members = self
+            .object_storage_client
+            .register_and_list_members(descriptor)
+            .await
+            .expect("Failed to register and list replica membership");
+        info!(
+            "replica {} restored local state from durability journal before startup",
+            self.pid
+        );
+        info!(
+            "replica {} discovered {} membership descriptors during bootstrap",
+            self.pid,
+            members.len()
+        );
+    }
 
-        if recovered_from_durability {
-            members = self
-                .object_storage_client
+    async fn bootstrap_from_object_storage(&mut self) {
+        let descriptor = self.replica_descriptor();
+        let (persistent_replica_result, membership_result) = tokio::join!(
+            self.object_storage_client
+                .read_persistent_replica::<PersistentReplica<T>>(),
+            self.object_storage_client
                 .register_and_list_members(descriptor)
-                .await
-                .expect("Failed to register and list replica membership");
-            info!(
-                "replica {} restored local state from durability journal before startup",
-                self.pid
-            );
-            info!(
-                "replica {} discovered {} membership descriptors during bootstrap",
-                self.pid,
-                members.len()
-            );
-        } else {
-            let (persistent_replica_result, membership_result) = tokio::join!(
-                self.object_storage_client
-                    .read_persistent_replica::<PersistentReplica<T>>(),
-                self.object_storage_client
-                    .register_and_list_members(descriptor)
-            );
+        );
 
-            let persistent_replica_result = persistent_replica_result
-                .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"));
-            members = membership_result.expect("Failed to register and list replica membership");
-            restored_from_storage = persistent_replica_result.is_some();
+        let persistent_replica = persistent_replica_result
+            .unwrap_or_else(|error| panic!("Failed to read persistent replica state: {error}"));
+        let members = membership_result.expect("Failed to register and list replica membership");
 
-            match persistent_replica_result {
-                Some(mut persistent_replica) => {
-                    debug!("replica {} restoring persistent replica state", self.pid);
-                    let commit_gate = self.commit_gate.clone();
-                    let _commit = commit_gate.lock().await;
-                    persistent_replica.rebind_own_pid(self.pid);
-                    self.durability_journal.append_snapshot(&persistent_replica);
-                    *self.crdt.write().await = persistent_replica.local_state;
-                    self.crdt_wrapper = persistent_replica.crdt_wrapper;
-                    // The object-storage snapshot is state for bootstrapping a
-                    // new replica, not an identity-bearing recovery record.
-                    // Persisting the decoded, rebound value above ensures a
-                    // later local journal recovery retains this replica's PID.
-                }
-                None => {
-                    debug!(
-                        "replica {} found no persistent replica state; writing initial snapshot",
-                        self.pid
-                    );
-                    self.write_initial_persistent_replica().await;
-                }
+        match persistent_replica {
+            Some(mut persistent_replica) => {
+                debug!("replica {} restoring persistent replica state", self.pid);
+                let commit_gate = self.commit_gate.clone();
+                let _commit = commit_gate.lock().await;
+                persistent_replica.rebind_own_pid(self.pid);
+                self.durability_journal.append_snapshot(&persistent_replica);
+                *self.crdt.write().await = persistent_replica.local_state;
+                self.crdt_wrapper = persistent_replica.crdt_wrapper;
+                // Object-storage state is used to bootstrap a new identity.
+                // The rebound snapshot ensures later journal recovery retains
+                // this replica's PID.
             }
-            info!(
-                "replica {} discovered {} membership descriptors during bootstrap",
-                self.pid,
-                members.len()
-            );
+            None => {
+                debug!(
+                    "replica {} found no persistent replica state; writing initial snapshot",
+                    self.pid
+                );
+                self.write_initial_persistent_replica().await;
+                self.persist_durable_snapshot().await;
+            }
         }
-
-        // A journal recovery has already reconstructed the latest durable
-        // state. Re-appending that same full snapshot during bootstrap only
-        // delays readiness and grows the journal; subsequent mutations and
-        // GC operations continue to append their normal durable records.
-        if !recovered_from_durability && !restored_from_storage {
-            self.persist_durable_snapshot().await;
-        }
-        info!("replica {} startup completed", self.pid);
+        info!(
+            "replica {} discovered {} membership descriptors during bootstrap",
+            self.pid,
+            members.len()
+        );
     }
 
     // Membership directory interactions
@@ -370,66 +343,70 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         true
     }
 
-    // * * * Replication * * * 
+    // * * * Replication * * *
 
-    async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
-        match event {
-            ReplicaMessage::DeltaGroup(delta, gc_metadata) => {
-                let remote_gc_counter = *delta.version_vector.gc_counter();
-                let current_gc_counter = self.crdt_wrapper.current_gc_marker().counter;
-                if remote_gc_counter < current_gc_counter {
-                    debug!(
-                        "replica {} refusing remote delta group with GC counter={} below current GC counter={}",
-                        self.pid, remote_gc_counter, current_gc_counter
-                    );
-                    return;
-                }
-                self.observe_gc(gc_metadata).await;
-                let delta_len = delta.list.len();
-                {
-                    let _commit = self.commit_gate.lock().await;
-                    self.durability_journal.append_delta_group::<T>(&delta);
-                    self.crdt.write().await.merge_delta_group(delta);
-                }
-                self.refresh_own_version_vector().await;
-                debug!(
-                    "replica {} merging remote delta group with {} entries",
-                    self.pid, delta_len
-                );
+    async fn handle_delta(
+        &mut self,
+        delta: DeltaGroup<T::Delta, T::SideEffects>,
+        gc_metadata: GcMarker,
+    ) {
+        let remote_gc_counter = *delta.version_vector.gc_counter();
+        let current_gc_counter = self.crdt_wrapper.current_gc_marker().counter;
+        if remote_gc_counter < current_gc_counter {
+            debug!(
+                "replica {} refusing remote delta group with GC counter={} below current GC counter={}",
+                self.pid, remote_gc_counter, current_gc_counter
+            );
+            return;
+        }
+        self.observe_gc(gc_metadata).await;
+        let delta_len = delta.list.len();
+        {
+            let _commit = self.commit_gate.lock().await;
+            self.durability_journal.append_delta_group::<T>(&delta);
+            self.crdt.write().await.merge_delta_group(delta);
+        }
+        self.refresh_own_version_vector().await;
+        debug!(
+            "replica {} merging remote delta group with {} entries",
+            self.pid, delta_len
+        );
+    }
+
+    async fn handle_version_vector(&mut self, pid: Pid, version_vector: DotSet) {
+        self.crdt_wrapper
+            .version_matrix
+            .update(pid, version_vector.clone());
+        let mut delta = {
+            let readable = self.crdt.read().await;
+            readable.get_delta(&version_vector)
+        };
+        delta.version_vector = self
+            .crdt_wrapper
+            .update_own_version_vector(delta.version_vector);
+        let delta_len = delta.list.len();
+        debug!(
+            "replica {} get_delta for replica {} produced {} deltas",
+            self.pid, pid, delta_len
+        );
+        let Some(writer) = self.network.writer(pid) else {
+            debug!(
+                "replica {} has no writer for peer {}; response will be retried by anti-entropy",
+                self.pid, pid
+            );
+            return;
+        };
+        let message = ReplicaMessage::DeltaGroup(delta, self.crdt_wrapper.gc_metadata());
+        if let Err(error) = writer.try_send(message) {
+            if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
+                self.network.remove_writer(pid);
             }
-            ReplicaMessage::VersionVector(pid, version_vector) => {
-                self.crdt_wrapper
-                    .version_matrix
-                    .update(pid, version_vector.clone());
-                let mut delta = {
-                    let readable = self.crdt.read().await;
-                    readable.get_delta(&version_vector)
-                };
-                delta.version_vector = self
-                    .crdt_wrapper
-                    .update_own_version_vector(delta.version_vector);
-                let delta_len = delta.list.len();
-                debug!(
-                    "replica {} get_delta for replica {} produced {} deltas",
-                    self.pid, pid, delta_len
-                );
-                let Some(writer) = self.network.writer(pid) else {
-                    debug!("replica {} has no writer for peer {}; response will be retried by anti-entropy", self.pid, pid);
-                    return;
-                };
-                let message = ReplicaMessage::DeltaGroup(delta, self.crdt_wrapper.gc_metadata());
-                if let Err(error) = writer.try_send(message) {
-                    if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
-                        self.network.remove_writer(pid);
-                    }
-                    // Anti-entropy is periodic: dropping one response when a
-                    // peer queue is full avoids blocking unrelated work.
-                    warn!(
-                        "replica {} deferred delta response to peer {}: {}",
-                        self.pid, pid, error
-                    );
-                }
-            }
+            // Anti-entropy is periodic: dropping one response when a peer
+            // queue is full avoids blocking unrelated work.
+            warn!(
+                "replica {} deferred delta response to peer {}: {}",
+                self.pid, pid, error
+            );
         }
     }
 
@@ -455,7 +432,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    // * * * Garbage collection * * * 
+    // * * * Garbage collection * * *
 
     async fn init_gc(&mut self) {
         self.refresh_own_version_vector().await;
@@ -476,111 +453,57 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             return;
         };
 
-        // 2. Read the Membership directory and check that: no new replicas have appeared, no other replicas have incremented their GC marker.
-        let Some(current_members) = self
-            .object_storage_client
-            .list_membership_descriptors()
+        if !self
+            .validate_gc_membership(&previous_gc_counters, new_descriptor)
             .await
-        else {
-            if let Err(error) = self
-                .object_storage_client
-                .delete_membership_descriptor(new_descriptor)
-                .await
-            {
-                warn!(
-                    "replica {} could not roll back GC marker after membership-read failure: {}",
-                    self.pid, error
-                );
-            }
-            return;
-        };
-        if !Self::membership_is_still_stable(&previous_gc_counters, &current_members, self.pid) {
-            debug!(
-                "replica {} aborted gc round because membership changed",
-                self.pid
-            );
-            // Roll back the new membership descriptor.
-            if let Err(error) = self
-                .object_storage_client
-                .delete_membership_descriptor(new_descriptor)
-                .await
-            {
-                warn!(
-                    "replica {} could not roll back GC marker after membership change: {}",
-                    self.pid, error
-                );
-            }
-            let _ = self
-                .object_storage_client
-                .list_membership_descriptors()
-                .await;
+        {
             return;
         }
 
-        // 3. Perform GC
+        let gc_marker = GcMarker {
+            marker: new_marker,
+            stable,
+            departed_pids,
+        };
+        if !self.complete_local_gc(gc_marker).await {
+            return;
+        }
+
+        // Remove our old Membership Descriptor
+        self.object_storage_client
+            .delete_membership_descriptor(previous_descriptor)
+            .await;
+    }
+
+    async fn complete_local_gc(&mut self, marker: GcMarker) -> bool {
         info!(
             "replica {} gc departed_pids={:?} updated_stable={:?}",
-            self.pid, departed_pids, stable
+            self.pid, marker.departed_pids, marker.stable
         );
-        let local_state = {
-            let mut writable = self.crdt.write().await;
-            writable.gc(&stable, &departed_pids);
-            writable.clone()
-        };
-        self.crdt_wrapper.push_gc_marker(GcMarker {
-            marker: new_marker,
-            stable: stable.clone(),
-            departed_pids: departed_pids.clone(),
-        });
-        let persistent_replica = PersistentReplica {
-            local_state,
-            crdt_wrapper: self.crdt_wrapper.clone(),
-        };
-
-        // 4. Overwrite persistent replica with the new local state.
-        if let Err(error) = self
+        let departed_pids = marker.departed_pids.clone();
+        let persistent_replica = self.apply_gc_marker(marker).await;
+        if !self
             .object_storage_client
             .write_persistent_replica(&persistent_replica)
             .await
         {
-            warn!(
-                "replica {} could not persist GC state; aborting GC cleanup: {}",
-                self.pid, error
-            );
-            return;
+            return false;
         }
-        self.persist_durable_snapshot().await;
-        info!("replica {} completed gc round", self.pid);
 
+        self.persist_durable_snapshot().await;
         if let Some(departed_pids) = departed_pids {
             self.gc_departed_pids(departed_pids).await;
         }
-
-        // 5. Remove our old Membership Descriptor
-        if let Err(error) = self
-            .object_storage_client
-            .delete_membership_descriptor(previous_descriptor)
-            .await
-        {
-            warn!(
-                "replica {} could not delete previous membership descriptor: {}",
-                self.pid, error
-            );
-        }
+        info!("replica {} completed gc round", self.pid);
+        true
     }
 
     async fn gc_departed_pids(&self, departed_pids: Vec<Pid>) {
-        if let Err(error) = futures::future::try_join_all(departed_pids.into_iter().map(|pid| {
+        futures::future::join_all(departed_pids.into_iter().map(|pid| {
             self.object_storage_client
                 .delete_membership_descriptors_for_pid(pid)
         }))
-        .await
-        {
-            warn!(
-                "replica {} could not garbage-collect departed membership descriptors: {}",
-                self.pid, error
-            );
-        }
+        .await;
     }
 
     async fn change_own_gc_counter(&mut self, gc_counter: Counter) -> Option<ReplicaDescriptor> {
@@ -624,13 +547,26 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             "replica {} observing gc marker {} with stable frontier {:?}",
             self.pid, metadata.marker.counter, metadata.stable
         );
-        self.crdt
-            .write()
-            .await
-            .gc(&metadata.stable, &metadata.departed_pids);
-        self.crdt_wrapper.push_gc_marker(metadata);
-        self.persist_durable_snapshot().await;
+        {
+            let commit_gate = self.commit_gate.clone();
+            let _commit = commit_gate.lock().await;
+            let snapshot = self.apply_gc_marker(metadata).await;
+            self.durability_journal.append_snapshot(&snapshot);
+        }
         self.config.reset_gc_interval();
+    }
+
+    async fn apply_gc_marker(&mut self, marker: GcMarker) -> PersistentReplica<T> {
+        let local_state = {
+            let mut writable = self.crdt.write().await;
+            writable.gc(&marker.stable, &marker.departed_pids);
+            writable.clone()
+        };
+        self.crdt_wrapper.push_gc_marker(marker);
+        PersistentReplica {
+            local_state,
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        }
     }
 
     fn membership_gc_counters_by_pid(members: &[ReplicaDescriptor]) -> HashMap<Pid, Counter> {
@@ -646,15 +582,41 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         gc_counters
     }
 
-    fn membership_is_still_stable(
+    async fn validate_gc_membership(
+        &self,
         previous: &HashMap<Pid, Counter>,
-        current_members: &[ReplicaDescriptor],
-        local_pid: Pid,
+        new_descriptor: ReplicaDescriptor,
     ) -> bool {
-        let current = Self::membership_gc_counters_by_pid(current_members);
-        current.into_iter().all(|(pid, counter)| {
-            pid == local_pid || previous.get(&pid).is_some_and(|old| counter <= *old)
-        })
+        let Some(current_members) = self
+            .object_storage_client
+            .list_membership_descriptors()
+            .await
+        else {
+            self.object_storage_client
+                .delete_membership_descriptor(new_descriptor)
+                .await;
+            return false;
+        };
+        let current = Self::membership_gc_counters_by_pid(&current_members);
+        let is_stable = current.into_iter().all(|(pid, counter)| {
+            pid == self.pid || previous.get(&pid).is_some_and(|old| counter <= *old)
+        });
+        if is_stable {
+            return true;
+        }
+
+        debug!(
+            "replica {} aborted gc round because membership changed",
+            self.pid
+        );
+        self.object_storage_client
+            .delete_membership_descriptor(new_descriptor)
+            .await;
+        let _ = self
+            .object_storage_client
+            .list_membership_descriptors()
+            .await;
+        false
     }
 
     // State and lifecycle helpers
@@ -677,16 +639,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             local_state: self.crdt.read().await.clone(),
             crdt_wrapper: self.crdt_wrapper.clone(),
         };
-        if let Err(error) = self
-            .object_storage_client
+        self.object_storage_client
             .write_persistent_replica(&persistent_replica)
-            .await
-        {
-            warn!(
-                "replica {} could not write initial persistent replica state: {}",
-                self.pid, error
-            );
-        }
+            .await;
     }
 
     async fn persist_durable_snapshot(&self) {

@@ -49,7 +49,12 @@ pub struct ObjectStorageClient {
 }
 
 impl ObjectStorageClient {
-    pub fn new(config: ObjectStorageConfig) -> Result<Self, ObjectStorageError> {
+    pub fn new(config: ObjectStorageConfig) -> Self {
+        Self::try_new(config)
+            .unwrap_or_else(|error| panic!("Failed to initialize object storage client: {error}"))
+    }
+
+    fn try_new(config: ObjectStorageConfig) -> Result<Self, ObjectStorageError> {
         let backend = StorageBackend::from_config(&config)?;
         let (membership_poll_sender, membership_poll_receiver) = unbounded_channel();
 
@@ -78,11 +83,14 @@ impl ObjectStorageClient {
         }
     }
 
-    pub async fn write_persistent_replica<T: Serialize>(
-        &self,
-        crdt: &T,
-    ) -> Result<(), ObjectStorageError> {
-        self.upload_data(&self.persistent_replica_path, crdt).await
+    pub async fn write_persistent_replica<T: Serialize>(&self, crdt: &T) -> bool {
+        match self.upload_data(&self.persistent_replica_path, crdt).await {
+            Ok(()) => true,
+            Err(error) => {
+                log::warn!("could not write persistent replica state: {error}");
+                false
+            }
+        }
     }
 
     pub async fn write_membership_descriptor(
@@ -127,7 +135,13 @@ impl ObjectStorageClient {
         }
     }
 
-    pub async fn delete_membership_descriptor(
+    pub async fn delete_membership_descriptor(&self, descriptor: ReplicaDescriptor) {
+        if let Err(error) = self.try_delete_membership_descriptor(descriptor).await {
+            log::warn!("could not delete membership descriptor {descriptor}: {error}");
+        }
+    }
+
+    async fn try_delete_membership_descriptor(
         &self,
         descriptor: ReplicaDescriptor,
     ) -> Result<(), ObjectStorageError> {
@@ -135,10 +149,7 @@ impl ObjectStorageClient {
         self.delete_data(&descriptor_path).await
     }
 
-    pub async fn delete_membership_descriptors_for_pid(
-        &self,
-        pid: crate::prelude::Pid,
-    ) -> Result<(), ObjectStorageError> {
+    pub async fn delete_membership_descriptors_for_pid(&self, pid: crate::prelude::Pid) {
         let descriptors_to_delete = self
             .membership_descriptors()
             .await
@@ -146,20 +157,22 @@ impl ObjectStorageClient {
             .filter(|descriptor| descriptor.pid == pid)
             .collect::<Vec<_>>();
 
-        try_join_all(
+        if let Err(error) = try_join_all(
             descriptors_to_delete
                 .iter()
                 .copied()
-                .map(|descriptor| self.delete_membership_descriptor(descriptor)),
+                .map(|descriptor| self.try_delete_membership_descriptor(descriptor)),
         )
-        .await?;
+        .await
+        {
+            log::warn!("could not delete membership descriptors for replica {pid}: {error}");
+            return;
+        }
 
         self.membership_descriptors
             .write()
             .await
             .retain(|descriptor| descriptor.pid != pid);
-
-        Ok(())
     }
 
     pub async fn list_membership_descriptors(&self) -> Option<Vec<ReplicaDescriptor>> {

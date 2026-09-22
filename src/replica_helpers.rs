@@ -148,14 +148,15 @@ pub(crate) struct ReplicaLifecycle {
 }
 
 impl ReplicaLifecycle {
-    pub(crate) fn new(
-        shutdown_receiver: oneshot::Receiver<()>,
-        http_shutdown_sender: oneshot::Sender<()>,
-    ) -> Self {
-        Self {
-            shutdown_receiver: Some(shutdown_receiver),
-            http_shutdown_sender: Some(http_shutdown_sender),
-        }
+    pub(crate) fn new(http_shutdown_sender: oneshot::Sender<()>) -> (Self, oneshot::Sender<()>) {
+        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
+        (
+            Self {
+                shutdown_receiver: Some(shutdown_receiver),
+                http_shutdown_sender: Some(http_shutdown_sender),
+            },
+            shutdown_sender,
+        )
     }
 
     pub(crate) fn take_shutdown_receiver(&mut self) -> oneshot::Receiver<()> {

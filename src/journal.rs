@@ -55,6 +55,13 @@ pub(crate) struct DiskJournal {
 }
 
 impl DiskJournal {
+    pub(crate) fn open_or_disabled(path: Option<PathBuf>) -> Self {
+        path.map_or_else(Self::disabled, |path| {
+            Self::new(path)
+                .unwrap_or_else(|error| panic!("Failed to initialize durability journal: {error}"))
+        })
+    }
+
     pub(crate) fn new(path: PathBuf) -> Result<Self, JournalError> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
