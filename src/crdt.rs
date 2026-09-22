@@ -33,6 +33,16 @@ impl CRDTWrapper {
             })
     }
 
+    pub(crate) fn next_gc_marker(&self) -> Dot {
+        Dot {
+            pid: STABLE_REPLICA_PID,
+            counter: self
+                .current_gc_marker()
+                .counter
+                .saturating_add(1),
+        }
+    }
+
     pub(crate) fn last_stable(&self) -> Option<&DotSet> {
         self.gc_markers.last().map(|gc_marker| &gc_marker.stable)
     }

@@ -1,5 +1,6 @@
 use super::*;
 use crate::journal::{DiskJournal, Journal, JournalError, RawDurabilityRecord};
+use crate::network::network_connection_candidates;
 use crate::orset::{ORSet, OrSetMutation, OrSetQuery, OrSetResponse};
 use crate::prelude::{ObjectStorageConfig, ServerAddr};
 use std::collections::HashSet;
@@ -89,9 +90,7 @@ fn rebound_object_storage_state_persists_the_launch_pid() {
     };
 
     downloaded.rebind_own_pid(2);
-    journal
-        .append_snapshot(&downloaded)
-        .expect("failed to persist rebound bootstrap state");
+    journal.append_snapshot(&downloaded);
 
     let mut recovered = journal
         .recover::<ORSet<String>>()
@@ -192,12 +191,10 @@ fn durability_journal_recovers_snapshot_and_delta_groups() {
     base.set_pid(1);
     base.mutate(OrSetMutation::Insert("apple".into())).unwrap();
 
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: base.clone(),
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append durability snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: base.clone(),
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     let version_vector_before = base.get_version_vector().clone();
     let mut candidate = base.clone();
@@ -206,9 +203,7 @@ fn durability_journal_recovers_snapshot_and_delta_groups() {
         .unwrap();
     let delta_group = candidate.get_delta(&version_vector_before);
 
-    journal
-        .append_delta_group::<ORSet<String>>(&delta_group)
-        .expect("failed to append durability delta group");
+    journal.append_delta_group::<ORSet<String>>(&delta_group);
 
     let recovered = journal
         .recover::<ORSet<String>>()
@@ -235,12 +230,10 @@ fn durability_snapshot_compacts_prior_history() {
     let mut state = ORSet::<String>::new();
     state.set_pid(1);
     state.mutate(OrSetMutation::Insert("apple".into())).unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: state.clone(),
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append initial snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: state.clone(),
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     journal
         .append_mutation::<ORSet<String>>(&OrSetMutation::Insert("banana".into()))
@@ -248,12 +241,10 @@ fn durability_snapshot_compacts_prior_history() {
     state
         .mutate(OrSetMutation::Insert("banana".into()))
         .unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: state,
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to compact journal to snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: state,
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     let contents = std::fs::read_to_string(DiskJournal::snapshot_path(&journal_path))
         .expect("failed to read compacted snapshot");
@@ -286,24 +277,20 @@ fn durability_recovery_ignores_a_log_left_by_an_interrupted_compaction() {
     let mut state = ORSet::<String>::new();
     state.set_pid(1);
     state.mutate(OrSetMutation::Insert("apple".into())).unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: state.clone(),
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append initial snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: state.clone(),
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
     journal
         .append_mutation::<ORSet<String>>(&OrSetMutation::Insert("banana".into()))
         .expect("failed to append mutation");
     state
         .mutate(OrSetMutation::Insert("banana".into()))
         .unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: state,
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to compact journal");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: state,
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     // A crash after the atomic snapshot replacement but before truncating
     // the former log leaves generation 1 records behind. Recovery must
@@ -337,12 +324,10 @@ fn durability_journal_discards_an_incomplete_trailing_record() {
     let mut base = ORSet::<String>::new();
     base.set_pid(1);
     base.mutate(OrSetMutation::Insert("apple".into())).unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: base,
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append durability snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: base,
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     let mut file = OpenOptions::new()
         .append(true)
@@ -379,12 +364,10 @@ fn durability_journal_repairs_a_corrupt_non_tail_suffix() {
     let mut base = ORSet::<String>::new();
     base.set_pid(1);
     base.mutate(OrSetMutation::Insert("apple".into())).unwrap();
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: base,
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append durability snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: base,
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     let mut file = OpenOptions::new()
         .append(true)
@@ -458,12 +441,10 @@ fn durability_journal_serializes_concurrent_appends() {
     );
     let mut base = ORSet::<String>::new();
     base.set_pid(1);
-    journal
-        .append_snapshot(&PersistentReplica {
-            local_state: base,
-            crdt_wrapper: CRDTWrapper::new(1),
-        })
-        .expect("failed to append durability snapshot");
+    journal.append_snapshot(&PersistentReplica {
+        local_state: base,
+        crdt_wrapper: CRDTWrapper::new(1),
+    });
 
     let writers = (0..16)
         .map(|index| {

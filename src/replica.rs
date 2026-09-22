@@ -1,16 +1,15 @@
 use crate::dots::{Counter, Dot, DotSet};
 use crate::http_server::{launch_http_server, ClientMutationHandler};
 use crate::journal::{DiskJournal, Journal};
-use crate::network::{network_connection_candidates, NetworkManager, NetworkMember};
+use crate::network::{NetworkManager, ReplicaNetwork};
 use crate::object_storage::{MembershipPollResult, ObjectStorageClient};
 use crate::replica_helpers::*;
 use crate::{crdt::*, prelude::Pid};
 use log::{debug, info, warn};
-use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::mpsc::{unbounded_channel, Receiver, Sender, UnboundedReceiver};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 use tokio::sync::oneshot;
 use tokio::sync::{Mutex, RwLock};
 
@@ -19,16 +18,11 @@ pub struct Replica<T: CRDT + Debug + Clone> {
     crdt_wrapper: CRDTWrapper,
     pid: Pid,
     config: ReplicaRuntimeConfig,
-    // Network Stuff:
-    writers: HashMap<Pid, Sender<ReplicaMessage<T>>>,
+    network: ReplicaNetwork<ReplicaMessage<T>>,
     /// Serializes durable CRDT commits initiated by the HTTP data plane and
     /// replica-side replication handling.
     commit_gate: Arc<Mutex<()>>,
     local_mutation_receiver: UnboundedReceiver<()>,
-    replication_receiver: Receiver<ReplicaMessage<T>>,
-    // Allows new connections to be established:
-    replication_writer_receiver: Receiver<(Pid, Sender<ReplicaMessage<T>>)>,
-    network_member_sender: Sender<NetworkMember>,
     object_storage_client: Arc<ObjectStorageClient>,
     durability_journal: Arc<DiskJournal>,
     lifecycle: ReplicaLifecycle,
@@ -114,14 +108,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let http_shutdown_sender =
             launch_http_server::<T>(&config.address, crdt.clone(), mutation_handler).await;
 
-        // Launch NetworkManager with shutdown capability
-        let (
-            replication_receiver,
-            replication_writer_receiver,
-            network_member_sender,
-            network_start_sender,
-            network_shutdown_sender,
-        ) = NetworkManager::<ReplicaMessage<T>>::launch_network_manager(config.address, pid).await;
+        let network =
+            NetworkManager::<ReplicaMessage<T>>::launch_network_manager(config.address, pid).await;
 
         let runtime_config = ReplicaRuntimeConfig::new(&config);
         let object_storage_client = Arc::new(
@@ -146,18 +134,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             config: runtime_config,
             crdt,
             commit_gate,
+            network,
             local_mutation_receiver,
-            replication_writer_receiver,
-            network_member_sender,
             crdt_wrapper,
-            writers: HashMap::new(),
-            replication_receiver,
-            lifecycle: ReplicaLifecycle::new(
-                shutdown_receiver,
-                http_shutdown_sender,
-                network_start_sender,
-                network_shutdown_sender,
-            ),
+            lifecycle: ReplicaLifecycle::new(shutdown_receiver, http_shutdown_sender),
             object_storage_client,
             durability_journal,
         };
@@ -175,8 +155,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.config.advertised_address().internal(),
         );
         let initial_members = self.object_storage_client.membership_descriptors().await;
-        self.lifecycle.start_network();
-        self.enqueue_network_members(&initial_members);
+        self.network.start();
+        self.network
+            .enqueue_members(&initial_members, &mut self.crdt_wrapper);
 
         let mut shutdown_receiver = self.lifecycle.take_shutdown_receiver();
 
@@ -188,7 +169,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 Some(()) = self.local_mutation_receiver.recv() => {
                     self.refresh_own_version_vector().await;
                 }
-                Some(remote_event) = self.replication_receiver.recv() => {
+                Some(remote_event) = self.network.poll() => {
                     self.handle_remote_event(remote_event).await;
                 }
                 _ = interval.tick() => {
@@ -202,15 +183,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 }
                 Some(result) = membership_poll_client.recv_membership_poll() => {
                     self.apply_membership_poll(result).await;
-                }
-                Some((pid, writer)) = self.replication_writer_receiver.recv() => {
-                    info!(
-                        "replica {} established peer replication connection with replica {}",
-                        self.pid,
-                        pid
-                    );
-                    self.writers.insert(pid, writer);
-                    self.config.reschedule_gc(self.writers.len());
                 }
                 _ = &mut shutdown_receiver => {
                     info!("shutdown signal received for replica {}", self.pid);
@@ -261,11 +233,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     let commit_gate = self.commit_gate.clone();
                     let _commit = commit_gate.lock().await;
                     persistent_replica.rebind_own_pid(self.pid);
-                    self.durability_journal
-                        .append_snapshot(&persistent_replica)
-                        .unwrap_or_else(|error| {
-                            panic!("Failed to persist rebound bootstrap snapshot: {error}")
-                        });
+                    self.durability_journal.append_snapshot(&persistent_replica);
                     *self.crdt.write().await = persistent_replica.local_state;
                     self.crdt_wrapper = persistent_replica.crdt_wrapper;
                     // The object-storage snapshot is state for bootstrapping a
@@ -298,79 +266,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         info!("replica {} startup completed", self.pid);
     }
 
-    fn enqueue_network_members(&mut self, members: &[ReplicaDescriptor]) {
-        let departed_pids = members
-            .iter()
-            .filter(|descriptor| descriptor.is_shutdown())
-            .map(|descriptor| descriptor.pid)
-            .collect::<HashSet<_>>();
-        let mut discovered_gc_counters = HashMap::<Pid, Counter>::new();
-        for descriptor in members {
-            if descriptor.pid == self.pid
-                || descriptor.is_shutdown()
-                || departed_pids.contains(&descriptor.pid)
-            {
-                continue;
-            }
-            discovered_gc_counters
-                .entry(descriptor.pid)
-                .and_modify(|counter| *counter = (*counter).max(descriptor.gc_counter))
-                .or_insert(descriptor.gc_counter);
-        }
-        for (pid, gc_counter) in discovered_gc_counters {
-            self.crdt_wrapper.observe_active_replica(pid, gc_counter);
-        }
-
-        let connected_pids = self.writers.keys().copied().collect::<HashSet<_>>();
-
-        for descriptor in network_connection_candidates(members, self.pid, &connected_pids) {
-            debug!(
-                "replica {} discovering member pid={} addr={} gc_counter={}",
-                self.pid, descriptor.pid, descriptor.address, descriptor.gc_counter
-            );
-
-            if let Err(error) = self.network_member_sender.try_send(NetworkMember {
-                pid: descriptor.pid,
-                address: descriptor.address,
-                final_counter: descriptor.final_counter,
-            }) {
-                // Discovery is periodic.  A full network-manager queue means
-                // there is already sufficient pending work; retry this peer
-                // on the next membership poll without stalling replication,
-                // GC, or client-visible state transitions.
-                warn!(
-                    "replica {} deferred discovery of peer {}: {}",
-                    self.pid, descriptor.pid, error
-                );
-            }
-        }
-    }
-
-    async fn write_initial_persistent_replica(&mut self) {
-        let persistent_replica = PersistentReplica {
-            local_state: self.crdt.read().await.clone(),
-            crdt_wrapper: self.crdt_wrapper.clone(),
-        };
-        if let Err(error) = self
-            .object_storage_client
-            .write_persistent_replica(&persistent_replica)
-            .await
-        {
-            warn!(
-                "replica {} could not write initial persistent replica state: {}",
-                self.pid, error
-            );
-        }
-    }
-
-    fn replica_descriptor(&self) -> ReplicaDescriptor {
-        ReplicaDescriptor {
-            pid: self.pid,
-            address: self.config.advertised_address().internal(),
-            gc_counter: self.crdt_wrapper.current_gc_marker().counter,
-            final_counter: None,
-        }
-    }
+    /*
+    * * * MEMBERSHIP DIRECTORY INTERACTIONS * * *
+     */
 
     async fn apply_membership_poll(&mut self, result: MembershipPollResult) {
         self.object_storage_client.finish_membership_poll().await;
@@ -384,12 +282,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.object_storage_client
             .update_membership_cache(members.clone())
             .await;
-        let previous_writer_count = self.writers.len();
+        let previous_writer_count = self.network.peer_count();
         debug!(
             "replica {} scanning membership directory for new members and shutdown descriptors",
             self.pid
         );
-        self.enqueue_network_members(&members);
+        self.network
+            .enqueue_members(&members, &mut self.crdt_wrapper);
         // Find shutdown descriptors
         let shutdown_descriptors = members
             .iter()
@@ -401,8 +300,8 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
 
         // Update the gc interval
-        if self.writers.len() != previous_writer_count {
-            self.config.reschedule_gc(self.writers.len());
+        if self.network.peer_count() != previous_writer_count {
+            self.config.reschedule_gc(self.network.peer_count());
         }
     }
 
@@ -426,21 +325,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         // Keep the replica row until its final dot is stable everywhere.
         self.crdt_wrapper.observe_departed_replica(final_dot);
 
-        // Remove the writers
-        let _ = self.writers.remove(&descriptor.pid);
-        // Notify the network manager
-        if let Err(error) = self.network_member_sender.try_send(NetworkMember {
-            pid: descriptor.pid,
-            address: descriptor.address,
-            final_counter: descriptor.final_counter,
-        }) {
-            // Membership polling will repeat this notification.  Never hold
-            // the replica's event loop behind a congested network manager.
-            warn!(
-                "replica {} deferred shutdown notification for {}: {}",
-                self.pid, descriptor.pid, error
-            );
-        }
+        self.network.notify_departure(descriptor);
     }
 
     async fn merge_shutdown_payload(&mut self, descriptor: ReplicaDescriptor) -> bool {
@@ -481,13 +366,16 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         );
         {
             let _commit = self.commit_gate.lock().await;
-            self.persist_delta_before_apply(&delta);
+            self.durability_journal.append_delta_group::<T>(&delta);
             self.crdt.write().await.merge_delta_group(delta);
         }
         self.refresh_own_version_vector().await;
         true
     }
 
+    /*
+    * * * REPLICATION * * *
+     */
     async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
         match event {
             ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata) => {
@@ -506,7 +394,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 {
                     let commit_gate = self.commit_gate.clone();
                     let _commit = commit_gate.lock().await;
-                    self.persist_delta_before_apply(&delta);
+                    self.durability_journal.append_delta_group::<T>(&delta);
                     let mut writable = self.crdt.write().await;
                     writable.merge_delta_group(delta);
                 }
@@ -531,14 +419,14 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.pid, pid, delta_len
                 );
                 let gc_metadata = self.crdt_wrapper.gc_metadata();
-                let send_result = self.writers.get(&pid).map(|writer| {
+                let send_result = self.network.writer(pid).map(|writer| {
                     writer.try_send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata))
                 });
                 match send_result {
                     Some(Ok(())) => {}
                     Some(Err(error)) => {
                         if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
-                            self.writers.remove(&pid);
+                            self.network.remove_writer(pid);
                         }
                         // Anti-entropy is periodic: dropping one response when
                         // a peer's bounded queue is full is preferable to
@@ -556,32 +444,17 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         }
     }
 
-    async fn refresh_own_version_vector(&mut self) -> DotSet {
-        let version_vector = { self.crdt.read().await.get_version_vector().clone() };
-        self.crdt_wrapper.update_own_version_vector(version_vector)
-    }
-
     async fn pull_delta(&mut self) {
-        if self.writers.is_empty() {
-            return;
-        }
-        // Select a random writer from self.writers
-        let n = rand::rng().random_range(0..self.writers.len());
-        if let Some((pid, writer)) = self
-            .writers
-            .iter()
-            .nth(n)
-            .map(|(pid, writer)| (*pid, writer.clone()))
-        {
+        if let Some((pid, writer)) = self.network.random_writer() {
             let vv = self.refresh_own_version_vector().await;
             debug!(
                 "replica {} initiating pull_delta with {} connected peers",
                 self.pid,
-                self.writers.len()
+                self.network.peer_count()
             );
             if let Err(error) = writer.try_send(ReplicaMessage::<T>::VersionVector(self.pid, vv)) {
                 if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
-                    self.writers.remove(&pid);
+                    self.network.remove_writer(pid);
                 }
                 warn!(
                     "replica {} deferred pull request to peer {}: {}",
@@ -590,6 +463,10 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             }
         }
     }
+
+    /*
+    * * * GC Logic * * * 
+     */
 
     async fn init_gc(&mut self) {
         self.refresh_own_version_vector().await;
@@ -606,14 +483,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         let previous_descriptor = self.replica_descriptor();
 
         // 1. Increment our GC marker in the Membership directory before GC.
-        let new_marker = Dot {
-            pid: STABLE_REPLICA_PID,
-            counter: self
-                .crdt_wrapper
-                .current_gc_marker()
-                .counter
-                .saturating_add(1),
-        };
+        let new_marker = self.crdt_wrapper.next_gc_marker();
         let Some(new_descriptor) = self.change_own_gc_counter(new_marker.counter).await else {
             return;
         };
@@ -812,6 +682,53 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         true
     }
 
+    /*
+    * * * MISC. * * * 
+    */
+    fn replica_descriptor(&self) -> ReplicaDescriptor {
+        ReplicaDescriptor {
+            pid: self.pid,
+            address: self.config.advertised_address().internal(),
+            gc_counter: self.crdt_wrapper.current_gc_marker().counter,
+            final_counter: None,
+        }
+    }
+
+    async fn refresh_own_version_vector(&mut self) -> DotSet {
+        let version_vector = { self.crdt.read().await.get_version_vector().clone() };
+        self.crdt_wrapper.update_own_version_vector(version_vector)
+    }
+
+    // When the Object Storage doesn't contain any persistent replica.
+    async fn write_initial_persistent_replica(&mut self) {
+        let persistent_replica = PersistentReplica {
+            local_state: self.crdt.read().await.clone(),
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
+        if let Err(error) = self
+            .object_storage_client
+            .write_persistent_replica(&persistent_replica)
+            .await
+        {
+            warn!(
+                "replica {} could not write initial persistent replica state: {}",
+                self.pid, error
+            );
+        }
+    }
+
+    async fn persist_durable_snapshot(&self) {
+        // A compacted snapshot must include every mutation whose log entry it
+        // replaces. The same gate protects durable-before-apply mutation and
+        // delta commits, so take it before reading the CRDT.
+        let _commit = self.commit_gate.lock().await;
+        let snapshot = PersistentReplica {
+            local_state: self.crdt.read().await.clone(),
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
+        self.durability_journal.append_snapshot(&snapshot);
+    }
+
     async fn write_shutdown_descriptor(&self) {
         let local_state = self.crdt.read().await.clone();
         let final_counter = local_state
@@ -852,40 +769,17 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         info!(
             "replica {} shutting down with {} connected writers",
             self.pid,
-            self.writers.len()
+            self.network.peer_count()
         );
 
         self.write_shutdown_descriptor().await;
-
         self.object_storage_client.abort_membership_poll().await;
-
-        self.lifecycle.stop_services();
-
-        // Close all writer channels
-        self.writers.clear();
+        self.lifecycle.stop_http_server();
+        self.network.shutdown();
 
         debug!("replica {} shutdown complete", self.pid);
     }
 
-    async fn persist_durable_snapshot(&self) {
-        // A compacted snapshot must include every mutation whose log entry it
-        // replaces. The same gate protects durable-before-apply mutation and
-        // delta commits, so take it before reading the CRDT.
-        let _commit = self.commit_gate.lock().await;
-        let snapshot = PersistentReplica {
-            local_state: self.crdt.read().await.clone(),
-            crdt_wrapper: self.crdt_wrapper.clone(),
-        };
-        self.durability_journal
-            .append_snapshot(&snapshot)
-            .unwrap_or_else(|error| panic!("Failed to append durable snapshot: {error}"));
-    }
-
-    fn persist_delta_before_apply(&self, delta_group: &DeltaGroup<T::Delta, T::SideEffects>) {
-        self.durability_journal
-            .append_delta_group::<T>(delta_group)
-            .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
-    }
 }
 
 #[cfg(test)]

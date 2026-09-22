@@ -24,14 +24,11 @@ pub(crate) trait Journal: Send + Sync {
     fn recover<T: CRDT + Debug + Clone>(
         &self,
     ) -> Result<Option<PersistentReplica<T>>, JournalError>;
-    fn append_snapshot<T: CRDT + Debug + Clone>(
-        &self,
-        snapshot: &PersistentReplica<T>,
-    ) -> Result<(), JournalError>;
+    fn append_snapshot<T: CRDT + Debug + Clone>(&self, snapshot: &PersistentReplica<T>);
     fn append_delta_group<T: CRDT + Debug + Clone>(
         &self,
         delta_group: &DeltaGroup<T::Delta, T::SideEffects>,
-    ) -> Result<(), JournalError>;
+    );
     fn append_mutation<T: CRDT + Debug + Clone>(
         &self,
         mutation: &T::Mutation,
@@ -331,39 +328,39 @@ impl Journal for DiskJournal {
         self.recover_locked(paths)
     }
 
-    fn append_snapshot<T: CRDT + Debug + Clone>(
-        &self,
-        snapshot: &PersistentReplica<T>,
-    ) -> Result<(), JournalError> {
+    fn append_snapshot<T: CRDT + Debug + Clone>(&self, snapshot: &PersistentReplica<T>) {
         let _append_guard = self
             .append_lock
             .lock()
             .expect("durability journal lock poisoned");
         let Some(paths) = self.paths() else {
-            return Ok(());
+            return;
         };
         let mut generation = self
             .generation
             .lock()
             .expect("durability journal generation lock poisoned");
         let next_generation = *generation + 1;
-        self.replace_snapshot_and_clear_log_locked(paths, next_generation, snapshot)?;
+        self.replace_snapshot_and_clear_log_locked(paths, next_generation, snapshot)
+            .unwrap_or_else(|error| panic!("Failed to append durable snapshot: {error}"));
         *generation = next_generation;
-        Ok(())
     }
 
     fn append_delta_group<T: CRDT + Debug + Clone>(
         &self,
         delta_group: &DeltaGroup<T::Delta, T::SideEffects>,
-    ) -> Result<(), JournalError> {
+    ) {
         let _append_guard = self
             .append_lock
             .lock()
             .expect("durability journal lock poisoned");
         let Some(paths) = self.paths() else {
-            return Ok(());
+            return;
         };
-        self.append_record_locked(paths, "delta_group", serde_json::to_value(delta_group)?)
+        serde_json::to_value(delta_group)
+            .map_err(JournalError::from)
+            .and_then(|payload| self.append_record_locked(paths, "delta_group", payload))
+            .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
     }
 
     fn append_mutation<T: CRDT + Debug + Clone>(

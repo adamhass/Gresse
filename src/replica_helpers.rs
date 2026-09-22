@@ -141,32 +141,20 @@ impl ReplicaRuntimeConfig {
     }
 }
 
-/// Coordinates the lifecycle signals for the replica and its child services.
+/// Owns the replica shutdown receiver and HTTP server shutdown signal.
 pub(crate) struct ReplicaLifecycle {
     shutdown_receiver: Option<oneshot::Receiver<()>>,
     http_shutdown_sender: Option<oneshot::Sender<()>>,
-    network_start_sender: Option<oneshot::Sender<()>>,
-    network_shutdown_sender: Option<oneshot::Sender<()>>,
 }
 
 impl ReplicaLifecycle {
     pub(crate) fn new(
         shutdown_receiver: oneshot::Receiver<()>,
         http_shutdown_sender: oneshot::Sender<()>,
-        network_start_sender: oneshot::Sender<()>,
-        network_shutdown_sender: oneshot::Sender<()>,
     ) -> Self {
         Self {
             shutdown_receiver: Some(shutdown_receiver),
             http_shutdown_sender: Some(http_shutdown_sender),
-            network_start_sender: Some(network_start_sender),
-            network_shutdown_sender: Some(network_shutdown_sender),
-        }
-    }
-
-    pub(crate) fn start_network(&mut self) {
-        if let Some(sender) = self.network_start_sender.take() {
-            let _ = sender.send(());
         }
     }
 
@@ -176,11 +164,8 @@ impl ReplicaLifecycle {
             .expect("Failed to take shutdown receiver")
     }
 
-    pub(crate) fn stop_services(&mut self) {
+    pub(crate) fn stop_http_server(&mut self) {
         if let Some(sender) = self.http_shutdown_sender.take() {
-            let _ = sender.send(());
-        }
-        if let Some(sender) = self.network_shutdown_sender.take() {
             let _ = sender.send(());
         }
     }

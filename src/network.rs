@@ -1,3 +1,4 @@
+use crate::crdt::CRDTWrapper;
 use crate::dots::Counter;
 use crate::prelude::{Pid, ServerAddr};
 use crate::replica_helpers::ReplicaDescriptor;
@@ -90,6 +91,170 @@ pub struct NetworkMember {
     pub final_counter: Option<Counter>,
 }
 
+/// Replica-side networking state.
+///
+/// This owns the channels connecting a [`crate::replica::Replica`] to the
+/// network manager, along with the currently available peer writers. Keeping
+/// these together prevents transport bookkeeping from leaking into the
+/// replica's CRDT and durability logic.
+pub(crate) struct ReplicaNetwork<M> {
+    local_pid: Pid,
+    writers: HashMap<Pid, Sender<M>>,
+    replication_receiver: Receiver<M>,
+    replication_writer_receiver: Receiver<(Pid, Sender<M>)>,
+    member_sender: Sender<NetworkMember>,
+    start_sender: Option<oneshot::Sender<()>>,
+    shutdown_sender: Option<oneshot::Sender<()>>,
+}
+
+impl<M> ReplicaNetwork<M> {
+    fn new(
+        local_pid: Pid,
+        replication_receiver: Receiver<M>,
+        replication_writer_receiver: Receiver<(Pid, Sender<M>)>,
+        member_sender: Sender<NetworkMember>,
+        start_sender: oneshot::Sender<()>,
+        shutdown_sender: oneshot::Sender<()>,
+    ) -> Self {
+        Self {
+            local_pid,
+            writers: HashMap::new(),
+            replication_receiver,
+            replication_writer_receiver,
+            member_sender,
+            start_sender: Some(start_sender),
+            shutdown_sender: Some(shutdown_sender),
+        }
+    }
+
+    pub(crate) fn start(&mut self) {
+        if let Some(sender) = self.start_sender.take() {
+            let _ = sender.send(());
+        }
+    }
+
+    pub(crate) fn shutdown(&mut self) {
+        if let Some(sender) = self.shutdown_sender.take() {
+            let _ = sender.send(());
+        }
+        self.clear_writers();
+    }
+
+    /// Wait for the next message from a peer while absorbing newly established
+    /// peer writers into the network state.
+    pub(crate) async fn poll(&mut self) -> Option<M> {
+        loop {
+            tokio::select! {
+                remote_event = self.replication_receiver.recv() => {
+                    return remote_event;
+                }
+                new_writer = self.replication_writer_receiver.recv() => {
+                    let Some((pid, writer)) = new_writer else {
+                        return self.replication_receiver.recv().await;
+                    };
+                    info!(
+                        "replica {} established peer replication connection with replica {}",
+                        self.local_pid,
+                        pid
+                    );
+                    self.add_writer(pid, writer);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn peer_count(&self) -> usize {
+        self.writers.len()
+    }
+
+    pub(crate) fn add_writer(&mut self, pid: Pid, writer: Sender<M>) {
+        self.writers.insert(pid, writer);
+    }
+
+    pub(crate) fn remove_writer(&mut self, pid: Pid) {
+        self.writers.remove(&pid);
+    }
+
+    pub(crate) fn writer(&self, pid: Pid) -> Option<Sender<M>> {
+        self.writers.get(&pid).cloned()
+    }
+
+    pub(crate) fn random_writer(&self) -> Option<(Pid, Sender<M>)> {
+        if self.writers.is_empty() {
+            return None;
+        }
+        let index = rand::rng().random_range(0..self.writers.len());
+        self.writers
+            .iter()
+            .nth(index)
+            .map(|(pid, writer)| (*pid, writer.clone()))
+    }
+
+    fn clear_writers(&mut self) {
+        self.writers.clear();
+    }
+
+    pub(crate) fn enqueue_members(
+        &mut self,
+        members: &[ReplicaDescriptor],
+        crdt_wrapper: &mut CRDTWrapper,
+    ) {
+        let departed_pids = members
+            .iter()
+            .filter(|descriptor| descriptor.is_shutdown())
+            .map(|descriptor| descriptor.pid)
+            .collect::<HashSet<_>>();
+        let mut discovered_gc_counters = HashMap::<Pid, Counter>::new();
+        for descriptor in members {
+            if descriptor.pid == self.local_pid
+                || descriptor.is_shutdown()
+                || departed_pids.contains(&descriptor.pid)
+            {
+                continue;
+            }
+            discovered_gc_counters
+                .entry(descriptor.pid)
+                .and_modify(|counter| *counter = (*counter).max(descriptor.gc_counter))
+                .or_insert(descriptor.gc_counter);
+        }
+        for (pid, gc_counter) in discovered_gc_counters {
+            crdt_wrapper.observe_active_replica(pid, gc_counter);
+        }
+
+        let connected_pids = self.writers.keys().copied().collect::<HashSet<_>>();
+        for descriptor in network_connection_candidates(members, self.local_pid, &connected_pids) {
+            debug!(
+                "replica {} discovering member pid={} addr={} gc_counter={}",
+                self.local_pid, descriptor.pid, descriptor.address, descriptor.gc_counter
+            );
+            if let Err(error) = self.member_sender.try_send(NetworkMember {
+                pid: descriptor.pid,
+                address: descriptor.address,
+                final_counter: descriptor.final_counter,
+            }) {
+                warn!(
+                    "replica {} deferred discovery of peer {}: {}",
+                    self.local_pid, descriptor.pid, error
+                );
+            }
+        }
+    }
+
+    pub(crate) fn notify_departure(&mut self, descriptor: ReplicaDescriptor) {
+        self.remove_writer(descriptor.pid);
+        if let Err(error) = self.member_sender.try_send(NetworkMember {
+            pid: descriptor.pid,
+            address: descriptor.address,
+            final_counter: descriptor.final_counter,
+        }) {
+            warn!(
+                "replica {} deferred shutdown notification for {}: {}",
+                self.local_pid, descriptor.pid, error
+            );
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct NetworkLatencyProfile {
     base_latency: Duration,
@@ -151,16 +316,7 @@ pub struct NetworkManager<T> {
 }
 
 impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkManager<T> {
-    pub async fn launch_network_manager(
-        address: ServerAddr,
-        pid: Pid,
-    ) -> (
-        Receiver<T>,
-        Receiver<(Pid, Sender<T>)>,
-        Sender<NetworkMember>,
-        oneshot::Sender<()>,
-        oneshot::Sender<()>,
-    ) {
+    pub async fn launch_network_manager(address: ServerAddr, pid: Pid) -> ReplicaNetwork<T> {
         let (local_event_sender, local_event_receiver) = channel::<T>(100);
         let (connection_sender, connection_receiver) = channel::<(Pid, Sender<T>)>(100);
         let (member_sender, member_receiver) = channel::<NetworkMember>(100);
@@ -203,7 +359,8 @@ impl<T: Send + 'static + Serialize + DeserializeOwned + Debug + Sync> NetworkMan
         tokio::spawn(async move {
             this.run().await;
         });
-        (
+        ReplicaNetwork::new(
+            pid,
             local_event_receiver,
             connection_receiver,
             member_sender,
