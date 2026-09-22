@@ -100,7 +100,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     .unwrap_or_else(|error| {
                         panic!("Failed to append durable client mutation: {error}")
                     });
-                let response: <T as CRDT>::ClientResponse = crdt.write().await.mutate(mutation);
+                let response = crdt.write().await.mutate(mutation);
                 let _ = local_mutation_sender.send(());
                 response
             })
@@ -266,9 +266,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         info!("replica {} startup completed", self.pid);
     }
 
-    /*
-    * * * MEMBERSHIP DIRECTORY INTERACTIONS * * *
-     */
+    // Membership directory interactions
 
     async fn apply_membership_poll(&mut self, result: MembershipPollResult) {
         self.object_storage_client.finish_membership_poll().await;
@@ -282,42 +280,41 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         self.object_storage_client
             .update_membership_cache(members.clone())
             .await;
-        let previous_writer_count = self.network.peer_count();
+        let previous_peer_count = self.network.peer_count();
         debug!(
             "replica {} scanning membership directory for new members and shutdown descriptors",
             self.pid
         );
         self.network
             .enqueue_members(&members, &mut self.crdt_wrapper);
-        // Find shutdown descriptors
-        let shutdown_descriptors = members
+        for descriptor in members
             .iter()
-            .filter(|descriptor| descriptor.is_shutdown())
             .copied()
-            .collect::<Vec<_>>();
-        for descriptor in shutdown_descriptors {
+            .filter(ReplicaDescriptor::is_shutdown)
+        {
             self.handle_shutdown_descriptor(descriptor).await;
         }
 
-        // Update the gc interval
-        if self.network.peer_count() != previous_writer_count {
-            self.config.reschedule_gc(self.network.peer_count());
+        let peer_count = self.network.peer_count();
+        if peer_count != previous_peer_count {
+            self.config.reschedule_gc(peer_count);
         }
     }
 
     async fn handle_shutdown_descriptor(&mut self, descriptor: ReplicaDescriptor) {
+        let final_counter = descriptor
+            .final_counter
+            .expect("shutdown descriptor missing final counter");
         let final_dot = Dot {
             pid: descriptor.pid,
-            counter: descriptor
-                .final_counter
-                .expect("shutdown descriptor missing final counter"),
+            counter: final_counter,
         };
         if !self.crdt_wrapper.should_fetch_departed_replica(final_dot) {
             return;
         }
         info!(
             "replica {} observed shutdown descriptor for replica {} with final counter {:?}",
-            self.pid, descriptor.pid, descriptor.final_counter
+            self.pid, descriptor.pid, final_counter
         );
         if !self.merge_shutdown_payload(descriptor).await {
             return;
@@ -347,7 +344,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             return false;
         };
 
-        let local_version_vector = { self.crdt.read().await.get_version_vector().clone() };
+        let local_version_vector = self.crdt.read().await.get_version_vector().clone();
         let delta = shutdown_state.get_delta(&local_version_vector);
         if delta.list.is_empty() {
             self.refresh_own_version_vector().await;
@@ -373,16 +370,14 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         true
     }
 
-    /*
-    * * * REPLICATION * * *
-     */
+    // * * * Replication * * * 
+
     async fn handle_remote_event(&mut self, event: ReplicaMessage<T>) {
         match event {
-            ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata) => {
+            ReplicaMessage::DeltaGroup(delta, gc_metadata) => {
                 let remote_gc_counter = *delta.version_vector.gc_counter();
                 let current_gc_counter = self.crdt_wrapper.current_gc_marker().counter;
                 if remote_gc_counter < current_gc_counter {
-                    // Do not accept the Delta
                     debug!(
                         "replica {} refusing remote delta group with GC counter={} below current GC counter={}",
                         self.pid, remote_gc_counter, current_gc_counter
@@ -392,11 +387,9 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 self.observe_gc(gc_metadata).await;
                 let delta_len = delta.list.len();
                 {
-                    let commit_gate = self.commit_gate.clone();
-                    let _commit = commit_gate.lock().await;
+                    let _commit = self.commit_gate.lock().await;
                     self.durability_journal.append_delta_group::<T>(&delta);
-                    let mut writable = self.crdt.write().await;
-                    writable.merge_delta_group(delta);
+                    self.crdt.write().await.merge_delta_group(delta);
                 }
                 self.refresh_own_version_vector().await;
                 debug!(
@@ -404,11 +397,13 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     self.pid, delta_len
                 );
             }
-            ReplicaMessage::<T>::VersionVector(pid, vv) => {
-                self.crdt_wrapper.version_matrix.update(pid, vv.clone());
+            ReplicaMessage::VersionVector(pid, version_vector) => {
+                self.crdt_wrapper
+                    .version_matrix
+                    .update(pid, version_vector.clone());
                 let mut delta = {
                     let readable = self.crdt.read().await;
-                    readable.get_delta(&vv)
+                    readable.get_delta(&version_vector)
                 };
                 delta.version_vector = self
                     .crdt_wrapper
@@ -418,60 +413,53 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                     "replica {} get_delta for replica {} produced {} deltas",
                     self.pid, pid, delta_len
                 );
-                let gc_metadata = self.crdt_wrapper.gc_metadata();
-                let send_result = self.network.writer(pid).map(|writer| {
-                    writer.try_send(ReplicaMessage::<T>::DeltaGroup(delta, gc_metadata))
-                });
-                match send_result {
-                    Some(Ok(())) => {}
-                    Some(Err(error)) => {
-                        if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
-                            self.network.remove_writer(pid);
-                        }
-                        // Anti-entropy is periodic: dropping one response when
-                        // a peer's bounded queue is full is preferable to
-                        // blocking every client request behind that peer.
-                        warn!(
-                            "replica {} deferred delta response to peer {}: {}",
-                            self.pid, pid, error
-                        );
+                let Some(writer) = self.network.writer(pid) else {
+                    debug!("replica {} has no writer for peer {}; response will be retried by anti-entropy", self.pid, pid);
+                    return;
+                };
+                let message = ReplicaMessage::DeltaGroup(delta, self.crdt_wrapper.gc_metadata());
+                if let Err(error) = writer.try_send(message) {
+                    if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
+                        self.network.remove_writer(pid);
                     }
-                    None => {
-                        debug!("replica {} has no writer for peer {}; response will be retried by anti-entropy", self.pid, pid);
-                    }
+                    // Anti-entropy is periodic: dropping one response when a
+                    // peer queue is full avoids blocking unrelated work.
+                    warn!(
+                        "replica {} deferred delta response to peer {}: {}",
+                        self.pid, pid, error
+                    );
                 }
             }
         }
     }
 
     async fn pull_delta(&mut self) {
-        if let Some((pid, writer)) = self.network.random_writer() {
-            let vv = self.refresh_own_version_vector().await;
-            debug!(
-                "replica {} initiating pull_delta with {} connected peers",
-                self.pid,
-                self.network.peer_count()
-            );
-            if let Err(error) = writer.try_send(ReplicaMessage::<T>::VersionVector(self.pid, vv)) {
-                if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
-                    self.network.remove_writer(pid);
-                }
-                warn!(
-                    "replica {} deferred pull request to peer {}: {}",
-                    self.pid, pid, error
-                );
+        let Some((pid, writer)) = self.network.random_writer() else {
+            return;
+        };
+        let version_vector = self.refresh_own_version_vector().await;
+        debug!(
+            "replica {} initiating pull_delta with {} connected peers",
+            self.pid,
+            self.network.peer_count()
+        );
+        if let Err(error) = writer.try_send(ReplicaMessage::VersionVector(self.pid, version_vector))
+        {
+            if matches!(error, tokio::sync::mpsc::error::TrySendError::Closed(_)) {
+                self.network.remove_writer(pid);
             }
+            warn!(
+                "replica {} deferred pull request to peer {}: {}",
+                self.pid, pid, error
+            );
         }
     }
 
-    /*
-    * * * GC Logic * * * 
-     */
+    // * * * Garbage collection * * * 
 
     async fn init_gc(&mut self) {
         self.refresh_own_version_vector().await;
         if !self.crdt_wrapper.needs_gc() {
-            // No need to gc
             return;
         }
         let (Some(stable), departed_pids) = self.crdt_wrapper.version_matrix.get_stable() else {
@@ -511,7 +499,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
                 "replica {} aborted gc round because membership changed",
                 self.pid
             );
-            // Rollback the new membership desriptor
+            // Roll back the new membership descriptor.
             if let Err(error) = self
                 .object_storage_client
                 .delete_membership_descriptor(new_descriptor)
@@ -539,7 +527,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             writable.gc(&stable, &departed_pids);
             writable.clone()
         };
-        // DONE
         self.crdt_wrapper.push_gc_marker(GcMarker {
             marker: new_marker,
             stable: stable.clone(),
@@ -569,7 +556,7 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.gc_departed_pids(departed_pids).await;
         }
 
-        // 5. Remove our old Membership Descriptor ?
+        // 5. Remove our old Membership Descriptor
         if let Err(error) = self
             .object_storage_client
             .delete_membership_descriptor(previous_descriptor)
@@ -660,31 +647,17 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     fn membership_is_still_stable(
-        previous_gc_counters: &HashMap<Pid, Counter>,
+        previous: &HashMap<Pid, Counter>,
         current_members: &[ReplicaDescriptor],
         local_pid: Pid,
     ) -> bool {
-        let current_gc_counters = Self::membership_gc_counters_by_pid(current_members);
-        for (pid, current_gc_counter) in current_gc_counters {
-            if pid == local_pid {
-                continue;
-            }
-
-            let Some(previous_gc_counter) = previous_gc_counters.get(&pid) else {
-                return false;
-            };
-
-            if current_gc_counter > *previous_gc_counter {
-                return false;
-            }
-        }
-
-        true
+        let current = Self::membership_gc_counters_by_pid(current_members);
+        current.into_iter().all(|(pid, counter)| {
+            pid == local_pid || previous.get(&pid).is_some_and(|old| counter <= *old)
+        })
     }
 
-    /*
-    * * * MISC. * * * 
-    */
+    // State and lifecycle helpers
     fn replica_descriptor(&self) -> ReplicaDescriptor {
         ReplicaDescriptor {
             pid: self.pid,
@@ -695,12 +668,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
     }
 
     async fn refresh_own_version_vector(&mut self) -> DotSet {
-        let version_vector = { self.crdt.read().await.get_version_vector().clone() };
+        let version_vector = self.crdt.read().await.get_version_vector().clone();
         self.crdt_wrapper.update_own_version_vector(version_vector)
     }
 
-    // When the Object Storage doesn't contain any persistent replica.
-    async fn write_initial_persistent_replica(&mut self) {
+    async fn write_initial_persistent_replica(&self) {
         let persistent_replica = PersistentReplica {
             local_state: self.crdt.read().await.clone(),
             crdt_wrapper: self.crdt_wrapper.clone(),
@@ -779,7 +751,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
 
         debug!("replica {} shutdown complete", self.pid);
     }
-
 }
 
 #[cfg(test)]
