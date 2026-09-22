@@ -57,9 +57,9 @@ impl Ord for DotSet {
         if has_lower && has_greater {
             Ordering::Equal
         } else if has_lower {
-            return Ordering::Less;
+            Ordering::Less
         } else {
-            return Ordering::Greater;
+            Ordering::Greater
         }
     }
 }
@@ -560,6 +560,10 @@ impl<T: Clone + PartialEq> DotMap<T> {
         DotMap {
             map: HashMap::new(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 
     pub fn len(&self) -> usize {

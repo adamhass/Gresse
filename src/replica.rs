@@ -4,10 +4,7 @@ use crate::journal::{DiskJournal, Journal};
 use crate::network::{network_connection_candidates, NetworkManager, NetworkMember};
 use crate::object_storage::{MembershipPollResult, ObjectStorageClient};
 use crate::replica_helpers::*;
-use crate::{
-    crdt::*,
-    prelude::{new_pid, Pid},
-};
+use crate::{crdt::*, prelude::Pid};
 use log::{debug, info, warn};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
@@ -44,19 +41,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
         recovered_replica
             .map(|replica| replica.crdt_wrapper.own_pid())
             .unwrap_or(requested_pid)
-    }
-
-    /// Create a new CRDT server using [`ReplicaConfig::from_env`].
-    pub async fn new(crdt: T) -> ReplicaHandle {
-        let (mut replica, shutdown_sender) =
-            Self::with_config(new_pid(), crdt, ReplicaConfig::from_env()).await;
-        let join_handle = tokio::spawn(async move {
-            replica.run().await;
-        });
-        ReplicaHandle {
-            shutdown_sender,
-            join_handle,
-        }
     }
 
     /// Create and bootstrap a new CRDT server from explicit configuration.
