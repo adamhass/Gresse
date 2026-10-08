@@ -31,6 +31,15 @@ pub struct Replica<T: CRDT + Debug + Clone> {
 /// Replicated CRDT server. Queries are served from local state while mutations
 /// are persisted locally and propagated through periodic delta synchronization.
 impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
+    /// Return a shared handle to the local CRDT state.
+    ///
+    /// This is useful for in-process observers such as benchmarks and
+    /// diagnostics that need a consistent snapshot without going through the
+    /// client query API.
+    pub fn shared_crdt(&self) -> Arc<RwLock<T>> {
+        self.crdt.clone()
+    }
+
     fn effective_pid(requested_pid: Pid, recovered_replica: Option<&PersistentReplica<T>>) -> Pid {
         recovered_replica
             .map(|replica| replica.crdt_wrapper.own_pid())
