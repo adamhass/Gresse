@@ -1,4 +1,5 @@
 use super::*;
+use crate::http_client::HttpClient;
 use crate::journal::{DiskJournal, Journal, JournalError, RawDurabilityRecord};
 use crate::network::network_connection_candidates;
 use crate::orset::{ORSet, OrSetMutation, OrSetQuery, OrSetResponse};
@@ -219,6 +220,243 @@ fn durability_journal_recovers_snapshot_and_delta_groups() {
     );
 
     cleanup_journal(&journal_path);
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn local_and_observed_gc_append_markers_and_recover_in_order() {
+    let test_root = temp_journal_path("gc-replay");
+    let journal_path = test_root.join("replica.journal");
+    let address = ServerAddr {
+        ip: "127.0.0.1".parse().unwrap(),
+        http_port: 19190,
+        internal_port: 18180,
+    };
+    let config = ReplicaConfig {
+        address,
+        advertised_address: address,
+        sync_interval: Duration::from_secs(60),
+        gc_interval: Duration::from_secs(60),
+        durability_path: Some(journal_path.clone()),
+        object_storage_config: ObjectStorageConfig {
+            local_dir: Some(test_root.join("object-store")),
+            url: None,
+            region: "local".to_string(),
+            bucket: "local".to_string(),
+            access_key: None,
+            secret_key: None,
+            session_token: None,
+            persistent_replica_path: "persistent.json".to_string(),
+            membership_directory_path: "membership".to_string(),
+            discovery_interval: Duration::from_secs(60),
+        },
+    };
+    let (mut replica, _shutdown_sender) =
+        Replica::with_config(1, ORSet::<String>::new(), config).await;
+    let snapshot_before = std::fs::read(DiskJournal::snapshot_path(&journal_path)).unwrap();
+    let mut client = HttpClient::<
+        CRDTClientRequest<ORSet<String>>,
+        <ORSet<String> as CRDT>::ClientResponse,
+    >::new("localhost", "/", address.http())
+    .await;
+    client
+        .send(&CRDTClientRequest::Mutation(OrSetMutation::Insert(
+            "apple".into(),
+        )))
+        .await
+        .unwrap()
+        .unwrap();
+
+    let mut peer = ORSet::<String>::new();
+    peer.set_pid(2);
+    peer.mutate(OrSetMutation::Insert("banana".into())).unwrap();
+    let mut delta = peer.get_delta(&DotSet::new());
+    delta.version_vector.set_counter(STABLE_REPLICA_PID, 0);
+    replica
+        .handle_delta(delta, CRDTWrapper::new(2).gc_metadata())
+        .await;
+
+    replica.init_gc().await;
+    let local_marker = replica.crdt_wrapper.gc_metadata();
+    assert_eq!(local_marker.marker.counter, 1);
+    let shared_snapshot = replica
+        .object_storage_client
+        .read_persistent_replica::<PersistentReplica<ORSet<String>>>()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        shared_snapshot.crdt_wrapper.current_gc_marker(),
+        local_marker.marker
+    );
+
+    client
+        .send(&CRDTClientRequest::Mutation(OrSetMutation::Remove(
+            "apple".into(),
+        )))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut stable = replica.crdt.read().await.get_version_vector().clone();
+    stable.remove_pid(2);
+    let observed_marker = GcMarker {
+        marker: Dot {
+            pid: STABLE_REPLICA_PID,
+            counter: 2,
+        },
+        stable,
+        departed_pids: Some(vec![2]),
+    };
+    let mut next_peer = ORSet::<String>::new();
+    next_peer.set_pid(3);
+    next_peer
+        .mutate(OrSetMutation::Insert("berry".into()))
+        .unwrap();
+    let mut delta = next_peer.get_delta(&DotSet::new());
+    delta.version_vector.set_counter(STABLE_REPLICA_PID, 2);
+    replica.handle_delta(delta, observed_marker.clone()).await;
+    // Duplicate and stale observations must not append or reapply GC.
+    replica.observe_gc(observed_marker.clone()).await;
+    replica.observe_gc(local_marker.clone()).await;
+    client
+        .send(&CRDTClientRequest::Mutation(OrSetMutation::Insert(
+            "cherry".into(),
+        )))
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(DiskJournal::snapshot_path(&journal_path)).unwrap(),
+        snapshot_before
+    );
+    let log_before =
+        std::fs::read_to_string(DiskJournal::mutation_log_path(&journal_path)).unwrap();
+    let records = log_before
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        records
+            .iter()
+            .map(|record| record["record_type"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "mutation",
+            "delta_group",
+            "gc_marker",
+            "mutation",
+            "gc_marker",
+            "delta_group",
+            "mutation"
+        ]
+    );
+    assert_eq!(
+        records[2]["payload"],
+        serde_json::to_value(local_marker).unwrap()
+    );
+    assert_eq!(
+        records[4]["payload"],
+        serde_json::to_value(&observed_marker).unwrap()
+    );
+
+    let recovered = replica
+        .durability_journal
+        .recover::<ORSet<String>>()
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&recovered.local_state).unwrap(),
+        serde_json::to_value(&*replica.crdt.read().await).unwrap()
+    );
+    assert_eq!(
+        recovered.local_state.query(OrSetQuery::Elements).unwrap(),
+        OrSetResponse::Elements(vec!["banana".into(), "berry".into(), "cherry".into()])
+    );
+    assert_eq!(
+        recovered.local_state.query(OrSetQuery::Meta).unwrap(),
+        OrSetResponse::Meta(crate::orset::OrSetMeta {
+            entry_count: 3,
+            delta_log_count: 2
+        })
+    );
+    assert_eq!(recovered.local_state.get_version_vector().counter(&2), None);
+    assert_eq!(recovered.crdt_wrapper.own_pid(), 1);
+    assert_eq!(
+        serde_json::to_value(recovered.crdt_wrapper.gc_metadata()).unwrap(),
+        serde_json::to_value(observed_marker).unwrap()
+    );
+    assert_eq!(*recovered.crdt_wrapper.version_matrix.own_gc_counter(), 2);
+    assert_eq!(
+        std::fs::read_to_string(DiskJournal::mutation_log_path(&journal_path)).unwrap(),
+        log_before
+    );
+
+    drop(client);
+    replica.shutdown().await;
+    drop(replica);
+    std::fs::remove_dir_all(test_root).unwrap();
+}
+
+#[test]
+fn durability_recovery_repairs_invalid_gc_records_after_valid_gc() {
+    for suffix in [
+        b"{\"generation\":1,\"record_type\":\"gc_marker\",\"payload\":".as_slice(),
+        b"{\"generation\":1,\"record_type\":\"gc_marker\",\"payload\":{}}\n".as_slice(),
+    ] {
+        let journal_path = temp_journal_path("invalid-gc-record");
+        let journal = DiskJournal::new(journal_path.clone()).unwrap();
+        let mut state = ORSet::<String>::new();
+        state.set_pid(1);
+        state.mutate(OrSetMutation::Insert("apple".into())).unwrap();
+        journal.append_snapshot(&PersistentReplica {
+            local_state: state.clone(),
+            crdt_wrapper: CRDTWrapper::new(1),
+        });
+        let marker = GcMarker {
+            marker: Dot {
+                pid: STABLE_REPLICA_PID,
+                counter: 1,
+            },
+            stable: state.get_version_vector().clone(),
+            departed_pids: None,
+        };
+        journal.append_gc_marker(&marker);
+        state.gc(&marker.stable, &marker.departed_pids);
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open(DiskJournal::mutation_log_path(&journal_path))
+            .unwrap();
+        file.write_all(suffix).unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+        drop(journal);
+
+        let journal = DiskJournal::new(journal_path.clone()).unwrap();
+        let recovered = journal.recover::<ORSet<String>>().unwrap().unwrap();
+        assert_eq!(
+            serde_json::to_value(&recovered.local_state).unwrap(),
+            serde_json::to_value(&state).unwrap()
+        );
+        assert_eq!(recovered.crdt_wrapper.current_gc_marker(), marker.marker);
+        assert!(std::fs::read(DiskJournal::mutation_log_path(&journal_path))
+            .unwrap()
+            .is_empty());
+        let mutation = OrSetMutation::Insert("banana".into());
+        journal.append_mutation::<ORSet<String>>(&mutation).unwrap();
+        state.mutate(mutation).unwrap();
+        drop(journal);
+
+        let journal = DiskJournal::new(journal_path.clone()).unwrap();
+        let recovered = journal.recover::<ORSet<String>>().unwrap().unwrap();
+        assert_eq!(
+            serde_json::to_value(&recovered.local_state).unwrap(),
+            serde_json::to_value(&state).unwrap()
+        );
+        assert_eq!(recovered.crdt_wrapper.current_gc_marker(), marker.marker);
+        drop(journal);
+        cleanup_journal(&journal_path);
+    }
 }
 
 #[test]

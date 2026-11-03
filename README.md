@@ -179,11 +179,11 @@ With that setup, Gresse will read credentials from your normal AWS profile files
 
 ## Local Durability
 
-Replicas are non-durable by default. If you enable durability, Gresse writes an append-only local journal containing:
-- snapshot checkpoints of the replica state
-- delta groups for local mutations and remote merges, written before they are applied
+Replicas are non-durable by default. If you enable durability, Gresse stores a local snapshot and an append-only journal containing:
+- local mutations and delta groups for remote merges, written before they are applied
+- GC markers, including the stable frontier and departed replica IDs, written before local or observed GC is applied
 
-On restart, the replica replays that journal before joining the cluster.
+GC appends its marker without replacing the local snapshot or truncating the journal. This reduces local disk work during GC at the cost of a larger journal and slower recovery. On restart, the replica loads the snapshot and replays mutations, delta groups, and GC markers in order before joining the cluster. Locally initiated GC still writes the shared snapshot to object storage.
 
 Example:
 

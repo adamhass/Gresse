@@ -1,5 +1,5 @@
 use crate::crdt::PersistentReplica;
-use crate::crdt::{DeltaGroup, CRDT};
+use crate::crdt::{DeltaGroup, GcMarker, CRDT};
 use log::warn;
 use nix::errno::Errno;
 use nix::fcntl::{Flock, FlockArg};
@@ -29,6 +29,7 @@ pub(crate) trait Journal: Send + Sync {
         &self,
         delta_group: &DeltaGroup<T::Delta, T::SideEffects>,
     );
+    fn append_gc_marker(&self, marker: &GcMarker);
     fn append_mutation<T: CRDT + Debug + Clone>(
         &self,
         mutation: &T::Mutation,
@@ -215,6 +216,22 @@ impl DiskJournal {
                             break;
                         }
                     },
+                    "gc_marker" => match serde_json::from_value::<GcMarker>(record.payload) {
+                        Ok(marker) => {
+                            recovered
+                                .local_state
+                                .gc(&marker.stable, &marker.departed_pids);
+                            recovered.crdt_wrapper.push_gc_marker(marker);
+                        }
+                        Err(error) => {
+                            warn!(
+                                "discarding corrupt mutation-log suffix from {}: {error}",
+                                paths.mutations.display()
+                            );
+                            discard_suffix = true;
+                            break;
+                        }
+                    },
                     other => {
                         warn!("discarding corrupt mutation-log suffix from {}: unknown record type {other}", paths.mutations.display());
                         discard_suffix = true;
@@ -368,6 +385,20 @@ impl Journal for DiskJournal {
             .map_err(JournalError::from)
             .and_then(|payload| self.append_record_locked(paths, "delta_group", payload))
             .unwrap_or_else(|error| panic!("Failed to append durable delta group: {error}"));
+    }
+
+    fn append_gc_marker(&self, marker: &GcMarker) {
+        let _append_guard = self
+            .append_lock
+            .lock()
+            .expect("durability journal lock poisoned");
+        let Some(paths) = self.paths() else {
+            return;
+        };
+        serde_json::to_value(marker)
+            .map_err(JournalError::from)
+            .and_then(|payload| self.append_record_locked(paths, "gc_marker", payload))
+            .unwrap_or_else(|error| panic!("Failed to append durable GC marker: {error}"));
     }
 
     fn append_mutation<T: CRDT + Debug + Clone>(

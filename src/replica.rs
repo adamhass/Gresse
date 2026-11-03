@@ -490,7 +490,11 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             self.pid, marker.departed_pids, marker.stable
         );
         let departed_pids = marker.departed_pids.clone();
-        let persistent_replica = self.apply_gc_marker(marker).await;
+        self.apply_gc_marker(marker).await;
+        let persistent_replica = PersistentReplica {
+            local_state: self.crdt.read().await.clone(),
+            crdt_wrapper: self.crdt_wrapper.clone(),
+        };
         if !self
             .object_storage_client
             .write_persistent_replica(&persistent_replica)
@@ -499,7 +503,6 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             return false;
         }
 
-        self.persist_durable_snapshot().await;
         if let Some(departed_pids) = departed_pids {
             self.gc_departed_pids(departed_pids).await;
         }
@@ -556,26 +559,20 @@ impl<T: CRDT + 'static + Send + Sync + Debug + Clone> Replica<T> {
             "replica {} observing gc marker {} with stable frontier {:?}",
             self.pid, metadata.marker.counter, metadata.stable
         );
-        {
-            let commit_gate = self.commit_gate.clone();
-            let _commit = commit_gate.lock().await;
-            let snapshot = self.apply_gc_marker(metadata).await;
-            self.durability_journal.append_snapshot(&snapshot);
-        }
+        self.apply_gc_marker(metadata).await;
         self.config.reset_gc_interval();
     }
 
-    async fn apply_gc_marker(&mut self, marker: GcMarker) -> PersistentReplica<T> {
-        let local_state = {
-            let mut writable = self.crdt.write().await;
-            writable.gc(&marker.stable, &marker.departed_pids);
-            writable.clone()
-        };
+    async fn apply_gc_marker(&mut self, marker: GcMarker) {
+        // Persist GC before applying it, in the same order as mutations and
+        // delta merges, so recovery can replay the exact marker in place.
+        let _commit = self.commit_gate.lock().await;
+        self.durability_journal.append_gc_marker(&marker);
+        self.crdt
+            .write()
+            .await
+            .gc(&marker.stable, &marker.departed_pids);
         self.crdt_wrapper.push_gc_marker(marker);
-        PersistentReplica {
-            local_state,
-            crdt_wrapper: self.crdt_wrapper.clone(),
-        }
     }
 
     fn membership_gc_counters_by_pid(members: &[ReplicaDescriptor]) -> HashMap<Pid, Counter> {
